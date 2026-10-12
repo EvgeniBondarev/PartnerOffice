@@ -80,23 +80,29 @@ export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy
           maxLength={100}
         />
         {suggestionsOpen && suggestions.length > 0 && (
-          <div className="pa-order-suggestions" role="listbox" aria-label="Подсказки по заказам">
-            {suggestions.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="option"
-                className="pa-order-suggestions__item"
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  set({ search: suggestionLabel(item) });
-                  setSuggestionsOpen(false);
-                }}
-              >
-                <span className="pa-order-suggestions__title">{suggestionLabel(item)}</span>
-                {suggestionDetails(item) && <span className="pa-order-suggestions__detail">{suggestionDetails(item)}</span>}
-              </button>
-            ))}
+          <div className="po-dropdown po-dropdown--500 pa-popover pa-order-suggestions">
+            <div className="po-dropdown__scroll">
+              <div className="po-dropdown__list" role="listbox" aria-label="Подсказки по заказам">
+                {suggestions.map((item) => (
+                  <div
+                    key={item.id}
+                    role="option"
+                    aria-selected={false}
+                    className="po-dropdown-item"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      set({ search: suggestionLabel(item) });
+                      setSuggestionsOpen(false);
+                    }}
+                  >
+                    <div className="po-dropdown-item__block pa-order-suggestions__block">
+                      <span className="po-dropdown-item__text pa-order-suggestions__title">{suggestionLabel(item)}</span>
+                      {suggestionDetails(item) && <span className="pa-order-suggestions__detail">{suggestionDetails(item)}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>
