@@ -1,0 +1,82 @@
+# Фронтенд партнёра: статика SPA и прокси /partner-api в Studio2.
+# Для браузера всё живёт на одном адресе (partner-office.mpsuper.ru), поэтому cookie сессии партнёра
+# (HttpOnly, SameSite=Strict) работает без CORS.
+
+# Реальный адрес клиента: VPS передаёт его в X-Real-IP. Studio2 берёт адрес из X-Forwarded-For, иначе все партнёры
+# делили бы один лимит попыток входа (адрес этого контейнера).
+map $http_x_real_ip $client_ip {
+    default $http_x_real_ip;
+    ""      $remote_addr;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Docker DNS: адрес Studio2 ищется при каждом запросе, поэтому перезапуск Studio2 не ломает наш контейнер.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    server_tokens off;
+    gzip on;
+    gzip_types text/css application/javascript image/svg+xml application/json;
+    gzip_min_length 1024;
+
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header X-Frame-Options "DENY" always;
+    # Картинки товаров приходят с серверов Ozon; этикетки открываются как blob: из PDF.
+    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https://*.ozone.ru; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Файлы с хешем в имени не меняются: кэшируем на год.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        try_files $uri =404;
+    }
+
+    location /brand/ {
+        expires 7d;
+        add_header Cache-Control "public";
+        try_files $uri =404;
+    }
+
+    # index.html не кэшируем: после выкладки браузер сразу берёт новые файлы.
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https://*.ozone.ru; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    }
+
+    location /partner-api/ {
+        set $studio2 "${STUDIO2_UPSTREAM}";
+        proxy_pass $studio2$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host "${STUDIO2_HOST}";
+        proxy_set_header X-Real-IP $client_ip;
+        proxy_set_header X-Forwarded-For $client_ip;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 5s;
+        # Отгрузка и печать этикетки ждут ответа Ozon (повторы и опрос), это может занять больше минуты.
+        proxy_read_timeout 300s;
+        client_max_body_size 1m;
+        # Ответы API с личными данными не кэшируем нигде.
+        add_header Cache-Control "no-store" always;
+    }
+
+    # SPA: любой другой адрес отдаёт index.html, дальше маршрутизирует React.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

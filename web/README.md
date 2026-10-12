@@ -24,11 +24,11 @@ npm run dev        # http://localhost:5173 (другой порт: PORT=5183 npm
 | Среда | Адрес API | Как задан |
 |---|---|---|
 | Разработка | `http://localhost:5012` (локальная Studio2) | Vite проксирует `/partner-api` на `STUDIO2_URL`, по умолчанию `http://localhost:5012`; `VITE_API_BASE_URL` пуст |
-| Прод | `https://studio2.mpsuper.ru` | `VITE_API_BASE_URL` в `.env.production` |
+| Прод | `https://partner-office.mpsuper.ru`, API на том же адресе | nginx контейнера проксирует `/partner-api` в Studio2, `VITE_API_BASE_URL` пустой (см. [docs/DEPLOY.md](../docs/DEPLOY.md)) |
 
 Своё значение на время разработки: файл `.env.local` (в git не попадает), например `VITE_API_BASE_URL=https://studio2.mpsuper.ru`, чтобы смотреть интерфейс на данных прода.
 
-Сессия партнёра живёт в cookie `.PartnerOffice.Auth` (HttpOnly, `SameSite=Strict`), токены в браузере не хранятся. В разработке запросы идут через прокси на тот же origin, поэтому cookie работает. **На проде фронтенд должен быть на том же сайте, что и API** (например, поддомен `mpsuper.ru`, либо тот же домен с проксированием `/partner-api`), и Studio2 должна разрешать CORS с cookie для адреса фронтенда. Пока в Studio2 такой настройки нет: она добавляется при выборе адреса фронтенда на проде.
+Сессия партнёра живёт в cookie `.PartnerOffice.Auth` (HttpOnly, `SameSite=Strict`), токены в браузере не хранятся. И в разработке (прокси Vite), и на проде (nginx контейнера) запросы идут на тот же origin, поэтому cookie работает без CORS. Если когда-нибудь фронтенд и API разойдутся по разным адресам, потребуется CORS с cookie в Studio2.
 
 ## Структура
 

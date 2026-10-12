@@ -1,0 +1,31 @@
+# VolnaServer (192.168.1.130). Снаружи: https://partner-office.mpsuper.ru -> nginx на VPS 178.253.53.2 -> OpenVPN -> 192.168.1.130:5014.
+# Порт публикуется на LAN-адрес, а не на 10.8.0.6: tun-интерфейс появляется только после подъёма VPN,
+# и контейнер, стартовавший раньше, не смог бы занять порт после перезагрузки (так же сделан ozon-returns).
+name: partner-office
+services:
+  web:
+    image: partner-office:${PARTNER_OFFICE_TAG:-latest}
+    container_name: partner-office
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5014:80"
+      - "192.168.1.130:5014:80"
+    environment:
+      # Studio2 в той же docker-сети: API партнёра проксируется внутри сервера, наружу не выходит.
+      - STUDIO2_UPSTREAM=http://studio2-web-1:5002
+      - STUDIO2_HOST=studio2.mpsuper.ru
+    networks:
+      - default
+      - studio2
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  studio2:
+    name: studio2_default
+    external: true

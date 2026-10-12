@@ -1,0 +1,112 @@
+name: Test and Deploy (VolnaServer)
+
+# Деплой запускается только пушем в main (и вручную). Событие pull_request намеренно не используется:
+# репозиторий публичный, а деплой идёт на self-hosted раннере внутри сети. Код из форков на раннере выполняться не должен.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Деплои идут строго по одному; ждать в очереди должен только самый свежий коммит.
+concurrency:
+  group: deploy-partner-office
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: partner-office
+  # Публичный адрес и локальный порт контейнера на VolnaServer (см. deploy/docker-compose.yml).
+  PUBLIC_URL: https://partner-office.mpsuper.ru
+  LOCAL_URL: http://127.0.0.1:5014
+
+jobs:
+  test:
+    name: Типы, тесты, сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Установка зависимостей
+        working-directory: web
+        run: npm ci
+      - name: Проверка типов
+        working-directory: web
+        run: npm run typecheck
+      - name: Тесты
+        working-directory: web
+        run: npm test
+      - name: Сборка
+        working-directory: web
+        run: npm run build
+
+  deploy:
+    name: Сборка образа и выкладка на VolnaServer
+    needs: test
+    runs-on: [self-hosted, volnaserver, partner-office]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Запомнить текущую версию (для отката)
+        id: previous
+        run: |
+          prev="$(docker inspect partner-office --format '{{.Config.Image}}' 2>/dev/null || true)"
+          echo "image=${prev}" >> "$GITHUB_OUTPUT"
+          echo "Сейчас работает: ${prev:-ничего}"
+
+      - name: Сборка образа
+        run: |
+          docker build -f web/Dockerfile \
+            -t "${IMAGE}:${GITHUB_SHA}" \
+            -t "${IMAGE}:latest" \
+            .
+
+      - name: Запуск контейнера
+        env:
+          PARTNER_OFFICE_TAG: ${{ github.sha }}
+        run: docker compose -f deploy/docker-compose.yml up -d --remove-orphans
+
+      - name: Ожидание готовности
+        run: |
+          for i in $(seq 1 30); do
+            status="$(docker inspect partner-office --format '{{.State.Health.Status}}' 2>/dev/null || echo none)"
+            echo "health: ${status}"
+            [ "${status}" = "healthy" ] && exit 0
+            sleep 2
+          done
+          docker logs --tail 50 partner-office || true
+          exit 1
+
+      - name: Проверка страницы и прокси в Studio2
+        run: |
+          curl -fsS "${LOCAL_URL}/" | grep -q '<div id="root">'
+          curl -fsS -o /dev/null "${LOCAL_URL}/orders"   # SPA отдаёт index.html на любой адрес
+          # Без входа Studio2 отвечает 401: значит прокси до неё дошёл. 502 — Studio2 недоступна
+          # (например, перезапускается): страница партнёра при этом выложена, поэтому только предупреждаем.
+          code="$(curl -s -o /dev/null -w '%{http_code}' "${LOCAL_URL}/partner-api/auth/me" || true)"
+          echo "GET /partner-api/auth/me -> ${code}"
+          if [ "${code}" != "401" ]; then
+            echo "::warning::Прокси до Studio2 ответил ${code}, ожидался 401. Проверьте studio2-web-1."
+          fi
+
+      - name: Откат при неудаче
+        if: failure() && steps.previous.outputs.image != ''
+        env:
+          PARTNER_OFFICE_TAG: ${{ steps.previous.outputs.image }}
+        run: |
+          # Возвращаем образ, который работал до выкладки (в compose тег берётся из PARTNER_OFFICE_TAG).
+          export PARTNER_OFFICE_TAG="${PARTNER_OFFICE_TAG#${IMAGE}:}"
+          docker compose -f deploy/docker-compose.yml up -d --remove-orphans
+
+      - name: Очистка старых образов (оставляем три последних)
+        if: success()
+        run: |
+          docker images "${IMAGE}" --format '{{.ID}} {{.Tag}} {{.CreatedAt}}' \
+            | grep -v ' latest ' | sort -k3 -r | tail -n +4 | awk '{print $1}' | xargs -r docker rmi -f || true
+          docker image prune -f >/dev/null || true

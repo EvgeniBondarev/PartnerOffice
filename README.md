@@ -8,7 +8,7 @@
 
 Кабинет региональных партнёров по заказам Ozon. Партнёры работают с заказами через проект [Studio2](https://github.com/EvgeniBondarev/Studio2Prod), а PartnerOffice даёт им отдельный интерфейс. Интерфейс повторяет привычный партнёрам рабочий инструмент «Турбо ПВЗ» (дизайн-система ozi): те же цвета, шрифт, сетка, формы, навигация и иконки, поэтому обучение не требуется.
 
-Архитектура и план разработки: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Фронтенд партнёра: [web/README.md](web/README.md).
+Архитектура и план разработки: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Фронтенд партнёра: [web/README.md](web/README.md). Выкладка и сервер: [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ## Интерфейс
 
