@@ -108,6 +108,26 @@ describe('Список заказов', () => {
 });
 
 describe('Фильтры и подгрузка', () => {
+  it('подсказки поиска: от двух символов, выбор подставляет номер отправления', async () => {
+    const user = userEvent.setup();
+    const calls = ordersApi(PARTNER_FULL, [order(1)], {
+      '/partner-api/orders/suggestions?*': () =>
+        json([{ id: 7, shipmentNumber: '0123-0007-1', productName: 'Ремень ГРМ', article: '113YU19=HSH', trackingNumber: null, scanit: 'ii500', ozonStatus: 'Ожидает сборки' }])
+    });
+    renderApp('/orders');
+    await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+
+    const search = screen.getByRole('searchbox', { name: 'Поиск по заказам' });
+    await user.type(search, '1');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(calls.some((c) => c.url.includes('/suggestions'))).toBe(false);
+
+    await user.type(search, '1');
+    await user.click(await screen.findByRole('option', { name: /0123-0007-1/ }));
+    expect(search).toHaveValue('0123-0007-1');
+    expect(calls.some((c) => c.url.includes('/suggestions?q=11'))).toBe(true);
+  });
+
   it('«Найти» отправляет фильтры в API и кладёт их в адрес; сброс очищает', async () => {
     const user = userEvent.setup();
     const calls = ordersApi(PARTNER_FULL, [order(1)]);
