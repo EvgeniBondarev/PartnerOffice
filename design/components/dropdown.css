@@ -1,0 +1,101 @@
+/*
+ * Выпадающий список (dropdown) и пункт списка. Источник: ozi dropdown-wrapper / dropdown-item / dropdown-group /
+ * dropdown-empty (turbo-pvz.ozon.ru 3.11.59), значения подтверждены замером живой страницы 2026-10-12.
+ * Зависит от tokens/ozon-tokens.css. Размер 500: пункт 44px (padding 10/12, gap 8), поле списка padding 8px.
+ */
+.po-dropdown {
+  --dropdown-padding: 8px;
+  --dropdown-padding-top: var(--dropdown-padding);
+  --dropdown-padding-bottom: var(--dropdown-padding);
+  background-color: var(--ozi-elevation-overlay2);
+  border-radius: 8px;
+  box-shadow:
+    0 0 .8px .8px var(--ozi-system-dropdown-shadow-color-100) inset,
+    0 3px 24px -2px var(--ozi-system-dropdown-shadow-color-300),
+    0 -3px 16.9px -1px var(--ozi-system-dropdown-shadow-color-200),
+    var(--elevation-500);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font: 400 14px/21px Onest, Arial, Helvetica, sans-serif;
+  color: var(--ozi-text-primary-transparent);
+}
+.po-dropdown--has-header { --dropdown-padding-top: 0; }
+.po-dropdown--has-footer { --dropdown-padding-bottom: 0; }
+.po-dropdown__scroll { flex: 1; overflow: auto; }
+.po-dropdown__list {
+  display: grid;
+  margin-top: var(--dropdown-padding-top);
+  margin-bottom: var(--dropdown-padding-bottom);
+}
+.po-dropdown--500 { max-height: 368px; }
+.po-dropdown--600 { max-height: 464px; }
+
+/* Пункт */
+.po-dropdown-item {
+  --horizontal-padding: 12px;
+  --level-indent: 28px;
+  --level-scale: 0;
+  --base-height: 24px;
+  --item-vertical-padding: 10px;
+  box-sizing: border-box;
+  color: var(--ozi-graphic-tertiary-transparent);
+  cursor: pointer;
+  display: block;
+  outline-offset: 0;
+  padding: var(--item-vertical-padding) var(--horizontal-padding) var(--item-vertical-padding)
+           calc(var(--horizontal-padding) + var(--level-indent) * var(--level-scale));
+  text-decoration: none;
+}
+.po-dropdown-item--600 { --level-indent: 32px; --base-height: 32px; --item-vertical-padding: 12px; }
+.po-dropdown-item:hover:not(.po-dropdown-item--disabled),
+.po-dropdown-item--focused { background-color: var(--ozi-layer-surface-transparent); } /* rgba(171,188,213,.118) */
+.po-dropdown-item--disabled { cursor: default; }
+.po-dropdown-item__block {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-height: var(--base-height);
+}
+.po-dropdown-item__text { color: var(--ozi-text-primary-transparent); }
+.po-dropdown-item--disabled .po-dropdown-item__block > :not(.po-checkbox),
+.po-dropdown-item--disabled .po-dropdown-item__text { opacity: var(--opacity-300); }
+.po-dropdown-item__check { align-items: center; color: var(--ozi-graphic-action-primary); display: flex; width: 24px; }
+
+/* Заголовок группы */
+.po-dropdown-group { box-sizing: border-box; padding: 16px 12px 8px; }
+.po-dropdown-group__block { align-items: center; display: flex; min-height: 20px; }
+.po-dropdown-group--600 .po-dropdown-group__block { min-height: 24px; }
+
+/* Пустой список */
+.po-dropdown-empty { box-sizing: border-box; padding: 12px; text-align: center; color: var(--ozi-text-secondary-transparent); }
+.po-dropdown-empty--600 { padding: 16px 12px; }
+
+/* Поле селекта: плавающая подпись и значение */
+.po-select {
+  --po-select-h: 44px;
+  background-color: var(--ozi-bg-primary-transparent);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--ozi-graphic-quaternary-transparent);
+  box-sizing: border-box;
+  color: var(--ozi-text-primary-transparent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 400 15px/20px Onest, Arial, Helvetica, sans-serif;
+  height: var(--po-select-h);
+  min-width: 136px;
+  padding: 0 6px 0 12px;
+  position: relative;
+}
+.po-select--32 { --po-select-h: 32px; padding-left: 8px; }
+.po-select:hover { box-shadow: inset 0 0 0 1px var(--ozi-graphic-tertiary-transparent); }
+.po-select--active,
+.po-select:focus-within { box-shadow: inset 0 0 0 2px var(--ozi-bg-action-primary); } /* #005bff */
+.po-select__body { display: flex; flex: 1; flex-direction: column; justify-content: center; min-width: 0; }
+.po-select__label { color: var(--ozi-text-secondary-transparent); font-size: 13px; line-height: 16px; padding-bottom: 1px; }
+.po-select__label--placeholder { color: var(--ozi-graphic-tertiary-transparent); font-size: 15px; line-height: 20px; }
+.po-select__value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-select__icon { color: var(--ozi-graphic-tertiary-transparent); flex: none; height: 24px; width: 24px; }

@@ -1,0 +1,23 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-tabs__tabs{align-items:flex-end;box-sizing:border-box;display:flex;position:relative;width:var(--width)}
+.po-tabs__hug{--width:fit-content}
+.po-tabs__fill{--width:100%}
+.po-tabs__tabs>:first-child{--tab-left-indent:0}
+.po-tabs__tabs>:last-child{--tab-right-indent:0}
+.po-tabs__underline:after{background-color:var(--ozi-graphic-quaternary-transparent);border-radius:1px;bottom:0;box-sizing:border-box;content:"";height:2px;left:0;pointer-events:none;position:absolute;right:0}
+.po-tabs__size-600{--tab-hitzone:16px}
+.po-tabs__size-400,.po-tabs__size-500{--tab-hitzone:12px}
+.po-tab-content__tabContent{--underline-height:2px;--text-color:var(--ozi-text-secondary-transparent);--icon-color:var(--ozi-graphic-tertiary-transparent);--ozi-data-content-color-label:var(--text-color);--right-hitzone:var(--tab-right-indent,var(--tab-hitzone));--left-hitzone:var(--tab-left-indent,var(--tab-hitzone));padding:var(--vertical-padding) var(--right-hitzone) calc(var(--vertical-padding) + var(--underline-height)) var(--left-hitzone);position:relative}
+.po-tab-content__tabContent.po-tab-content__hovered,.po-tab-content__tabContent:hover{--text-color:var(--ozi-text-action);--icon-color:var(--ozi-graphic-action-primary)}
+.po-tab-content__active{--text-color:var(--ozi-text-primary-transparent)}
+.po-tab-content__active:after{background-color:var(--ozi-graphic-action-primary);border-radius:1px;bottom:0;box-sizing:border-box;content:"";height:var(--underline-height);left:var(--left-hitzone);pointer-events:none;position:absolute;right:var(--right-hitzone);z-index:1}
+.po-tab-content__pressed{--text-color:var(--ozi-text-action);--icon-color:var(--ozi-graphic-action-primary)}
+.po-tab-content__pressed.po-tab-content__hovered,.po-tab-content__pressed:hover{--text-color:var(--ozi-active-text-action-primary);--icon-color:var(--ozi-active-graphic-action-primary)}
+.po-tab-content__tabContent:active,[data-state-active=true] .po-tab-content__tabContent{--text-color:var(--ozi-text-action);--icon-color:var(--ozi-graphic-action-primary);opacity:var(--opacity-300)}
+.po-tab-content__size-600{--tab-hitzone:16px;--min-block-height:32px;--vertical-padding:11px}
+.po-tab-content__size-500{--tab-hitzone:12px;--min-block-height:24px;--vertical-padding:9px}
+.po-tab-content__size-400{--tab-hitzone:12px;--min-block-height:20px;--vertical-padding:5px;grid-column-gap:4px}
+.po-tab-content__tabsPadding-500{--vertical-padding:12px}
+.po-tab-content__tabsPadding-400{--vertical-padding:6px}
+.po-tab-content__block{align-items:center;color:var(--icon-color);display:flex;min-height:var(--min-block-height)}
+.po-tab__tab{background-color:initial;border:none;box-sizing:border-box;cursor:pointer;display:flex;margin:0;outline-offset:0;padding:0;text-decoration:none}

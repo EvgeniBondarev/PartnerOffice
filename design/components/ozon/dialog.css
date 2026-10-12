@@ -1,0 +1,11 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-dialog__safeZone{margin:48px}
+.po-dialog__dialog{border-radius:var(--border-radius);box-shadow:var(--elevation-900);height:fit-content;margin:auto;max-height:100%;max-width:100%;padding:var(--padding);width:fit-content}
+.po-dialog__size-400{--close-icon-position-top:12px;--close-icon-position-right:12px;--padding:24px;--border-radius:16px}
+.po-dialog__size-500{--close-icon-position-top:20px;--close-icon-position-right:20px;--padding:32px;--border-radius:24px}
+.po-dialog__hasNoPaddingTop{padding-top:0}
+.po-dialog__transition{opacity:0}
+.po-dialog__transition .po-dialog__dialog{transform:translateY(20px)}
+.po-dialog__transitionActive{transition:opacity .3s ease}
+.po-dialog__transitionActive .po-dialog__dialog{transition:transform .3s ease}
+.po-dialog__closeIcon{right:var(--close-icon-position-right);top:var(--close-icon-position-top)}

@@ -1,0 +1,28 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-drawer__safeZone{--safe-zone:48px}
+.po-drawer__safeZone-top{margin-bottom:var(--safe-zone)}
+.po-drawer__safeZone-bottom{margin-top:var(--safe-zone)}
+.po-drawer__safeZone-left{margin-right:var(--safe-zone)}
+.po-drawer__safeZone-right{margin-left:var(--safe-zone)}
+.po-drawer__drawer{margin:auto;max-height:100%;max-width:100%;padding:var(--padding)}
+.po-drawer__size-400{--close-icon-position-top:12px;--close-icon-position-right:12px;--padding:24px;--border-radius:16px}
+.po-drawer__size-500{--close-icon-position-top:20px;--close-icon-position-right:20px;--padding:32px;--border-radius:24px}
+.po-drawer__hasNoPaddingTop{padding-top:0}
+.po-drawer__verticalLayoutHug{height:fit-content}
+.po-drawer__verticalLayoutFill{height:100%}
+.po-drawer__horizontalLayoutHug{width:fit-content}
+.po-drawer__horizontalLayoutFill{width:100%}
+.po-drawer__top{--transform:translateY(-100%);border-radius:0 0 var(--border-radius) var(--border-radius);box-shadow:var(--elevation-500);margin-top:0}
+.po-drawer__bottom{--transform:translateY(100%);border-radius:var(--border-radius) var(--border-radius) 0 0;box-shadow:var(--elevation-500-top);margin-bottom:0}
+.po-drawer__left{--transform:translateX(-100%);border-radius:0 var(--border-radius) var(--border-radius) 0;box-shadow:var(--elevation-500-right);margin-left:0}
+.po-drawer__right{--transform:translateX(100%);border-radius:var(--border-radius) 0 0 var(--border-radius);box-shadow:var(--elevation-500-left);margin-right:0}
+.po-drawer__transition .po-drawer__drawer{transform:var(--transform)}
+.po-drawer__transitionActive{transition-duration:.3s}
+.po-drawer__transitionActive .po-drawer__drawer{transition:transform .3s ease}
+.po-drawer__closeIcon{right:var(--close-icon-position-right);top:var(--close-icon-position-top)}
+.po-scrolling-container__lineContainer{display:grid;min-height:0;position:relative}
+.po-scrolling-container__scrollingContainer{overflow:auto}
+.po-scrolling-container__line{height:1px;left:0;position:absolute;right:0;transition:background-color .3s ease-in-out}
+.po-scrolling-container__topLine{top:-1px}
+.po-scrolling-container__bottomLine{bottom:-1px}
+.po-scrolling-container__lineVisible{background-color:var(--ozi-graphic-quaternary-transparent)}

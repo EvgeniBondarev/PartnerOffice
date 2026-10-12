@@ -1,0 +1,23 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-dropdown-wrapper__dropdownWrapper .tippy-box{outline:0}
+.po-arrow__arrow .tippy-svg-arrow{height:var(--size);width:var(--size)}
+.po-arrow__arrow .tippy-svg-arrow>svg{position:absolute}
+.po-arrow__arrow .tippy-box[data-placement^=top]>.tippy-svg-arrow{bottom:0}
+.po-arrow__arrow .tippy-box[data-placement^=bottom]>.tippy-svg-arrow{top:0}
+.po-arrow__arrow .tippy-box[data-placement^=left]>.tippy-svg-arrow{right:0}
+.po-arrow__arrow .tippy-box[data-placement^=right]>.tippy-svg-arrow{left:0}
+.po-arrow__arrow .tippy-box[data-placement^=top]>.tippy-svg-arrow>svg{transform:translateY(calc(var(--size) - var(--hidden-height))) rotate(180deg)}
+.po-arrow__arrow .tippy-box[data-placement^=bottom]>.tippy-svg-arrow>svg{transform:translateY(calc(var(--visible-height)*-1))}
+.po-arrow__arrow .tippy-box[data-placement^=left]>.tippy-svg-arrow>svg{transform:translate(calc(var(--hidden-height)*-1),calc(var(--size) - var(--hidden-height) - var(--visible-height))) rotate(90deg);transform-origin:right bottom}
+.po-arrow__arrow .tippy-box[data-placement^=right]>.tippy-svg-arrow>svg{transform:translate(var(--hidden-height),calc(var(--size) - var(--hidden-height) - var(--visible-height))) rotate(-90deg);transform-origin:left bottom}
+.po-tooltip__tooltip .tippy-box{background-color:var(--background-color);border-radius:var(--border-radius);box-shadow:0 0 24px #0000001f;box-sizing:border-box;color:var(--ozi-text-primary-transparent);display:grid;filter:drop-shadow(var(--shadowToken-100));min-height:var(--min-size);min-width:var(--min-size);outline:0;overflow-wrap:anywhere;place-items:center}
+.po-tooltip__tooltip .tippy-content{padding:var(--padding);position:relative;z-index:1}
+.po-tooltip__tooltip .tippy-box[data-theme~=primary]{--background-color:var(--ozi-static-bg-neutral-primary);--close-icon-color:var(--ozi-static-graphic-secondary-on-dark-transparent);--close-icon-color-hover:var(--ozi-static-graphic-primary-on-dark-transparent)}
+.po-tooltip__tooltip .tippy-box[data-theme~=secondary]{--background-color:var(--ozi-elevation-overlay3);--close-icon-color:var(--ozi-graphic-secondary-transparent);--close-icon-color-hover:var(--ozi-graphic-primary-transparent)}
+.po-tooltip__tooltip .tippy-box>.tippy-svg-arrow{fill:var(--background-color)}
+.po-tooltip__size-300{--border-radius:6px;--padding:4px 8px;--min-size:28px;--close-icon-position-gap:4px}
+.po-tooltip__size-400{--border-radius:8px;--padding:12px;--min-size:40px;--close-icon-position-gap:4px}
+.po-tooltip__size-500{--border-radius:12px;--padding:20px;--min-size:48px;--close-icon-position-gap:8px}
+.po-tooltip__hasNoPaddingTop .tippy-content{padding-top:0}
+.po-tooltip__closeIconHitzone{background-color:initial;border:none;color:var(--close-icon-color);cursor:pointer;display:grid;margin:0;outline:none;padding:0;position:absolute;right:var(--close-icon-position-gap);top:var(--close-icon-position-gap)}
+.po-tooltip__closeIconHitzone:hover{color:var(--close-icon-color-hover)}

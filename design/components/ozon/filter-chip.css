@@ -1,0 +1,38 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-filter-chip-base__filterChipBase{--label-color:var(--ozi-text-secondary-transparent);--background-color:var(--ozi-bg-primary-transparent);background-color:initial;border:none;box-sizing:border-box;cursor:pointer;margin:0;padding:0;width:100%}
+.po-filter-chip-base__content{align-items:center;background-color:var(--background-color);border-radius:var(--border-radius);box-shadow:var(--box-shadow);box-sizing:border-box;color:var(--ozi-graphic-tertiary-transparent);display:grid;gap:var(--gap);grid-template-columns:var(--grid-template-columns);height:var(--height);justify-content:space-between;min-width:var(--min-width);padding-left:var(--padding-left);padding-right:var(--padding-right);transition-duration:.1s;transition-property:color,box-shadow,background-color;transition-timing-function:ease-in-out}
+.po-filter-chip-base__size-600{--min-width:56px;--height:56px;--padding-right:20px;--padding-left:20px;--gap:0px;--border-radius:10px;--divider-height:32px}
+.po-filter-chip-base__size-500{--min-width:44px;--height:44px;--padding-right:12px;--padding-left:12px;--gap:0;--border-radius:8px;--divider-height:24px}
+.po-filter-chip-base__size-400{--min-width:32px;--height:32px;--padding-right:6px;--padding-left:6px;--gap:0;--border-radius:8px;--divider-height:16px}
+.po-filter-chip-base__size-300{--min-width:24px;--height:24px;--padding-right:6px;--padding-left:6px;--gap:0;--border-radius:4px;--divider-height:12px}
+.po-filter-chip-base__select,.po-filter-chip-base__toggle{width:fit-content}
+.po-filter-chip-base__select:not(.po-filter-chip-base__grouped),.po-filter-chip-base__toggle:not(.po-filter-chip-base__grouped){--box-shadow:inset 0 0 0 1px var(--box-shadow-color,var(--ozi-graphic-quaternary-transparent))}
+.po-filter-chip-base__onlyIcon .po-filter-chip-base__content{justify-content:center}
+.po-filter-chip-base__onlyIcon.po-filter-chip-base__size-600{--padding-right:16px;--padding-left:16px}
+.po-filter-chip-base__onlyIcon.po-filter-chip-base__size-500{--padding-right:10px;--padding-left:10px}
+.po-filter-chip-base__onlyIcon.po-filter-chip-base__size-400{--padding-right:6px;--padding-left:6px}
+.po-filter-chip-base__onlyIcon.po-filter-chip-base__size-300{--padding-right:4px;--padding-left:4px}
+.po-filter-chip-base__grouped .po-filter-chip-base__filterChipBase,.po-filter-chip-base__grouped.po-filter-chip-base__filterChipBase{--background-color:#0000;position:relative}
+.po-filter-chip-base__select.po-filter-chip-base__filled .po-filter-chip-base__filterChipBase,.po-filter-chip-base__toggle.po-filter-chip-base__filled.po-filter-chip-base__filterChipBase{--background-color:var(--ozi-layer-surface-transparent);--label-color:var(--ozi-text-primary-transparent);--box-shadow:inset 0 0 0 2px var(--box-shadow-color,var(--ozi-graphic-action-primary))}
+.po-filter-chip-base__select.po-filter-chip-base__disabled .po-filter-chip-base__filterChipBase,.po-filter-chip-base__toggle.po-filter-chip-base__disabled.po-filter-chip-base__filterChipBase{--box-shadow-color:var(--ozi-graphic-quaternary-transparent);cursor:default;opacity:var(--opacity-300)}
+.po-filter-chip-base__select.po-filter-chip-base__filled:is(:hover,[data-teststate-hover=true]) .po-filter-chip-base__filterChipBase,.po-filter-chip-base__toggle.po-filter-chip-base__filled:is(:hover,[data-teststate-hover=true]).po-filter-chip-base__filterChipBase{--background-color:var(--ozi-bg-tertiary-transparent)}
+.po-filter-chip-base__select:not(.po-filter-chip-base__disabled).po-filter-chip-base__isOpen .po-filter-chip-base__filterChipBase,.po-filter-chip-base__toggle:not(.po-filter-chip-base__disabled).po-filter-chip-base__isOpen.po-filter-chip-base__filterChipBase{--label-color:var(--ozi-text-primary-transparent);--box-shadow:inset 0 0 0 2px var(--box-shadow-color,var(--ozi-graphic-action-primary));--background-color:var(--ozi-bg-primary-transparent)}
+.po-filter-chip-base__select:not(.po-filter-chip-base__filled,.po-filter-chip-base__isOpen,.po-filter-chip-base__disabled,.po-filter-chip-base__grouped):is(:hover,[data-teststate-hover=true]) .po-filter-chip-base__filterChipBase,.po-filter-chip-base__toggle:not(.po-filter-chip-base__filled,.po-filter-chip-base__disabled,.po-filter-chip-base__grouped):is(:hover,[data-teststate-hover=true]).po-filter-chip-base__filterChipBase{--box-shadow:inset 0 0 0 1px var(--ozi-active-graphic-quaternary-transparent)}
+.po-filter-chip-base__select:not(.po-filter-chip-base__filled,.po-filter-chip-base__disabled):is(:hover,[data-teststate-hover=true]) .po-filter-chip-base__filterChipBase,.po-filter-chip-base__toggle:not(.po-filter-chip-base__filled.po-filter-chip-base__grouped,.po-filter-chip-base__disabled):is(:hover,[data-teststate-hover=true]).po-filter-chip-base__filterChipBase{--background-color:var(--ozi-layer-surface-transparent)}
+:is(.po-filter-chip-base__select:not(.po-filter-chip-base__disabled).po-filter-chip-base__isOpen,.po-filter-chip-base__select:not(.po-filter-chip-base__disabled):is(:hover,[data-teststate-hover=true])) .po-filter-chip-base__chevron{color:var(--ozi-graphic-secondary-transparent)}
+.po-filter-chip-base__toggle.po-filter-chip-base__filled.po-filter-chip-base__grouped{cursor:default}
+.po-filter-chip-base__hitZone{align-items:center;border-bottom-right-radius:var(--border-radius);border-top-right-radius:var(--border-radius);display:grid;height:100%;margin-left:calc(var(--gap)*-1/2);margin-right:calc(var(--padding-right)*-1);padding-left:calc(var(--gap)/2);padding-right:var(--padding-right)}
+:is(.po-filter-chip-base__hitZone:hover,[data-teststate-iconhover=true] .po-filter-chip-base__hitZone) .po-filter-chip-base__clearIcon{color:var(--ozi-graphic-secondary-transparent)}
+.po-filter-chip-base__label{color:var(--label-color);padding:0 4px;text-align:left;white-space:nowrap}
+.po-filter-chip-base__select .po-filter-chip-base__hasLeftContent:not(.po-filter-chip-base__onlyIcon).po-filter-chip-base__size-400,.po-filter-chip-base__toggle.po-filter-chip-base__hasLeftContent:not(.po-filter-chip-base__onlyIcon).po-filter-chip-base__size-400{--padding-left:8px}
+.po-filter-chip-base__toggle.po-filter-chip-base__hasRightContent:not(.po-filter-chip-base__onlyIcon).po-filter-chip-base__size-400{--padding-right:10px}
+.po-filter-chip-base__toggle.po-filter-chip-base__hasRightContent:not(.po-filter-chip-base__onlyIcon).po-filter-chip-base__size-500{--padding-right:14px}
+.po-filter-chip-base__toggle.po-filter-chip-base__hasRightContent:not(.po-filter-chip-base__onlyIcon).po-filter-chip-base__size-600{--padding-right:22px}
+.po-filter-chip-base__size-300 .po-filter-chip-base__label{padding:0 2px}
+.po-filter-chip-base__select .po-filter-chip-base__size-400 .po-filter-chip-base__label{padding:0 0 0 4px}
+.po-filter-chip-base__select :is(.po-filter-chip-base__size-500,.po-filter-chip-base__size-600) .po-filter-chip-base__label{padding:0 2px 0 4px}
+.po-filter-chip-group__filterChipGroup{background-color:var(--ozi-bg-primary-transparent);border-radius:var(--border-radius);box-shadow:inset 0 0 0 1px var(--ozi-graphic-quaternary-transparent);display:flex;height:fit-content;width:fit-content}
+.po-filter-chip-group__size-600{--border-radius:10px}
+.po-filter-chip-group__size-500{--border-radius:8px}
+.po-filter-chip-group__size-400{--border-radius:6px}
+.po-filter-chip-group__size-300{--border-radius:4px}

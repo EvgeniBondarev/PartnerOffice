@@ -1,0 +1,13 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-menu-separator__separator{padding:8px 12px}
+.po-separator__separator{background-clip:content-box;background-color:var(--ozi-graphic-quaternary-transparent);box-sizing:initial}
+.po-separator__vertical{padding-left:var(--margin-before);padding-right:var(--margin-after);width:1px}
+.po-separator__horizontal{height:1px;padding-bottom:var(--margin-after);padding-top:var(--margin-before);width:100%}
+.po-separator__size-1{--margin-before:0;--margin-after:0}
+.po-separator__size-2{--margin-before:0;--margin-after:1px}
+.po-separator__size-4{--margin-before:1px;--margin-after:2px}
+.po-separator__size-8{--margin-before:3px;--margin-after:4px}
+.po-separator__size-16{--margin-before:7px;--margin-after:8px}
+.po-separator__size-24{--margin-before:11px;--margin-after:12px}
+.po-separator__size-32{--margin-before:15px;--margin-after:16px}
+.po-separator__size-48{--margin-before:23px;--margin-after:24px}

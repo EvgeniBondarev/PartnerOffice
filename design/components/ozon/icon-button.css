@@ -1,0 +1,8 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-icon-button__iconButton{align-items:center;background-color:initial;border:none;color:var(--icon-color);cursor:pointer;display:flex;height:24px;justify-content:center;padding:0;width:24px}
+.po-icon-button__iconButton.po-icon-button__disabled{cursor:default;opacity:var(--opacity-300)}
+.po-icon-button__iconButton.po-icon-button__size-300{height:20px;width:20px}
+.po-icon-button__size-300,.po-icon-button__size-400,.po-icon-button__size-500{--icon-color:var(--ozi-graphic-tertiary-transparent)}
+.po-icon-button__iconButton:not(:disabled):is(.po-icon-button__pressed,:hover,[data-teststate-hover=true]){--icon-color:var(--ozi-graphic-secondary-transparent)}
+.po-icon-button__iconButton:not(:disabled):is(:active,[data-teststate-active=true]){opacity:var(--opacity-300)}
+.po-icon-button__iconButton:not(:disabled).po-icon-button__pressed:is(:hover,[data-teststate-hover=true]){--icon-color:var(--ozi-active-graphic-action-primary)}

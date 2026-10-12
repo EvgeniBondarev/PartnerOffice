@@ -1,0 +1,15 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-avatar__container{--status-color:var(--ozi-avatar-status-color,var(--ozi-bg-success-primary));box-sizing:border-box;display:flex;flex-shrink:0;height:max-content;position:relative;width:max-content}
+.po-avatar__avatar{background-color:var(--ozi-bg-secondary-transparent);border-radius:50%;color:var(--ozi-graphic-tertiary-transparent);display:grid;height:var(--size);overflow:hidden;place-items:center;width:var(--size)}
+.po-avatar__image{height:100%;object-fit:cover;width:100%}
+.po-avatar__initials{color:var(--ozi-text-secondary-transparent)}
+.po-avatar__size-600{--size:56px;--status-size:12px;--shadow-size:2px}
+.po-avatar__size-500{--size:40px;--status-size:12px;--shadow-size:2px}
+.po-avatar__size-400{--size:32px;--status-size:8px;--shadow-size:2px}
+.po-avatar__size-300{--size:24px;--status-size:6px;--shadow-size:1px}
+.po-avatar__counter{margin-left:-16px}
+.po-avatar__status{background-color:var(--status-color);border-radius:50%;bottom:0;height:var(--status-size);left:calc(var(--size) - var(--status-size));position:absolute;width:var(--status-size)}
+.po-avatar__hasStatus .po-avatar__statusMaskContainer{--r:calc(var(--status-size)/2 + var(--shadow-size));--сx:calc(var(--status-size)/2);--сy:calc(var(--status-size)/2);-webkit-mask:radial-gradient(var(--r) at calc(100% - var(--сx)) calc(100% - var(--сy)),#0000 99.99%,#000);mask:radial-gradient(var(--r) at calc(100% - var(--сx)) calc(100% - var(--сy)),#0000 99.99%,#000);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+:is(.po-avatar__hasLongCounter,.po-avatar__hasShortCounter) .po-avatar__counterMaskContainer{--r:calc(8px + var(--shadow-size));--сx:8px;--сy:8px;-webkit-mask:var(--counter-mask);mask:var(--counter-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.po-avatar__hasShortCounter .po-avatar__counterMaskContainer{--counter-mask:radial-gradient(var(--r) at calc(100% - var(--сx)) var(--сy),#0000 99.99%,#000)}
+.po-avatar__hasLongCounter .po-avatar__counterMaskContainer{--counter-mask:radial-gradient(var(--r) at 100% var(--сy),#0000 99.99%,#000) calc(var(--сx)*-1) 0,conic-gradient(at 100% 0,#0000 25%,#000 0) 0 calc(var(--r) + var(--сy))}

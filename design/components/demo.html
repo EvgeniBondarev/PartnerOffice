@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Список и календарь</title>
+<style>
+  @font-face { font-family: Onest; font-weight: 100 900; src: url(../fonts/Onest-2.0.woff2) format("woff2"); }
+  body { margin: 0; padding: 32px; font: 400 15px/24px Onest, Arial, sans-serif; color: #070707; background: #fff; }
+  h2 { font: 700 26px/30px Onest, Arial, sans-serif; margin: 32px 0 16px; }
+  .row { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 32px; }
+  .col { display: grid; gap: 8px; width: 240px; }
+  .cap { color: rgba(0,26,51,.6); font-size: 13px; line-height: 16px; }
+</style>
+<link rel="stylesheet" href="../tokens/ozon-tokens.css">
+<link rel="stylesheet" href="checkbox.css">
+<link rel="stylesheet" href="dropdown.css">
+<link rel="stylesheet" href="calendar.css">
+</head>
+<body>
+<h2>Выпадающий список</h2>
+<div class="row">
+  <div class="col">
+    <div class="cap">Поле: пустое / в фокусе с выбранным</div>
+    <div class="po-select"><div class="po-select__body"><span class="po-select__label po-select__label--placeholder">Статус</span></div>
+      <svg class="po-select__icon" viewBox="0 0 24 24"><use href="../icons/icons.svg#ui-chevron-updown"/></svg></div>
+    <div class="po-select po-select--active"><div class="po-select__body"><span class="po-select__label">Статус</span><span class="po-select__value">Выбрано: 1</span></div>
+      <svg class="po-select__icon" viewBox="0 0 24 24"><use href="../icons/icons.svg#ui-chevron-updown"/></svg></div>
+  </div>
+  <div class="col">
+    <div class="cap">Список с множественным выбором (hover на втором)</div>
+    <div class="po-dropdown po-dropdown--500"><div class="po-dropdown__scroll"><div class="po-dropdown__list">
+      <div class="po-dropdown-item"><div class="po-dropdown-item__block"><input class="po-checkbox" type="checkbox" checked><span class="po-dropdown-item__text">Ожидает ответа</span></div></div>
+      <div class="po-dropdown-item" style="background:var(--ozi-layer-surface-transparent)"><div class="po-dropdown-item__block"><input class="po-checkbox" type="checkbox"><span class="po-dropdown-item__text">На рассмотрении</span></div></div>
+      <div class="po-dropdown-item"><div class="po-dropdown-item__block"><input class="po-checkbox" type="checkbox"><span class="po-dropdown-item__text">Зачёт из вознаграждения</span></div></div>
+    </div></div></div>
+  </div>
+  <div class="col">
+    <div class="cap">Группа, недоступный пункт, пустой список</div>
+    <div class="po-dropdown po-dropdown--500"><div class="po-dropdown__scroll"><div class="po-dropdown__list">
+      <div class="po-dropdown-group"><div class="po-dropdown-group__block cap" style="font-weight:600">Договоры</div></div>
+      <div class="po-dropdown-item"><div class="po-dropdown-item__block"><span class="po-dropdown-item__text">ОД-А 380/20</span></div></div>
+      <div class="po-dropdown-item po-dropdown-item--disabled"><div class="po-dropdown-item__block"><span class="po-dropdown-item__text">Архивный договор</span></div></div>
+    </div></div></div>
+    <div class="po-dropdown po-dropdown--500"><div class="po-dropdown__list"><div class="po-dropdown-empty">Ничего не найдено</div></div></div>
+  </div>
+</div>
+
+<h2>Календарь периода</h2>
+<div class="po-calendar" id="cal"></div>
+
+<script>
+  // Демо: сентябрь–октябрь 2026, диапазон 12.04.2026–12.10.2026, «сегодня» 12 октября
+  const MONTHS = ['Сентябрь','Октябрь'], DAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const today = new Date(2026, 9, 12), end = today, start = new Date(2026, 3, 12);
+  function grid(y, m) {
+    const first = new Date(y, m, 1), lead = (first.getDay() + 6) % 7, n = new Date(y, m + 1, 0).getDate();
+    let h = '<div class="po-cal-grid"><div class="po-cal-grid__header">' +
+      (m === 8 ? '<svg class="po-cal-grid__arrow po-cal-grid__arrow--prev" width="24" height="24" viewBox="0 0 24 24" style="transform:scaleX(-1)"><use href="../icons/icons.svg#ui-chevron-right"/></svg>' : '') +
+      '<div class="po-cal-grid__caption"><span class="po-cal-grid__clickable">' + MONTHS[m - 8] + '</span><span class="po-cal-grid__year po-cal-grid__clickable">' + y + '</span></div>' +
+      (m === 9 ? '<svg class="po-cal-grid__arrow po-cal-grid__arrow--next" width="24" height="24" viewBox="0 0 24 24"><use href="../icons/icons.svg#ui-chevron-right"/></svg>' : '') +
+      '</div><div class="po-cal-grid__days">' + DAYS.map(d => '<div class="po-cal-grid__weekday">' + d + '</div>').join('');
+    const edge = col => (col === 0 ? ' po-day--first-in-row' : '') + (col === 6 ? ' po-day--last-in-row' : '');
+    for (let i = 0; i < lead; i++) h += '<div class="po-day' + edge(i) + '" style="visibility:hidden"></div>';
+    for (let d = 1; d <= n; d++) {
+      const dt = new Date(y, m, d), col = (lead + d - 1) % 7, c = ['po-day'];
+      if (col === 0) c.push('po-day--first-in-row');
+      if (col === 6) c.push('po-day--last-in-row', 'po-day--weekend');
+      if (col === 5) c.push('po-day--weekend');
+      if (dt > today) c.push('po-day--disabled');
+      else if (+dt === +end) c.push('po-day--in-range', 'po-day--end');
+      else if (dt >= start) c.push('po-day--in-range');
+      h += '<div class="' + c.join(' ') + '"><span class="po-day__text">' + d + '</span></div>';
+    }
+    for (let i = lead + n; i < 42; i++) h += '<div class="po-day' + edge(i % 7) + '" style="visibility:hidden"></div>'; // всегда 6 недель
+    return h + '</div></div>';
+  }
+  document.getElementById('cal').innerHTML =
+    grid(2026, 8) + grid(2026, 9) +
+    '<div class="po-calendar__right"><div class="po-calendar__shortcuts"><a class="po-calendar__shortcut">За полгода</a><a class="po-calendar__shortcut">За год</a></div></div>';
+</script>
+</body>
+</html>

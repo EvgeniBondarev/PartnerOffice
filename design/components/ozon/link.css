@@ -1,0 +1,7 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-link-common__primary{--text-color:var(--ozi-text-action);--hover-text-color:var(--ozi-active-text-action-primary);--text-decoration:none}
+.po-link-common__secondary{--text-color:var(--ozi-text-primary-transparent);--hover-text-color:var(--ozi-text-secondary-transparent);--text-decoration:underline}
+.po-link__link{box-sizing:border-box;color:var(--text-color);cursor:pointer;text-decoration:var(--text-decoration);transition:color .05s,text-decoration-color .05s}
+.po-link__link:hover,.po-link__link[data-teststate=hover]{color:var(--hover-text-color)}
+.po-link-pseudo__linkPseudo{background-color:initial;border:none;box-sizing:border-box;color:var(--text-color);cursor:pointer;display:inline-flex;margin:0;padding:0;text-decoration:var(--text-decoration);transition:color .05s,text-decoration-color .05s}
+.po-link-pseudo__linkPseudo:hover,.po-link-pseudo__linkPseudo[data-teststate=hover]{color:var(--hover-text-color)}

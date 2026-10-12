@@ -1,0 +1,40 @@
+/* Базовый слой: шрифт, глобальные значения, сброс. Подключать первым после tokens/ozon-tokens.css. */
+@font-face {
+  font-family: Onest;
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/Onest-2.0.woff2") format("woff2");
+}
+
+:root {
+  --global-font: "Onest", "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+  --header-height: 56px;
+  --menu-width: 260px;
+  --menu-width-collapsed: 88px;
+  --page-padding-x: 32px;
+  --page-padding-y: 24px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: #fff;
+  color: var(--ozi-text-primary-transparent);          /* #070707 */
+  font: 400 15px/24px var(--global-font);              /* ozi-body-500 */
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; color: inherit; }
+button, input { margin: 0; }
+a { color: inherit; text-decoration: none; }
+h1, h2, h3, h4, p { margin: 0; }
+ul { margin: 0; padding: 0; list-style: none; }
+table { border-collapse: collapse; }
+svg { flex: none; }
+.po-icon { display: block; width: 24px; height: 24px; fill: currentColor; }
+.po-icon--16 { width: 16px; height: 16px; }

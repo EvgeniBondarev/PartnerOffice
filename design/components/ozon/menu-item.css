@@ -1,0 +1,11 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-menu-item__menuItem{box-sizing:border-box;list-style:none}
+.po-menu-item__button{--level-indent:24px;background-color:initial;border:none;box-sizing:border-box;display:block;margin:0;min-height:44px;outline-offset:0;padding:10px 16px 10px calc(16px + var(--level-indent)*var(--level-scale));position:relative;text-align:left;text-decoration:none;width:100%}
+.po-menu-item__activeLeft:before,.po-menu-item__activeRight:before{background-color:var(--ozi-graphic-action-primary);border-radius:2px;bottom:8px;content:"";position:absolute;top:8px;width:4px}
+.po-menu-item__activeRight:before{right:0}
+.po-menu-item__activeLeft:before{left:0}
+.po-menu-item__activeBorder{box-shadow:inset 0 0 0 2px var(--ozi-static-graphic-action-primary-on-dark)}
+.po-menu-item__roundHover{border-radius:8px}
+.po-menu-item__menuItem .po-menu-item__button:hover,.po-menu-item__menuItem[data-teststate-hover=true] .po-menu-item__button{background-color:var(--ozi-layer-surface-transparent);cursor:pointer}
+.po-menu-item__menuItem .po-menu-item__activeBorder:hover,.po-menu-item__menuItem[data-teststate-hover=true] .po-menu-item__activeBorder{background-color:var(--ozi-layer-surface-transparent)}
+.po-menu-item__block{align-items:center;color:var(--ozi-graphic-tertiary-transparent);display:flex;min-height:24px}

@@ -1,0 +1,14 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-informer__informer{background:var(--status-color);border-radius:var(--border-radius);box-sizing:border-box;color:var(--ozi-text-primary-transparent);padding:var(--padding,24px);position:relative}
+.po-informer__hasNoPaddingTop{padding-top:0}
+.po-informer__showAccentLine:before{background:linear-gradient(to right,var(--line-color) 4px,var(--status-color) 4px) no-repeat;background-size:4px;border-radius:var(--border-radius);content:"";height:100%;left:0;pointer-events:none;position:absolute;top:0;width:100%;z-index:2}
+.po-informer__size-400{--border-radius:12px;--padding:12px;--close-icon-shift:8px}
+.po-informer__size-500{--border-radius:16px;--close-icon-shift:8px}
+.po-informer__size-600{--border-radius:24px;--close-icon-shift:12px}
+.po-informer__closeIcon{box-sizing:initial;color:var(--ozi-graphic-tertiary-transparent);cursor:pointer;margin:-4px;padding:4px;position:absolute;right:var(--close-icon-shift);top:var(--close-icon-shift)}
+.po-informer__closeIcon:hover,.po-informer__informer[data-teststate-closable-hover=true] .po-informer__closeIcon{color:var(--ozi-graphic-primary-transparent)}
+.po-informer__info{--status-color:var(--ozi-bg-action-secondary-transparent);--line-color:var(--ozi-graphic-action-secondary-transparent)}
+.po-informer__alert{--status-color:var(--ozi-bg-alert-secondary-transparent);--line-color:var(--ozi-graphic-alert-secondary-transparent)}
+.po-informer__warning{--status-color:var(--ozi-bg-warning-secondary-transparent);--line-color:var(--ozi-graphic-warning-secondary-transparent)}
+.po-informer__success{--status-color:var(--ozi-bg-success-secondary-transparent);--line-color:var(--ozi-graphic-success-secondary-transparent)}
+.po-informer__error{--status-color:var(--ozi-bg-negative-secondary-transparent);--line-color:var(--ozi-graphic-negative-secondary-transparent)}

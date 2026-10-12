@@ -1,0 +1,30 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-dropdown-empty__dropdownEmpty{box-sizing:border-box;scroll-margin-bottom:var(--dropdown-padding-bottom,0);scroll-margin-top:var(--dropdown-padding-top,0)}
+.po-dropdown-empty__size-600{padding:16px 12px}
+.po-dropdown-empty__size-500{padding:12px}
+.po-dropdown-empty__dataContent{text-align:center}
+.po-dropdown-group__dropdownGroup{box-sizing:border-box;padding:16px 12px 8px;scroll-margin-bottom:var(--dropdown-padding-bottom,0);scroll-margin-top:var(--dropdown-padding-top,0)}
+.po-dropdown-group__size-600{--base-height:24px}
+.po-dropdown-group__size-500{--base-height:20px}
+.po-dropdown-group__block{align-items:center;display:flex;height:fit-content;min-height:var(--base-height)}
+.po-dropdown-item__dropdownItem{--horizontal-padding:12px;box-sizing:border-box;color:var(--ozi-graphic-tertiary-transparent);cursor:pointer;display:block;outline-offset:0;padding:var(--dropdown-item-vertical-padding) var(--horizontal-padding) var(--dropdown-item-vertical-padding) calc(var(--horizontal-padding) + var(--level-indent)*var(--level-scale));scroll-margin-bottom:var(--dropdown-padding-bottom,0);scroll-margin-top:var(--dropdown-padding-top,0);text-decoration:none}
+.po-dropdown-item__dropdownItem:hover:not(.po-dropdown-item__disabled),.po-dropdown-item__dropdownItem[data-teststate=hover],.po-dropdown-item__focused{background-color:var(--ozi-layer-surface-transparent)}
+.po-dropdown-item__disabled{cursor:default}
+.po-dropdown-item__block{align-items:center;color:var(--ozi-graphic-tertiary-transparent);display:flex;gap:8px;height:fit-content;min-height:var(--base-height)}
+.po-dropdown-item__checkIconContainer{align-items:center;display:flex;width:24px}
+.po-dropdown-item__customContent{color:var(--ozi-text-primary-transparent)}
+.po-dropdown-item__disabled .po-dropdown-item__block>:not(.po-dropdown-item__selectionControl),.po-dropdown-item__disabled .po-dropdown-item__customContent,.po-dropdown-item__disabled .po-dropdown-item__dataContent{opacity:var(--opacity-300)}
+.po-dropdown-item__size-600{--level-indent:32px;--base-height:32px;--dropdown-item-vertical-padding:12px}
+.po-dropdown-item__size-500{--level-indent:28px;--base-height:24px;--dropdown-item-vertical-padding:10px}
+.po-dropdown-item__checkIcon{color:var(--ozi-graphic-action-primary)}
+.po-dropdown__dropdown{--dropdown-padding:8px;--dropdown-padding-top:var(--dropdown-padding);--dropdown-padding-bottom:var(--dropdown-padding);background-color:var(--ozi-elevation-overlay2);border-radius:8px;box-shadow:0 0 .8px .8px var(--ozi-system-dropdown-shadow-color-100) inset,0 3px 24px -2px var(--ozi-system-dropdown-shadow-color-300),0 -3px 16.9px -1px var(--ozi-system-dropdown-shadow-color-200),var(--elevation-500);box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden}
+.po-dropdown__hasHeader{--dropdown-padding-top:0}
+.po-dropdown__hasFooter{--dropdown-padding-bottom:0}
+.po-dropdown__scrollContainer{flex:1;overflow:auto}
+.po-dropdown__wrapper{display:grid;margin-bottom:var(--dropdown-padding-bottom);margin-top:var(--dropdown-padding-top)}
+.po-dropdown__size-600{max-height:464px}
+.po-dropdown__size-500{max-height:368px}
+.po-dropdown-wrapper__dropdownWrapper .tippy-box{outline:0}
+.po-dropdown-loading__dropdownLoading{box-sizing:border-box;color:var(--ozi-graphic-action-primary);display:grid;place-items:center}
+.po-dropdown-loading__size-600{padding:16px 12px}
+.po-dropdown-loading__size-500{padding:10px 12px}

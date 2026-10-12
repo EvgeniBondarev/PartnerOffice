@@ -1,0 +1,52 @@
+/* Чекбокс. Источник: ozi checkbox (500): 20×20, рамка 2px, радиус 6px; отмеченный — фон #005bff без рамки, галочка маской. */
+.po-checkbox {
+  --checkbox-size: 20px;
+  --border-radius: 6px;
+  --icon-color: var(--ozi-static-graphic-primary-on-dark-transparent);
+  appearance: none;
+  background-color: var(--ozi-bg-primary-transparent);          /* rgba(255,255,255,.64) */
+  border: 2px solid var(--ozi-graphic-quaternary-transparent);  /* rgba(159,178,195,.467) */
+  border-radius: var(--border-radius);
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  flex: none;
+  height: var(--checkbox-size);
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  position: relative;
+  width: var(--checkbox-size);
+}
+.po-checkbox:checked,
+.po-checkbox--checked,
+.po-checkbox:indeterminate {
+  background-color: var(--ozi-bg-action-primary);
+  border-color: transparent;
+}
+.po-checkbox:checked::after,
+.po-checkbox--checked::after {
+  background-color: var(--icon-color);
+  content: "";
+  height: 16px;
+  width: 16px;
+  position: absolute;
+  -webkit-mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='currentColor' d='M12.707 5.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-3-3a1 1 0 0 1 1.414-1.414L7 9.586l4.293-4.293a1 1 0 0 1 1.414 0'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='currentColor' d='M12.707 5.293a1 1 0 0 1 0 1.414l-5 5a1 1 0 0 1-1.414 0l-3-3a1 1 0 0 1 1.414-1.414L7 9.586l4.293-4.293a1 1 0 0 1 1.414 0'/%3E%3C/svg%3E");
+}
+.po-checkbox:indeterminate::after {
+  background-color: var(--icon-color);
+  border-radius: 1px;
+  content: "";
+  height: 2px;
+  position: absolute;
+  width: 8px;
+}
+.po-checkbox:disabled {
+  --icon-color: var(--ozi-graphic-primary-transparent);
+  background-color: var(--ozi-graphic-quaternary-transparent);
+  border: none;
+  cursor: default;
+  opacity: var(--opacity-300);
+}
+.po-checkbox:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }

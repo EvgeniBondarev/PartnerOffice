@@ -1,0 +1,9 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-data-cell__dataCell{display:grid;grid-auto-rows:max-content;grid-column-gap:8px;align-items:center;grid-template-columns:var(--columns);height:max-content}
+.po-data-cell__content{grid-row:span 2}
+.po-data-content__dataContent{--color-label:var(--ozi-data-content-color-label,var(--ozi-text-primary-transparent));--color-caption:var(--ozi-data-content-color-caption,var(--ozi-text-secondary-transparent));display:grid;gap:var(--gap);overflow-wrap:anywhere;padding-bottom:var(--vertical-padding);padding-top:var(--vertical-padding)}
+.po-data-content__size-600{--vertical-padding:4px;--gap:2px}
+.po-data-content__size-500{--vertical-padding:2px;--gap:2px}
+.po-data-content__size-400{--vertical-padding:2px;--gap:4px}
+.po-data-content__label{color:var(--color-label)}
+.po-data-content__caption{color:var(--color-caption);margin-bottom:-1px;padding-bottom:1px}

@@ -1,0 +1,142 @@
+/*
+ * Календарь периода (две панели месяцев + пресеты). Источник: ozi calendar (turbo-pvz.ozon.ru 3.11.59),
+ * значения подтверждены замером живой страницы 2026-10-12.
+ * Ячейка дня 32×32 + рамка 2px (content-box). Выбранный день/край диапазона: #005bff, текст #f5f7fa.
+ * Диапазон: подложка rgba(171,188,213,.118). Выходные: #d80e6f. Недоступные: opacity .5 и зачёркивание.
+ */
+.po-calendar {
+  background-color: var(--ozi-elevation-overlay2);
+  border-radius: 8px;
+  box-shadow: var(--elevation-500);
+  display: flex;
+  gap: 32px;
+  height: fit-content;
+  padding: 16px;
+  width: fit-content;
+  font: 400 13px/16px Onest, Arial, Helvetica, sans-serif;
+  color: var(--ozi-text-primary-transparent);
+}
+/* Структура (замер): padding 16, месяц 248, gap 32, месяц 248, gap 32, панель пресетов 87 (border-left 1px + padding-left 16 + 70) = 679×318 */
+.po-calendar__right { border-left: 1px solid var(--ozi-graphic-quaternary-transparent); padding-left: 16px; }
+.po-calendar__shortcuts { display: grid; gap: 12px; grid-auto-flow: row; justify-items: flex-start; }
+.po-calendar__shortcut { color: var(--ozi-text-action); cursor: pointer; font-size: 13px; text-decoration: none; }
+
+/* Сетка месяца: 248px = 7 × 36px */
+.po-cal-grid { --hit-zone: 4px; display: grid; gap: 2px; place-content: flex-start; }
+.po-cal-grid__header {
+  color: var(--ozi-text-primary-transparent);
+  display: grid;
+  grid-template-areas: "prev caption next";
+  grid-template-columns: 24px 1fr 24px;
+  padding-bottom: 8px;
+}
+.po-cal-grid__caption {
+  align-items: center;
+  display: grid;
+  gap: 4px;
+  grid-area: caption;
+  grid-auto-flow: column;
+  height: 24px;
+  justify-content: center;
+  font: 600 15px/20px Onest, Arial, Helvetica, sans-serif;
+  text-transform: capitalize;
+  user-select: none;
+}
+.po-cal-grid__year { color: var(--ozi-text-tertiary-transparent); }
+.po-cal-grid__clickable { cursor: pointer; }
+.po-cal-grid__clickable:hover { color: var(--ozi-text-action); }
+.po-cal-grid__arrow {
+  color: var(--ozi-graphic-tertiary-transparent);
+  cursor: pointer;
+  margin: calc(var(--hit-zone) * -1);
+  padding: var(--hit-zone);
+}
+.po-cal-grid__arrow:hover { background-color: var(--ozi-bg-tertiary-transparent); border-radius: 6px; position: relative; }
+.po-cal-grid__arrow--prev { grid-area: prev; }
+.po-cal-grid__arrow--next { grid-area: next; }
+.po-cal-grid__days { display: grid; grid-template-columns: repeat(7, auto); justify-content: flex-start; }
+.po-cal-grid__weekday {
+  border: 2px solid transparent;
+  color: var(--ozi-text-secondary-transparent);  /* rgba(0,26,51,.6) */
+  display: grid;
+  height: 32px;
+  place-items: center;
+  text-transform: capitalize;
+  user-select: none;
+  width: 32px;
+}
+.po-cal-grid__weekday:first-child { border-left: none; }
+.po-cal-grid__weekday:nth-child(7) { border-right: none; }
+
+/* День */
+.po-day {
+  --width: 32px;
+  --z-index: 2;
+  --range-bg: var(--ozi-layer-surface-transparent);          /* rgba(171,188,213,.118) */
+  align-items: center;
+  background-clip: padding-box;
+  background-color: transparent;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  box-sizing: content-box;
+  color: var(--text-color, var(--ozi-text-primary-transparent));
+  cursor: pointer;
+  display: grid;
+  height: 32px;
+  margin: 0;
+  outline: none;
+  padding: 0;
+  position: relative;
+  text-align: center;
+  width: var(--width);
+}
+.po-day--first-in-row { border-bottom-left-radius: 7px; border-left: none; border-top-left-radius: 7px; }
+.po-day--last-in-row  { border-bottom-right-radius: 7px; border-right: none; border-top-right-radius: 7px; }
+.po-day__text { position: relative; text-transform: capitalize; z-index: var(--z-index); opacity: var(--disabled-opacity, 1); }
+.po-day--weekend { --text-color: #d80e6f; }                   /* малиновый, как у счётчиков */
+.po-day--outside { --text-color: var(--ozi-text-tertiary-transparent); }
+.po-day:not(.po-day--single, .po-day--disabled):hover { background-color: var(--ozi-layer-surface-transparent); }
+.po-day--disabled { --disabled-opacity: var(--opacity-300); --text-color: var(--ozi-text-tertiary-transparent); cursor: default; }
+.po-day--disabled .po-day__text::after {                      /* зачёркивание недоступной даты */
+  background: var(--text-color);
+  border-radius: .5px;
+  content: "";
+  height: 1px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+
+/* Диапазон */
+.po-day--in-range:not(.po-day--start, .po-day--end, .po-day--single)::before {
+  background-color: var(--range-bg);
+  content: "";
+  height: 100%;
+  left: -2px;
+  position: absolute;
+  width: calc(var(--width) + 4px);
+}
+.po-day--start, .po-day--end, .po-day--single {
+  --range-edge: var(--ozi-bg-action-primary);                 /* #005bff */
+  --text-color: var(--ozi-static-text-primary-on-dark-transparent); /* #f5f7fa */
+}
+.po-day--start:hover, .po-day--end:hover, .po-day--single:hover { --range-edge: var(--ozi-active-bg-action-primary); } /* #0050e0 */
+.po-day--single { background-color: var(--range-edge); border-radius: 8px; }
+.po-day--start { background-color: var(--range-bg); border-radius: 8px 0 0 8px; border-right: 2px solid transparent; margin-right: -2px; padding-right: 2px; }
+.po-day--end   { background-color: var(--range-bg); border-left: 2px solid transparent; border-radius: 0 8px 8px 0; margin-left: -2px; padding-left: 2px; }
+.po-day--start::before { background-color: var(--range-edge); border-radius: 6px 4px 4px 6px; content: ""; inset: 0 5px 0 0; position: absolute; }
+.po-day--end::before   { background-color: var(--range-edge); border-radius: 4px 6px 6px 4px; bottom: 0; content: ""; left: 5px; position: absolute; right: 0; top: 0; }
+.po-day--start::after  {
+  background-color: var(--range-edge); border-radius: 10px 2px 10px 0; bottom: 0; content: "";
+  left: calc(100% - 34px); position: absolute; right: 0; top: 0; transform: translate(11px) scaleY(.8) scaleX(.3) rotate(45deg); width: 32px; z-index: 1;
+}
+.po-day--end::after {
+  background-color: var(--range-edge); border-radius: 10px 0 10px 2px; content: ""; inset: 0 0 0 2px; position: absolute;
+  transform: translate(-11px) scaleY(.8) scaleX(.3) rotate(45deg); width: 32px;
+}
+.po-day--in-range:hover { --range-bg: var(--ozi-bg-tertiary-transparent); }
+
+/* Поле периода с календарём: 260px ширина поля, пресеты справа (gap 16px) */
+.po-date-range { align-items: center; display: flex; gap: 16px; }
+.po-date-range__field { width: 260px; }

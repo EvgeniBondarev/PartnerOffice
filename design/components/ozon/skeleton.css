@@ -1,0 +1,6 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-skeleton-common__skeleton{animation:po-skeleton-common__opacity 1.5s linear infinite;background:var(--ozi-bg-tertiary-transparent)}
+.po-skeleton-common__rectangle{border-radius:8px}
+.po-skeleton-common__circle{border-radius:50%}
+.po-skeleton-common__text{border-radius:8px;clip-path:inset(calc(50% - .5em) 0 round 8px)}
+@keyframes po-skeleton-common__opacity{0%,40%{opacity:1}70%{opacity:.4}to{opacity:1}}

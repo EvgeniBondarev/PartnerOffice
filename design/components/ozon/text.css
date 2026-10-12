@@ -1,0 +1,16 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-text-view__textView{color:var(--ozi-text-primary-transparent);margin:0}
+.po-text-view__caption{color:var(--ozi-text-secondary-transparent)}
+.po-text-view__headline-hero{padding-bottom:20px;padding-top:80px}
+.po-text-view__headline-h1{padding-bottom:16px;padding-top:48px}
+.po-text-view__headline-h2{padding-bottom:12px;padding-top:32px}
+.po-text-view__headline-h3-extra{padding-bottom:10px;padding-top:32px}
+.po-text-view__headline-h3{padding-bottom:8px;padding-top:28px}
+.po-text-view__headline-h4{padding-bottom:8px;padding-top:24px}
+.po-text-view__headline-h5{padding-bottom:8px;padding-top:16px}
+.po-text-view__caption-hero,.po-text-view__paragraph-hero{padding-bottom:16px;padding-top:8px}
+.po-text-view__caption-large,.po-text-view__paragraph-large{padding-bottom:8px;padding-top:4px}
+.po-text-view__caption-medium,.po-text-view__caption-small,.po-text-view__paragraph-medium,.po-text-view__paragraph-small{padding-bottom:8px;padding-top:2px}
+.po-text-view__caption-x-small,.po-text-view__paragraph-x-small{padding-bottom:4px;padding-top:2px}
+.po-text-view__paddingTopOff{padding-top:0}
+.po-text-view__paddingBottomOff{padding-bottom:0}

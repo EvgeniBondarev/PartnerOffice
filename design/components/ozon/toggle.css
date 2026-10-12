@@ -1,0 +1,24 @@
+/* Автоматически выгружено из turbo-pvz.ozon.ru 3.11.59; классы переименованы ozi__X__y__HASH -> po-X__y. Зависит от tokens/ozon-tokens.css. */
+.po-toggle__container{box-sizing:border-box;color:var(--ozi-text-primary-transparent);cursor:pointer;height:fit-content}
+.po-toggle__leftContent{align-items:center;display:flex}
+.po-toggle__minHeight{min-height:24px}
+.po-toggle__block{border-radius:8px;box-shadow:inset 0 0 0 1px var(--ozi-graphic-quaternary-transparent);padding:var(--block-padding)}
+.po-toggle__fitContent{width:fit-content}
+.po-toggle__disabled{cursor:default;opacity:var(--opacity-300)}
+.po-toggle__loading{cursor:default}
+.po-toggle__wrapper{display:grid;position:relative}
+.po-toggle__toggle{appearance:none;background-color:var(--ozi-graphic-quaternary-transparent);border-radius:var(--toggle-height);box-sizing:border-box;cursor:pointer;height:var(--toggle-height);margin:0;padding:0;position:relative;width:var(--toggle-width)}
+.po-toggle__togglePoint,.po-toggle__toggle{--point-position:calc((var(--toggle-height) - var(--toggle-point-size))/2)}
+.po-toggle__togglePoint{align-items:center;display:grid;height:var(--toggle-point-size);justify-content:center;left:var(--point-position);position:absolute;top:var(--point-position);transform:translate(0);transition:transform .3s ease-in-out;width:var(--toggle-point-size)}
+.po-toggle__togglePoint:before{background-color:var(--ozi-static-graphic-primary-on-dark-transparent);border-radius:50%;content:"";height:100%;position:absolute;width:100%;z-index:-1}
+.po-toggle__checked .po-toggle__togglePoint{transform:translate(calc(var(--toggle-width) - var(--point-position)*2 - var(--toggle-point-size)))}
+.po-toggle__block.po-toggle__disabled{background-color:var(--ozi-bg-tertiary-transparent);box-shadow:none}
+:is(.po-toggle__disabled,.po-toggle__loading) .po-toggle__toggle{cursor:default}
+.po-toggle__checked .po-toggle__toggle{background-color:var(--ozi-bg-action-primary)}
+:is(.po-toggle__container:hover:not(.po-toggle__disabled,.po-toggle__loading),.po-toggle__container[data-teststate-hover=true]:not(.po-toggle__disabled,.po-toggle__loading)) .po-toggle__toggle{background-color:var(--ozi-active-graphic-quaternary-transparent)}
+:is(.po-toggle__checked:hover:not(.po-toggle__disabled,.po-toggle__loading),.po-toggle__checked[data-teststate-hover=true]:not(.po-toggle__disabled,.po-toggle__loading)) .po-toggle__toggle{background-color:var(--ozi-active-bg-action-primary)}
+.po-toggle__size-600{--toggle-width:44px;--toggle-height:24px;--toggle-point-size:16px;--border-radius:8px;--block-padding:16px 24px 16px 16px;--loading-size:16px;--lock-size:14px}
+.po-toggle__size-500{--toggle-width:36px;--toggle-height:20px;--toggle-point-size:14px;--border-radius:6px;--block-padding:10px 20px 10px 12px;--loading-size:12px;--lock-size:12px}
+.po-toggle__loadingIcon{--loading-position:calc((var(--toggle-height) - var(--loading-size))/2);color:var(--ozi-static-graphic-primary-on-dark-transparent);height:var(--loading-size);left:calc(var(--toggle-width) - var(--loading-position) - var(--loading-size));position:absolute;top:var(--loading-position);width:var(--loading-size)}
+.po-toggle__checked .po-toggle__loadingIcon{left:var(--loading-position)}
+.po-toggle__disabledIcon{color:var(--ozi-static-text-dark);height:var(--lock-size);width:var(--lock-size)}
