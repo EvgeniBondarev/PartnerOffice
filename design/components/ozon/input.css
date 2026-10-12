@@ -103,7 +103,7 @@
 .po-textarea__size-400{--input-padding-top:6px;--input-padding-bottom:6px;--border-radius:8px;--left-padding:8px}
 .po-textarea__size-300{--input-padding-top:6px;--input-padding-bottom:4px;--border-radius:5px;--left-padding:8px}
 .po-textarea__placeholder::placeholder{opacity:0;transition:inherit}
-.po-textarea__placeholder:focus::placeholder:not(.po-textarea__readonly){opacity:1}
+.po-textarea__placeholder:focus:not(.po-textarea__readonly)::placeholder{opacity:1}
 .po-textarea__readonly{--container-background-color:var(--ozi-layer-surface-transparent);--container-border-width:0px}
 .po-textarea__label{color:var(--ozi-text-secondary-transparent)}
 .po-textarea__labelInside{left:var(--left-padding);padding-bottom:1px;position:absolute;right:4px;top:0;transform:translateY(var(--label-text-translate-y));transition:transform .2s cubic-bezier(0,0,.2,1) 0s}

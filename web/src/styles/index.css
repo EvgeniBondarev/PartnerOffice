@@ -1,0 +1,11 @@
+/* Дизайн-система из ../design: токены, база, нужные компоненты. Порядок важен: токены первыми. */
+@import '../../../design/tokens/ozon-tokens.css';
+@import '../../../design/components/base.css';
+@import '../../../design/components/ozon/typography.css';
+@import '../../../design/components/ozon/text.css';
+@import '../../../design/components/ozon/button.css';
+@import '../../../design/components/ozon/input.css';
+@import '../../../design/components/ozon/informer.css';
+@import '../../../design/components/ozon/truncate.css';
+@import '../../../design/components/layout.css';
+@import './app.css';
