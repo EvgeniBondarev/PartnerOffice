@@ -117,8 +117,8 @@ export function LoginPage() {
       <div className="pa-auth__shape pa-auth__shape--bottom" aria-hidden="true" />
 
       <section className="pa-auth__card" aria-labelledby="login-title">
-        <div className="pa-brand">
-          <span className="pa-brand__mark" aria-hidden="true">PO</span>
+        <div className="pa-brand pa-brand--login">
+          <img className="pa-brand__mark pa-brand__mark--login" src="/brand/partner-package-login-256.png" alt="" />
           <span className="pa-brand__name">PartnerOffice</span>
         </div>
 

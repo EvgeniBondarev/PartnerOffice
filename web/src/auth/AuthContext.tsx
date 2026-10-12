@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError } from '../api/client';
+import { ApiError, setUnauthorizedHandler } from '../api/client';
 import * as authApi from '../api/auth';
 import type { PartnerProfile } from '../api/auth';
 
@@ -37,6 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Сессия закончилась посреди работы (любой метод API ответил 401): показываем форму входа.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setPartner(null);
+      setStatus('anonymous');
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const signIn = useCallback(async (login: string, password: string) => {

@@ -17,13 +17,15 @@ interface TextFieldProps
   /** Кнопка справа внутри поля (например, «показать пароль»). */
   rightSlot?: ReactNode;
   inputRef?: Ref<HTMLInputElement>;
+  /** Высота контрола по брендбуку: 600 — 56px (вход), 500 — 44px (формы в диалогах). */
+  size?: 500 | 600;
 }
 
 /**
  * Поле ввода дизайн-системы: размер 600 (56px, радиус 12), плавающая подпись внутри поля,
  * рамка 2px синяя при фокусе и красная при ошибке (design/components/ozon/input.css).
  */
-export function TextField({ label, value, onValueChange, error, hint, warning, invalid, rightSlot, inputRef, id, onFocus, onBlur, disabled, ...rest }: TextFieldProps) {
+export function TextField({ label, value, onValueChange, error, hint, warning, invalid, rightSlot, inputRef, id, onFocus, onBlur, disabled, size = 600, ...rest }: TextFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
   const captionId = `${inputId}-caption`;
@@ -35,7 +37,7 @@ export function TextField({ label, value, onValueChange, error, hint, warning, i
 
   const containerClasses = [
     'po-input__container',
-    'po-input__size-600',
+    `po-input__size-${size}`,
     'po-input__leftRadius',
     'po-input__rightRadius',
     'pa-field__container',
@@ -53,12 +55,12 @@ export function TextField({ label, value, onValueChange, error, hint, warning, i
         <div className="po-input__inputContainer po-input__withLabelInside">
           <label
             htmlFor={inputId}
-            className={`po-input__label po-input__labelInside ${floated ? 'ozi-body-300 po-input__labelTextFloated-600' : 'ozi-body-500'}`}
+            className={`po-input__label po-input__labelInside ${floated ? `ozi-body-300 po-input__labelTextFloated-${size}` : 'ozi-body-500'}`}
           >
             {label}
           </label>
           <div className="po-input__inputTokensWrapper">
-            <div className="po-input__inputTokensContainer po-input__size-600 po-input__singleline po-input__withLabelInside">
+            <div className={`po-input__inputTokensContainer po-input__size-${size} po-input__singleline po-input__withLabelInside`}>
               <input
                 {...rest}
                 id={inputId}

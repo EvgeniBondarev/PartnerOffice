@@ -4,33 +4,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
 import { AuthProvider } from '../auth/AuthContext';
+import { mockApi, renderApp as renderAt, type Handler } from './helpers';
 
-type Handler = (init?: RequestInit) => { status: number; body?: unknown } | Promise<{ status: number; body?: unknown }>;
-
-/** Подменяет fetch: /me по умолчанию отвечает 401 (не вошёл), остальное задаёт тест. */
-function mockApi(handlers: Record<string, Handler>) {
-  const calls: Array<{ url: string; init?: RequestInit }> = [];
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string, init?: RequestInit) => {
-      calls.push({ url, init });
-      const handler = handlers[url] ?? (() => ({ status: 404 }));
-      const { status, body } = await handler(init);
-      return new Response(body === undefined ? '' : JSON.stringify(body), { status });
-    })
-  );
-  return calls;
-}
-
-function renderApp() {
-  return render(
-    <MemoryRouter initialEntries={['/login']}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </MemoryRouter>
-  );
-}
+const renderApp = () => renderAt('/login');
 
 const anonymous: Handler = () => ({ status: 401 });
 
@@ -89,7 +65,7 @@ describe('Страница входа', () => {
     const user = userEvent.setup();
     mockApi({
       '/partner-api/auth/me': anonymous,
-      '/partner-api/auth/login': () => ({ status: 401, body: { error: 'Неверный логин или пароль.' } })
+      'POST /partner-api/auth/login': () => ({ status: 401, body: { error: 'Неверный логин или пароль.' } })
     });
     renderApp();
 
@@ -111,7 +87,7 @@ describe('Страница входа', () => {
     const until = new Date(Date.now() + 15 * 60_000).toISOString();
     mockApi({
       '/partner-api/auth/me': anonymous,
-      '/partner-api/auth/login': () => ({ status: 429, body: { error: 'Слишком много неудачных попыток.', lockedUntilUtc: until } })
+      'POST /partner-api/auth/login': () => ({ status: 429, body: { error: 'Слишком много неудачных попыток.', lockedUntilUtc: until } })
     });
     renderApp();
 
@@ -148,7 +124,9 @@ describe('Страница входа', () => {
     let signedIn = false;
     const calls = mockApi({
       '/partner-api/auth/me': () => (signedIn ? { status: 200, body: { id: 1, name: 'ООО Казань', login: 'kazan', permissions: [] } } : { status: 401 }),
-      '/partner-api/auth/login': () => {
+      '/partner-api/orders/filters': () => ({ status: 200, body: { statuses: [], warehouses: [], clients: [] } }),
+      '/partner-api/orders?*': () => ({ status: 200, body: { items: [], total: 0, page: 1, pageSize: 50 } }),
+      'POST /partner-api/auth/login': () => {
         signedIn = true;
         return { status: 200, body: { id: 1, name: 'ООО Казань', login: 'kazan' } };
       }
@@ -158,9 +136,10 @@ describe('Страница входа', () => {
     await user.type(await screen.findByLabelText('Логин'), '  kazan  ');
     await user.type(screen.getByLabelText('Пароль'), 'password1{Enter}');
 
-    expect(await screen.findByRole('heading', { name: /Здравствуйте, ООО Казань/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
+    expect(screen.getByText('ООО Казань')).toBeInTheDocument();
     const loginCall = calls.find((c) => c.url === '/partner-api/auth/login')!;
-    expect(JSON.parse(String(loginCall.init?.body))).toEqual({ login: 'kazan', password: 'password1' });
+    expect(loginCall.body).toEqual({ login: 'kazan', password: 'password1' });
   });
 
   it('показывает и скрывает пароль', async () => {
@@ -211,8 +190,12 @@ describe('Защита маршрутов', () => {
   });
 
   it('уже вошедшего со страницы входа отправляет на главную', async () => {
-    mockApi({ '/partner-api/auth/me': () => ({ status: 200, body: { id: 1, name: 'ООО Казань', login: 'kazan' } }) });
+    mockApi({
+      '/partner-api/auth/me': () => ({ status: 200, body: { id: 1, name: 'ООО Казань', login: 'kazan' } }),
+      '/partner-api/orders/filters': () => ({ status: 200, body: { statuses: [], warehouses: [], clients: [] } }),
+      '/partner-api/orders?*': () => ({ status: 200, body: { items: [], total: 0, page: 1, pageSize: 50 } }),
+    });
     renderApp();
-    expect(await screen.findByRole('heading', { name: /Здравствуйте, ООО Казань/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
   });
 });

@@ -8,4 +8,16 @@
 @import '../../../design/components/ozon/informer.css';
 @import '../../../design/components/ozon/truncate.css';
 @import '../../../design/components/layout.css';
+@import '../../../design/components/ozon/badge.css';
+@import '../../../design/components/ozon/table.css';
+@import '../../../design/components/ozon/data-cell.css';
+@import '../../../design/components/ozon/menu-item.css';
+@import '../../../design/components/ozon/avatar.css';
+@import '../../../design/components/ozon/skeleton.css';
+@import '../../../design/components/ozon/window.css';
+@import '../../../design/components/ozon/dialog.css';
+@import '../../../design/components/ozon/drawer.css';
+@import '../../../design/components/dropdown.css';
+@import '../../../design/components/calendar.css';
+@import '../../../design/components/checkbox.css';
 @import './app.css';

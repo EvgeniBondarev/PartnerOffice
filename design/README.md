@@ -22,7 +22,7 @@ python3 design/build/build_brandbook.py
 | `components/ozon/` | 25 файлов компонентов, автоматически выгруженных из оригинала (классы `ozi__X__y__HASH` → `po-X__y`) |
 | `components/ozon/_full-reference/` | Полные выгрузки списка, календаря и чекбокса из оригинала для сверки |
 | `fonts/` | Onest 2.0 (вариативный, OFL) |
-| `icons/` | `icons.svg`: спрайт из 31 символа (24 снятых с оригинала + нарисованные вручную `ui-calendar`, `ui-close`, `ui-eye`, `ui-eye-off`, `ui-error`, `ui-warning`, `ui-info`) |
+| `icons/` | `icons.svg`: спрайт из 34 символов (24 снятых с оригинала + нарисованные вручную `ui-calendar`, `ui-close`, `ui-eye`, `ui-eye-off`, `ui-error`, `ui-warning`, `ui-info`, `ui-check`, `ui-print`, `ui-package`) |
 | `build/` | Генератор брендбука |
 | `reference/` | Скриншоты оригинала (36) и исходные CSS (86 файлов). **В git не входит** (`.gitignore`): на скриншотах реальные данные ПВЗ, CSS принадлежит Ozon |
 | `RESEARCH.md` | Подробная сводка исследования |

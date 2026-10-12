@@ -9,7 +9,7 @@ export function RequireAuth() {
   if (status === 'loading') {
     return (
       <div className="pa-splash" role="status" aria-live="polite">
-        <div className="pa-splash__mark" aria-hidden="true">PO</div>
+        <img className="pa-splash__mark" src="/brand/partner-office-nav-64.png" alt="" />
         <span className="ozi-body-500">Проверяем вход…</span>
       </div>
     );
