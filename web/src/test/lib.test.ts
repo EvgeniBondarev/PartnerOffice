@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, formatRange, isOverdue, ozonStatusTone, toIsoDate, fromIsoDate } from '../lib/format';
+import { canShipOzonOrder, formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, formatRange, isOverdue, ozonStatusTone, toIsoDate, fromIsoDate } from '../lib/format';
 import { ozonImage } from '../lib/images';
 import { hasPermission, isOzonOrder } from '../lib/permissions';
 import { validateExemplar } from '../orders/RequirementsDialog';
@@ -47,6 +47,13 @@ describe('формат', () => {
     expect(ozonStatusTone('Доставляется')).toBe('neutral');
     expect(ozonStatusTone(null)).toBe('neutral');
   });
+
+  it('разрешает отгрузку только в статусе awaiting_packaging', () => {
+    expect(canShipOzonOrder('Ожидает сборки')).toBe(true);
+    expect(canShipOzonOrder('awaiting_packaging')).toBe(true);
+    expect(canShipOzonOrder('Ожидает отгрузки')).toBe(false);
+    expect(canShipOzonOrder('Доставляется')).toBe(false);
+  });
 });
 
 describe('картинки Ozon', () => {
@@ -87,15 +94,15 @@ describe('форма данных экземпляров', () => {
 
 describe('фильтры в адресе и запрос', () => {
   it('туда и обратно, пустые значения в адрес не попадают', () => {
-    const filters = { search: ' 122RU19=HSH ', statusId: '2', warehouseId: '', clientId: '', from: '2026-10-01', to: '' };
+    const filters = { search: ' 122RU19=HSH ', ozonStatus: 'Ожидает сборки', warehouseId: '', clientId: '', from: '2026-10-01', to: '' };
     const params = writeParams(filters);
-    expect(params.toString()).toBe('search=122RU19%3DHSH&status=2&from=2026-10-01');
+    expect(params.toString()).toBe('search=122RU19%3DHSH&ozonStatus=%D0%9E%D0%B6%D0%B8%D0%B4%D0%B0%D0%B5%D1%82+%D1%81%D0%B1%D0%BE%D1%80%D0%BA%D0%B8&from=2026-10-01');
     expect(readFilters(params)).toEqual({ ...filters, search: '122RU19=HSH' });
   });
 
   it('в запрос к API идут числа и только заполненное', () => {
-    const query = toQuery({ search: '', statusId: '2', warehouseId: 'x', clientId: '', from: '', to: '2026-10-12' });
-    expect(query).toEqual({ search: undefined, statusId: 2, warehouseId: undefined, clientId: undefined, from: undefined, to: '2026-10-12' });
-    expect(buildOrdersQuery({ ...query, page: 3, pageSize: 50 })).toBe('statusId=2&to=2026-10-12&page=3&pageSize=50');
+    const query = toQuery({ search: '', ozonStatus: 'Ожидает сборки', warehouseId: 'x', clientId: '', from: '', to: '2026-10-12' });
+    expect(query).toEqual({ search: undefined, ozonStatus: 'Ожидает сборки', warehouseId: undefined, clientId: undefined, from: undefined, to: '2026-10-12' });
+    expect(buildOrdersQuery({ ...query, page: 3, pageSize: 50 })).toBe('ozonStatus=%D0%9E%D0%B6%D0%B8%D0%B4%D0%B0%D0%B5%D1%82+%D1%81%D0%B1%D0%BE%D1%80%D0%BA%D0%B8&to=2026-10-12&page=3&pageSize=50');
   });
 });

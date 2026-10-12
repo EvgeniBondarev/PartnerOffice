@@ -7,8 +7,20 @@ export interface FilterOption {
 
 export interface OrderFilters {
   statuses: FilterOption[];
+  /** Статусы, которые партнёр реально видит в колонке Ozon. */
+  ozonStatuses: string[];
   warehouses: FilterOption[];
   clients: FilterOption[];
+}
+
+export interface OrderSuggestion {
+  id: number;
+  shipmentNumber: string | null;
+  productName: string | null;
+  article: string | null;
+  trackingNumber: string | null;
+  scanit: string | null;
+  ozonStatus: string | null;
 }
 
 /** Строка списка заказов. Закупочные цены, поставщик, себестоимость и прибыль партнёру не отдаются. */
@@ -57,7 +69,7 @@ export interface OrderDetails {
 
 export interface OrderQuery {
   search?: string;
-  statusId?: number;
+  ozonStatus?: string;
   warehouseId?: number;
   clientId?: number;
   from?: string;
@@ -120,7 +132,7 @@ const base = '/partner-api/orders';
 export function buildOrdersQuery(query: OrderQuery): string {
   const params = new URLSearchParams();
   if (query.search?.trim()) params.set('search', query.search.trim());
-  if (query.statusId) params.set('statusId', String(query.statusId));
+  if (query.ozonStatus) params.set('ozonStatus', query.ozonStatus);
   if (query.warehouseId) params.set('warehouseId', String(query.warehouseId));
   if (query.clientId) params.set('clientId', String(query.clientId));
   if (query.from) params.set('from', query.from);
@@ -134,6 +146,9 @@ export const listOrders = (query: OrderQuery, signal?: AbortSignal) =>
   request<OrderPage>(`${base}?${buildOrdersQuery(query)}`, { signal });
 
 export const getOrderFilters = (signal?: AbortSignal) => request<OrderFilters>(`${base}/filters`, { signal });
+
+export const getOrderSuggestions = (query: string, signal?: AbortSignal) =>
+  request<OrderSuggestion[]>(`${base}/suggestions?q=${encodeURIComponent(query)}&limit=10`, { signal });
 
 export const getOrder = (id: number, signal?: AbortSignal) => request<OrderDetails>(`${base}/${id}`, { signal });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { OrderListItem } from '../api/orders';
 import { useAuth } from '../auth/AuthContext';
@@ -7,6 +7,10 @@ import { EmptyState } from '../ui/EmptyState';
 import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
 import { ozonImage } from '../lib/images';
+import emptyOrdersIllustration from '../assets/illustrations/orders-empty.png';
+import labelUnavailableIllustration from '../assets/illustrations/label-unavailable.png';
+import labelReadyIllustration from '../assets/illustrations/label-ready.png';
+import labelPrintErrorIllustration from '../assets/illustrations/label-print-error.png';
 import { OrderDrawer } from './OrderDrawer';
 import { OrdersTable } from './OrdersTable';
 import { OrdersToolbar } from './OrdersToolbar';
@@ -29,6 +33,7 @@ export function OrdersPage() {
 
   const [draft, setDraft] = useState<OrderFilterState>(applied);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [openedId, setOpenedId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
@@ -47,11 +52,11 @@ export function OrdersPage() {
     }
   });
 
-  const apply = () => setParams(writeParams(draft));
-  const reset = () => {
+  const apply = useCallback(() => setParams(writeParams(draft)), [draft, setParams]);
+  const reset = useCallback(() => {
     setDraft(EMPTY_FILTERS);
     setParams(writeParams(EMPTY_FILTERS));
-  };
+  }, [setParams]);
 
   // Подгрузка при прокрутке: следим за меткой в конце списка внутри прокручиваемой области.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -77,9 +82,16 @@ export function OrdersPage() {
   const opened = openedId === null ? null : items.find((item) => item.id === openedId) ?? null;
   const filtered = hasActiveFilters(applied);
   const empty = !orders.loading && !orders.error && items.length === 0;
+  const noticeIllustration = (item: Notice) => {
+    if (item.title.startsWith('Этикетка заказа') && item.title.endsWith('готова')) return labelReadyIllustration;
+    if (!item.title.startsWith('Не удалось получить этикетку')) return undefined;
+    const details = [item.text, ...(item.reasons ?? [])].join(' ').toLowerCase();
+    return /передан.*доставк|доставляется|больше не выда/.test(details) ? labelUnavailableIllustration : labelPrintErrorIllustration;
+  };
 
   return (
     <div className="pa-orders">
+      {copied && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> Скопировано {copied}</div>}
       <h1 className="po-page__title">Заказы</h1>
 
       <OrdersToolbar draft={draft} filters={filterOptions} onChange={setDraft} onApply={apply} onReset={reset} busy={false} />
@@ -90,6 +102,7 @@ export function OrdersPage() {
             kind={notice.kind}
             title={notice.title}
             reasons={notice.reasons}
+            illustration={noticeIllustration(notice)}
             onClose={() => setNotice(null)}
             action={
               notice.link && (
@@ -127,7 +140,7 @@ export function OrdersPage() {
       )}
 
       {empty ? (
-        <EmptyState icon="?" title={filtered ? 'Ничего не найдено' : 'Заказов пока нет'}>
+        <EmptyState illustration={emptyOrdersIllustration} title={filtered ? 'Ничего не найдено' : 'Заказов пока нет'}>
           {filtered ? 'Попробуйте выбрать другие фильтры или сбросить их.' : 'Заказы появятся здесь, когда владелец откроет вам доступ к ним.'}
         </EmptyState>
       ) : (
@@ -143,6 +156,10 @@ export function OrdersPage() {
               onImage={setImage}
               onShip={actions.requestShip}
               onPrint={actions.requestPrint}
+              onCopied={(value) => {
+                setCopied(value);
+                window.setTimeout(() => setCopied(null), 2600);
+              }}
             />
             <div ref={sentinelRef} className="pa-scroll__end" aria-hidden="true" />
             {orders.moreError && (

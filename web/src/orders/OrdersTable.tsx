@@ -1,6 +1,6 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 import type { OrderListItem } from '../api/orders';
-import { formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, isOverdue, ozonStatusTone } from '../lib/format';
+import { formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, isOverdue, ozonStatusBadgeKind } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import type { PartnerProfile } from '../api/auth';
 import { Badge } from '../ui/Badge';
@@ -22,6 +22,7 @@ interface OrdersTableProps {
   onImage: (image: { url: string; alt: string }) => void;
   onShip: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
+  onCopied: (value: string) => void;
 }
 
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder';
@@ -80,11 +81,9 @@ export function ProductImage({ url, alt, size = 48, onOpen }: { url: string | nu
 }
 
 function Status({ order }: { order: OrderListItem }) {
-  const tone = ozonStatusTone(order.ozonStatus);
   return (
     <>
-      {order.status ? <Badge kind="secondary info">{order.status}</Badge> : <span className="pa-muted">—</span>}
-      {order.ozonStatus && <div className={`pa-sub pa-tone pa-tone--${tone}`}>{order.ozonStatus}</div>}
+      {order.ozonStatus ? <Badge kind={ozonStatusBadgeKind(order.ozonStatus)}>{order.ozonStatus}</Badge> : <span className="pa-muted">—</span>}
     </>
   );
 }
@@ -121,10 +120,23 @@ function skeletonRows(count: number, showActions: boolean) {
 }
 
 /** Таблица заказов по брендбуку (table.css): шапка, строки с подстрочником, hover и клик по строке открывают карточку. */
-export function OrdersTable({ items, loading, loadingMore = false, partner, busy, onOpen, onImage, onShip, onPrint }: OrdersTableProps) {
+export function OrdersTable({ items, loading, loadingMore = false, partner, busy, onOpen, onImage, onShip, onPrint, onCopied }: OrdersTableProps) {
+  const [sort, setSort] = useState<{ field: 'shippingDate' | 'processingDate'; desc: boolean }>({ field: 'shippingDate', desc: true });
   const canShip = hasPermission(partner, 'Assemble');
   const canPrint = hasPermission(partner, 'LabelPrint');
   const showActions = canShip || canPrint;
+  const sortedItems = useMemo(() => [...items].sort((a, b) => {
+    const left = new Date(a[sort.field] ?? 0).getTime();
+    const right = new Date(b[sort.field] ?? 0).getTime();
+    return sort.desc ? right - left : left - right;
+  }), [items, sort]);
+  const toggleSort = (field: 'shippingDate' | 'processingDate') =>
+    setSort((current) => current.field === field ? { field, desc: !current.desc } : { field, desc: true });
+  const copy = async (value: string | null) => {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    onCopied(value);
+  };
 
   const onRowKeyDown = (event: KeyboardEvent<HTMLTableRowElement>, order: OrderListItem) => {
     if (event.target !== event.currentTarget) return;
@@ -147,13 +159,18 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
               Номер отправления<div className="pa-sub">ScanIt</div>
             </th>
             <th className={`${TH} ${align('left')}`}>
-              Статус<div className="pa-sub">Статус Ozon</div>
+              Статус Ozon
             </th>
             <th className={`${TH} ${align('left')}`}>
               Склад<div className="pa-sub">Клиент</div>
             </th>
             <th className={`${TH} ${align('left')}`}>
-              Отгрузить до<div className="pa-sub">Принят</div>
+              <button type="button" className="pa-sort" onClick={() => toggleSort('shippingDate')} aria-label="Сортировать по дате отгрузки">
+                Отгрузить до <span aria-hidden="true">{sort.field === 'shippingDate' ? (sort.desc ? '↓' : '↑') : '↕'}</span>
+              </button>
+              <button type="button" className="pa-sort pa-sub" onClick={() => toggleSort('processingDate')} aria-label="Сортировать по дате принятия">
+                Принят <span aria-hidden="true">{sort.field === 'processingDate' ? (sort.desc ? '↓' : '↑') : '↕'}</span>
+              </button>
             </th>
             <th className={`${TH} ${align('right')}`}>
               Кол-во<div className="pa-sub">Цена</div>
@@ -164,7 +181,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
         <tbody>
           {loading && items.length === 0
             ? skeletonRows(8, showActions)
-            : items.map((order) => (
+            : sortedItems.map((order) => (
                 <tr
                   key={order.id}
                   className="po-table-row__row po-table-row__hoverable po-table-row__pointer"
@@ -179,12 +196,12 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                   <td className={`${TD} ${align('left')} pa-col-product`}>
                     <div className="pa-product" title={order.productName ?? undefined}>{order.productName ?? '—'}</div>
                     <div className="pa-tags">
-                      {order.article && <Badge kind="secondary neutral" size={400}>{order.article}</Badge>}
+                      {order.article && <CopyValue value={order.article} onCopy={copy}><Badge kind="secondary neutral" size={400}>{order.article}</Badge></CopyValue>}
                       {order.brand && <span className="pa-sub pa-sub--inline">{order.brand}</span>}
                     </div>
                   </td>
                   <td className={`${TD} ${align('left')} pa-nowrap`}>
-                    <div className="pa-number">{order.shipmentNumber ?? '—'}</div>
+                    <CopyValue value={order.shipmentNumber} onCopy={copy}><div className="pa-number">{order.shipmentNumber ?? '—'}</div></CopyValue>
                     <div className="pa-sub">{order.scanit ?? 'ScanIt ещё не получен'}</div>
                   </td>
                   <td className={`${TD} ${align('left')} pa-col-status`}><Status order={order} /></td>
@@ -209,4 +226,10 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
       </table>
     </div>
   );
+}
+
+function CopyValue({ value, onCopy, children }: { value: string | null; onCopy: (value: string | null) => Promise<void>; children: React.ReactNode }) {
+  return <span className="pa-copy-value">{children}{value && <button type="button" className="pa-copy-value__button" onClick={(event) => { event.stopPropagation(); void onCopy(value); }} aria-label={`Скопировать ${value}`} title="Скопировать">
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 10c0-4.941 1.059-6 6-6s6 1.059 6 6-1.059 6-6 6-6-1.059-6-6"/><path fill="currentColor" d="M10 17c-.5 0-1 .5-1 1 0 2 3.898 2 5 2 4.941 0 6-1.059 6-6 0-1.102 0-5-2-5-.53.042-1 .5-1 1 0 5.5-1.5 7-7 7"/></svg>
+  </button>}</span>;
 }

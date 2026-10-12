@@ -2,8 +2,8 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Icon } from './Icon';
 
 interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
-  /** primary — основная синяя (одна на экране), action-secondary — второстепенная, secondary — нейтральная. */
-  variant?: 'primary' | 'action-secondary' | 'secondary';
+  /** primary — основная синяя, primary-success — готовое успешное действие, action-secondary — второстепенная, secondary — нейтральная. */
+  variant?: 'primary' | 'primary-success' | 'action-secondary' | 'secondary';
   /** Высота контрола по брендбуку: 600 — 56px, 500 — 44px, 400 — 32px. */
   size?: 600 | 500 | 400;
   fill?: boolean;

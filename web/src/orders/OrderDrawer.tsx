@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { PartnerProfile } from '../api/auth';
 import { ApiError } from '../api/client';
 import { getOrder, type OrderDetails, type OrderListItem } from '../api/orders';
-import { formatDateTime, formatMoney, formatQuantity, isOverdue, ozonStatusTone } from '../lib/format';
+import { formatDateTime, formatMoney, formatQuantity, isOverdue, ozonStatusBadgeKind } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge } from '../ui/Badge';
 import { Informer } from '../ui/Informer';
@@ -53,7 +53,6 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
 
   // Пока карточка грузится, показываем то, что уже есть в строке списка.
   const current = details?.order ?? order;
-  const tone = ozonStatusTone(current.ozonStatus);
   const overdue = isOverdue(current.shippingDate, current.ozonStatus);
   const canShip = hasPermission(partner, 'Assemble');
   const canPrint = hasPermission(partner, 'LabelPrint');
@@ -86,8 +85,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
             {current.brand && <span className="pa-sub pa-sub--inline">{current.brand}</span>}
           </div>
           <div className="pa-drawer__status">
-            {current.status && <Badge kind="secondary info">{current.status}</Badge>}
-            {current.ozonStatus && <span className={`pa-tone pa-tone--${tone}`}>{current.ozonStatus}</span>}
+            {current.ozonStatus && <Badge kind={ozonStatusBadgeKind(current.ozonStatus)}>{current.ozonStatus}</Badge>}
             {overdue && <span className="pa-tone pa-tone--negative">Просрочено</span>}
           </div>
         </div>

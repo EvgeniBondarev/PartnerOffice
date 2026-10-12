@@ -67,6 +67,8 @@ export function formatRange(from: string | null | undefined, to: string | null |
 
 /** Статусы Ozon, в которых заказ ещё не собран и не отгружен: по ним считается просрочка. */
 const NOT_SHIPPED = ['ожидает сборки', 'ожидает упаковки', 'ожидает отгрузки', 'ожидает комплектации', 'ожидает регистрации'];
+/** /v4/posting/fbs/ship принимает отправление только в статусе Ozon awaiting_packaging («Ожидает сборки»). */
+const READY_TO_SHIP = ['ожидает сборки', 'awaiting_packaging'];
 
 export function isOverdue(shippingDate: string | null | undefined, ozonStatus: string | null | undefined, now: Date = new Date()): boolean {
   const date = parseDate(shippingDate);
@@ -74,7 +76,13 @@ export function isOverdue(shippingDate: string | null | undefined, ozonStatus: s
   return date.getTime() < now.getTime() && NOT_SHIPPED.includes(ozonStatus.trim().toLowerCase());
 }
 
+/** Фронтенд не предлагает отгрузку в статусах, которые Seller API всё равно отклонит. Сервер остаётся источником истины. */
+export function canShipOzonOrder(ozonStatus: string | null | undefined): boolean {
+  return READY_TO_SHIP.includes((ozonStatus ?? '').trim().toLowerCase());
+}
+
 export type Tone = 'negative' | 'success' | 'warning' | 'neutral';
+export type StatusBadgeKind = 'primary negative' | 'primary success' | 'secondary warning' | 'secondary neutral';
 
 /** Цвет подписи статуса Ozon: отмена красным, доставка зелёным, ожидание жёлтым. Всегда вместе с текстом. */
 export function ozonStatusTone(ozonStatus: string | null | undefined): Tone {
@@ -83,4 +91,14 @@ export function ozonStatusTone(ozonStatus: string | null | undefined): Tone {
   if (/^(доставлен|получен|заказ выполнен|заказ получен)/.test(text)) return 'success';
   if (/^ожидает|^в обработке|^новый/.test(text)) return 'warning';
   return 'neutral';
+}
+
+/** Семантический бейдж для статуса Ozon: используем только публичный статус, не внутренний статус Studio2. */
+export function ozonStatusBadgeKind(ozonStatus: string | null | undefined): StatusBadgeKind {
+  switch (ozonStatusTone(ozonStatus)) {
+    case 'negative': return 'primary negative';
+    case 'success': return 'primary success';
+    case 'warning': return 'secondary warning';
+    default: return 'secondary neutral';
+  }
 }

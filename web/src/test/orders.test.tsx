@@ -11,7 +11,7 @@ afterEach(() => {
 const row = (n: number) => screen.getByRole('row', { name: new RegExp(`Заказ 0123-${String(n).padStart(4, '0')}-1`) });
 
 describe('Список заказов', () => {
-  it('показывает строки: товар с артикулом и кодом бренда, номер и ScanIt, статусы, сумму с ₽', async () => {
+  it('показывает строки: товар с артикулом и кодом бренда, номер и ScanIt, только статус Ozon и сумму с ₽', async () => {
     ordersApi(PARTNER_FULL, [order(1, { article: '122RU19=HSH', productName: 'HOSHI Ремень ГРМ' })]);
     renderApp('/orders');
 
@@ -21,8 +21,8 @@ describe('Список заказов', () => {
     expect(within(r).getByText('122RU19=HSH')).toBeInTheDocument();
     expect(within(r).getByText('0123-0001-1')).toBeInTheDocument();
     expect(within(r).getByText('ii50014310001')).toBeInTheDocument();
-    expect(within(r).getByText('Новый')).toBeInTheDocument();
-    expect(within(r).getByText('Ожидает отгрузки')).toBeInTheDocument();
+    expect(within(r).getByText('Ожидает сборки')).toBeInTheDocument();
+    expect(within(r).queryByText('Новый')).not.toBeInTheDocument();
     expect(within(r).getByText(/1\s250,00\s₽/)).toBeInTheDocument();
     expect(screen.getByText('Найдено: 1')).toBeInTheDocument();
   });
@@ -53,7 +53,27 @@ describe('Список заказов', () => {
     expect(within(ozon).getByRole('button', { name: /Этикетка/ })).toBeInTheDocument();
     expect(within(ozon).queryByRole('button', { name: /Отгрузить/ })).not.toBeInTheDocument();
     const yandex = screen.getByRole('row', { name: /Заказ 0123-0002-1/ });
-    expect(within(yandex).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(yandex).queryByRole('button', { name: /Отгрузить|Этикетка/ })).not.toBeInTheDocument();
+  });
+
+  it('блокирует отгрузку вне статуса «Ожидает сборки» и показывает подсказку над таблицей', async () => {
+    const user = userEvent.setup();
+    ordersApi(PARTNER_FULL, [order(1, { ozonStatus: 'Доставляется' })]);
+    renderApp('/orders');
+
+    const r = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(within(r).getByRole('button', { name: /Отгрузить/ })).toBeDisabled();
+    const hint = within(r).getByRole('img', { name: /только из статуса Ozon «Ожидает сборки»/ });
+    await user.hover(hint);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Отгрузить заказ можно только из статуса Ozon «Ожидает сборки».');
+  });
+
+  it('выделяет готовую этикетку зелёной кнопкой', async () => {
+    ordersApi(PARTNER_FULL, [order(1, { hasLabel: true })]);
+    renderApp('/orders');
+
+    const r = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(within(r).getByRole('button', { name: /Этикетка/ })).toHaveClass('po-button__primary-success');
   });
 
   it('просрочку показывает красной подписью под датой, а не одним цветом', async () => {
@@ -95,15 +115,15 @@ describe('Фильтры и подгрузка', () => {
     await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
 
     await user.type(screen.getByRole('searchbox', { name: 'Поиск по заказам' }), 'BX1=HSH');
-    await user.click(screen.getByRole('combobox', { name: /Статус/ }));
-    await user.click(await screen.findByRole('option', { name: 'Отгружен' }));
+    await user.click(screen.getByRole('combobox', { name: /Статус Ozon/ }));
+    await user.click(await screen.findByRole('option', { name: 'Доставляется' }));
     await user.click(screen.getByRole('button', { name: 'Найти' }));
 
     await waitFor(() => {
       const last = calls.filter((c) => c.url.startsWith('/partner-api/orders?')).at(-1)!;
       const query = new URLSearchParams(last.url.split('?')[1]);
       expect(query.get('search')).toBe('BX1=HSH');
-      expect(query.get('statusId')).toBe('2');
+      expect(query.get('ozonStatus')).toBe('Доставляется');
       expect(query.get('page')).toBe('1');
     });
 

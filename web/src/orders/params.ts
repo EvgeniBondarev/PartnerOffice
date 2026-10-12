@@ -6,18 +6,18 @@ export const PAGE_SIZE = 50;
 /** Фильтры страницы заказов. Значения строками: так они лежат в адресе и в селектах. */
 export interface OrderFilterState {
   search: string;
-  statusId: string;
+  ozonStatus: string;
   warehouseId: string;
   clientId: string;
   from: string;
   to: string;
 }
 
-export const EMPTY_FILTERS: OrderFilterState = { search: '', statusId: '', warehouseId: '', clientId: '', from: '', to: '' };
+export const EMPTY_FILTERS: OrderFilterState = { search: '', ozonStatus: '', warehouseId: '', clientId: '', from: '', to: '' };
 
 const KEYS: Array<[keyof OrderFilterState, string]> = [
   ['search', 'search'],
-  ['statusId', 'status'],
+  ['ozonStatus', 'ozonStatus'],
   ['warehouseId', 'warehouse'],
   ['clientId', 'client'],
   ['from', 'from'],
@@ -48,7 +48,7 @@ const toId = (value: string): number | undefined => {
 export function toQuery(filters: OrderFilterState): Omit<OrderQuery, 'page' | 'pageSize'> {
   return {
     search: filters.search.trim() || undefined,
-    statusId: toId(filters.statusId),
+    ozonStatus: filters.ozonStatus.trim() || undefined,
     warehouseId: toId(filters.warehouseId),
     clientId: toId(filters.clientId),
     from: filters.from || undefined,

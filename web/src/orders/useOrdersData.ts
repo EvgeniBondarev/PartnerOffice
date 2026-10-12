@@ -113,7 +113,7 @@ export function useOrderFilters() {
     getOrderFilters(controller.signal)
       .then(setFilters)
       // Без справочников фильтры просто пустые: поиск и таблица продолжают работать.
-      .catch(() => setFilters({ statuses: [], warehouses: [], clients: [] }));
+      .catch(() => setFilters({ statuses: [], ozonStatuses: [], warehouses: [], clients: [] }));
     return () => controller.abort();
   }, []);
 

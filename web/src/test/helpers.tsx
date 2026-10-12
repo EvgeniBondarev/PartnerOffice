@@ -70,7 +70,7 @@ export function order(id: number, patch: Partial<OrderListItem> = {}): OrderList
     imageUrl: null,
     statusId: 1,
     status: 'Новый',
-    ozonStatus: 'Ожидает отгрузки',
+    ozonStatus: 'Ожидает сборки',
     warehouseId: 1,
     warehouse: 'Москва',
     clientId: 1,
@@ -89,6 +89,7 @@ export const ordersPage = (items: OrderListItem[], total = items.length, page = 
 
 export const EMPTY_FILTERS_RESPONSE = json({
   statuses: [{ id: 1, name: 'Новый' }, { id: 2, name: 'Отгружен' }],
+  ozonStatuses: ['Ожидает сборки', 'Доставляется'],
   warehouses: [{ id: 1, name: 'Москва' }],
   clients: [{ id: 1, name: 'Interparts RU' }]
 });

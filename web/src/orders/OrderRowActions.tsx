@@ -1,5 +1,8 @@
 import type { OrderListItem } from '../api/orders';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { Tooltip } from '../ui/Tooltip';
+import { canShipOzonOrder } from '../lib/format';
 import { isOzonOrder } from '../lib/permissions';
 
 export type ActionKind = 'ship' | 'print';
@@ -22,25 +25,34 @@ interface OrderRowActionsProps {
 export function OrderRowActions({ order, canShip, canPrint, busy, size = 400, primary = false, onShip, onPrint }: OrderRowActionsProps) {
   if (!isOzonOrder(order.marketplace)) return null;
   if (!canShip && !canPrint) return null;
+  const canShipNow = canShipOzonOrder(order.ozonStatus);
+  const shipBlockedHint = 'Отгрузить заказ можно только из статуса Ozon «Ожидает сборки».';
 
   return (
     <div className="pa-actions">
       {canShip && (
-        <Button
-          variant={primary ? 'primary' : 'action-secondary'}
-          size={size}
-          icon="ui-package"
-          loading={busy === 'ship'}
-          disabled={busy !== null}
-          onClick={() => onShip(order)}
-          title="Отгрузить заказ: передать отправление в Ozon"
-        >
-          Отгрузить
-        </Button>
+        <div className="pa-action-with-hint">
+          <Button
+            variant={primary ? 'primary' : 'action-secondary'}
+            size={size}
+            icon="ui-package"
+            loading={busy === 'ship'}
+            disabled={busy !== null || !canShipNow}
+            onClick={() => onShip(order)}
+            title={canShipNow ? 'Отгрузить заказ: передать отправление в Ozon' : undefined}
+          >
+            Отгрузить
+          </Button>
+          {!canShipNow && (
+            <Tooltip text={shipBlockedHint}>
+              <Icon name="ui-info" size={16} />
+            </Tooltip>
+          )}
+        </div>
       )}
       {canPrint && (
         <Button
-          variant="action-secondary"
+          variant={order.hasLabel ? 'primary-success' : 'action-secondary'}
           size={size}
           icon="ui-print"
           loading={busy === 'print'}

@@ -15,10 +15,12 @@ interface InformerProps {
   action?: ReactNode;
   /** Если задан, справа появляется кнопка «Закрыть». */
   onClose?: () => void;
+  /** Компактная 3D-иллюстрация для объяснения конкретного сценария. */
+  illustration?: string;
 }
 
 /** Информер дизайн-системы (design/components/ozon/informer.css): значок и текст, цвет — не единственный признак. */
-export function Informer({ kind, title, children, id, reasons, action, onClose }: InformerProps) {
+export function Informer({ kind, title, children, id, reasons, action, onClose, illustration }: InformerProps) {
   return (
     <div
       id={id}
@@ -26,6 +28,7 @@ export function Informer({ kind, title, children, id, reasons, action, onClose }
       role={kind === 'info' ? 'status' : 'alert'}
     >
       <Icon name={ICONS[kind]} size={24} className={`pa-informer__icon pa-informer__icon--${kind}`} />
+      {illustration && <img className="pa-informer__illustration" src={illustration} alt="" />}
       <div className="pa-informer__text">
         {title && <b className="pa-informer__title">{title}</b>}
         <span>{children}</span>

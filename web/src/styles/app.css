@@ -71,6 +71,7 @@ body { background: var(--ozi-layer-floor1); }
 /* ---------- Информер ---------- */
 .pa-informer { --padding: 16px; align-items: flex-start; display: flex; gap: 12px; }
 .pa-informer__icon { flex: none; margin-top: 0; }
+.pa-informer__illustration { flex: none; height: 88px; margin: -4px 0 -4px -4px; object-fit: contain; width: 88px; }
 .pa-informer__icon--info { color: var(--ozi-graphic-action-primary); }
 .pa-informer__icon--warning { color: var(--ozi-graphic-warning-primary); }
 .pa-informer__icon--error { color: var(--ozi-graphic-negative-primary); }
@@ -167,7 +168,7 @@ button.po-day:disabled { cursor: default; }
 
 /* ---------- Фильтры ---------- */
 .pa-toolbar { align-items: flex-start; flex-wrap: nowrap; margin-bottom: 12px; }
-.pa-toolbar__search { flex: 1 1 220px; max-width: 420px; min-width: 160px; }
+.pa-toolbar__search { flex: 1 1 220px; max-width: 420px; min-width: 160px; position: relative; }
 .pa-toolbar__field { flex: none; width: 150px; }
 .pa-toolbar__field--period { width: 210px; }
 /* Правило брендбука: фильтры в одну строку. На узком экране поиск уходит на свою строку, поля остаются рядом. */
@@ -176,11 +177,31 @@ button.po-day:disabled { cursor: default; }
   .pa-toolbar__search { flex: 1 1 100%; max-width: none; }
 }
 .pa-search .po-input__container { cursor: text; }
+/* Оставляем один предсказуемый крестик — наш, с тем же поведением во всех браузерах. */
+.pa-search input[type='search']::-webkit-search-cancel-button { appearance: none; display: none; }
+.pa-empty__illustration { display: block; height: 144px; margin: 0 auto 12px; object-fit: contain; width: 144px; }
+.pa-order-suggestions {
+  background: var(--ozi-bg-primary-transparent); border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%); left: 0; max-height: 304px; overflow-y: auto; position: absolute; right: 0; top: calc(100% + 4px); z-index: 1700;
+}
+.pa-order-suggestions__item { background: transparent; border: 0; color: inherit; cursor: pointer; display: flex; flex-direction: column; font: inherit; gap: 2px; padding: 10px 12px; text-align: left; width: 100%; }
+.pa-order-suggestions__item:hover, .pa-order-suggestions__item:focus-visible { background: var(--ozi-layer-hover); outline: none; }
+.pa-order-suggestions__title { font-weight: 600; }
+.pa-order-suggestions__detail { color: var(--ozi-text-secondary-transparent); font-size: 13px; line-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- Таблица заказов ---------- */
 .pa-orders { display: flex; flex-direction: column; height: calc(100vh - var(--header-height) - var(--page-padding-y) * 2); min-height: 420px; }
 /* Прокручиваемая область таблицы: шапка закреплена, заказы подгружаются при прокрутке к концу списка. */
-.pa-scroll { border-radius: 12px; flex: 1; min-height: 0; overflow: auto; }
+.pa-scroll {
+  border-radius: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  /* Полоса не занимает место рядом с таблицей, но прокрутка колесом и трекпадом остаётся. */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.pa-scroll::-webkit-scrollbar { display: none; }
 .pa-scroll:focus-visible { outline: 2px solid var(--action-400); }
 .pa-table thead th { position: sticky; top: 0; z-index: 2; }
 .pa-scroll__end { height: 1px; }
@@ -190,7 +211,9 @@ button.po-day:disabled { cursor: default; }
 .pa-nowrap { white-space: nowrap; }
 .pa-col-product { max-width: 380px; min-width: 220px; width: 380px; }
 .pa-col-status { min-width: 150px; }
-.pa-col-date { min-width: 120px; }
+/* Две даты и стрелки сортировки требуют своей ширины: не даём колонке сжимать дату до одного слова. */
+.pa-col-date { min-width: 188px; width: 188px; }
+.pa-col-date > div:first-child, .pa-col-date .pa-sub { white-space: nowrap; }
 .pa-col-actions { min-width: 140px; }
 .pa-table[aria-busy='true'] tbody { opacity: 0.6; transition: opacity 0.15s; }
 .pa-table .po-table-row__row:focus-visible { outline: 2px solid var(--action-400); outline-offset: -2px; }
@@ -203,6 +226,15 @@ button.po-day:disabled { cursor: default; }
   max-width: 380px; overflow: hidden; overflow-wrap: anywhere;
 }
 .pa-number { font-weight: 600; overflow-wrap: anywhere; }
+.pa-sort { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; font-weight: 600; padding: 0; text-align: left; }
+.pa-sort.pa-sub { display: block; font-weight: 400; }
+.pa-sort:hover { color: var(--ozi-text-action); }
+.pa-copy-value { align-items: center; display: inline-flex; gap: 4px; max-width: 100%; }
+.pa-copy-value__button { align-items: center; background: none; border: 0; color: var(--ozi-graphic-tertiary-transparent); cursor: pointer; display: inline-flex; opacity: 0; padding: 2px; }
+.pa-copy-value:hover .pa-copy-value__button, .pa-copy-value__button:focus-visible { opacity: 1; }
+.pa-copy-value__button:hover { color: var(--ozi-graphic-primary-transparent); }
+.pa-copy-toast { align-items: center; background: #2e3135; border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 20%); color: #fff; display: flex; font-size: 16px; gap: 10px; padding: 16px 20px; position: fixed; right: 24px; top: 18px; z-index: 1900; }
+.pa-copy-toast span { align-items: center; background: #20c968; border-radius: 50%; color: #093e21; display: inline-flex; font-weight: 800; height: 24px; justify-content: center; width: 24px; }
 .pa-tags { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .pa-photo { background: var(--ozi-layer-surface-transparent); border-radius: 8px; display: block; object-fit: cover; }
 .pa-photo--empty { color: var(--ozi-graphic-tertiary-transparent); display: grid; place-items: center; }
@@ -212,6 +244,18 @@ button.po-day:disabled { cursor: default; }
 .pa-tone--neutral { color: var(--ozi-text-secondary-transparent); }
 .pa-actions { align-items: flex-start; display: flex; flex-direction: column; gap: 8px; }
 .pa-overlay__footer .pa-actions { flex-direction: row; flex-wrap: wrap; }
+.po-button__primary-success {
+  --background-color: var(--ozi-bg-success-primary); --border-color: #0000;
+  --icon-color: var(--ozi-static-graphic-primary-on-dark-transparent); --text-color: var(--ozi-static-text-primary-on-dark-transparent);
+  --overlay-background: var(--ozi-static-text-primary-on-dark-transparent);
+}
+.pa-action-with-hint { align-items: center; display: flex; gap: 6px; }
+.pa-action-hint { color: var(--ozi-graphic-tertiary-transparent); cursor: help; display: grid; flex: none; height: 20px; place-items: center; width: 20px; }
+.pa-action-hint:hover { color: var(--ozi-graphic-secondary-transparent); }
+.pa-action-hint:focus-visible { border-radius: 6px; outline: 2px solid var(--action-400); outline-offset: 2px; }
+.pa-floating-tooltip { pointer-events: none; position: fixed; z-index: 1700; }
+.pa-floating-tooltip--top { transform: translateY(-100%); }
+.pa-floating-tooltip .tippy-box { color: var(--ozi-static-text-primary-on-dark-transparent); width: 100%; }
 .pa-skeleton-gap { height: 8px; }
 .pa-pager { align-items: center; display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
 .pa-pager__info { color: var(--ozi-text-secondary-transparent); }
