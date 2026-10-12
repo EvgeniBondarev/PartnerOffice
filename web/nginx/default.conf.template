@@ -44,6 +44,14 @@ server {
         try_files $uri =404;
     }
 
+    # В mime.types образа nginx нет .webmanifest: без этого манифест приложения уходит как octet-stream.
+    location = /site.webmanifest {
+        default_type application/manifest+json;
+        expires 1d;
+        add_header Cache-Control "public";
+        add_header X-Content-Type-Options "nosniff" always;
+    }
+
     location /brand/ {
         expires 7d;
         add_header Cache-Control "public";
