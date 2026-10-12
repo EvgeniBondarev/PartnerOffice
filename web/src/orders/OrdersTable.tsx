@@ -177,7 +177,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                     <ProductImage url={order.imageUrl} alt={order.productName ?? 'Товар'} onOpen={onImage} />
                   </td>
                   <td className={`${TD} ${align('left')} pa-col-product`}>
-                    <div className="pa-product">{order.productName ?? '—'}</div>
+                    <div className="pa-product" title={order.productName ?? undefined}>{order.productName ?? '—'}</div>
                     <div className="pa-tags">
                       {order.article && <Badge kind="secondary neutral" size={400}>{order.article}</Badge>}
                       {order.brand && <span className="pa-sub pa-sub--inline">{order.brand}</span>}

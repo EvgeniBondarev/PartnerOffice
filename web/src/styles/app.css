@@ -188,7 +188,7 @@ button.po-day:disabled { cursor: default; }
 .pa-table .po-table__table { min-width: 980px; table-layout: auto; width: 100%; }
 .pa-table th { white-space: nowrap; }
 .pa-nowrap { white-space: nowrap; }
-.pa-col-product { min-width: 220px; }
+.pa-col-product { max-width: 380px; min-width: 220px; width: 380px; }
 .pa-col-status { min-width: 150px; }
 .pa-col-date { min-width: 120px; }
 .pa-col-actions { min-width: 140px; }
@@ -197,7 +197,11 @@ button.po-day:disabled { cursor: default; }
 .pa-sub { color: var(--ozi-text-secondary-transparent); font-size: 13px; line-height: 16px; margin-top: 2px; }
 .pa-sub--inline { display: inline; margin: 0; }
 .pa-muted { color: var(--ozi-text-secondary-transparent); }
-.pa-product { color: var(--ozi-text-primary-transparent); overflow-wrap: anywhere; }
+/* Длинные названия обрезаем тремя строками, как в оригинале: колонка не раздувает таблицу, полное название в подсказке и в карточке. */
+.pa-product {
+  -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--ozi-text-primary-transparent); display: -webkit-box;
+  max-width: 380px; overflow: hidden; overflow-wrap: anywhere;
+}
 .pa-number { font-weight: 600; overflow-wrap: anywhere; }
 .pa-tags { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .pa-photo { background: var(--ozi-layer-surface-transparent); border-radius: 8px; display: block; object-fit: cover; }
