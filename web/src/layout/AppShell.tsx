@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, Outlet, matchPath, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Icon } from '../ui/Icon';
 import { usePopover } from '../ui/usePopover';
@@ -33,6 +33,7 @@ export function AppShell() {
   const { partner, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const userMenu = usePopover();
+  const { pathname } = useLocation();
   const [leaving, setLeaving] = useState(false);
 
   // Запоминаем только явный выбор пользователя, а не автоматическое сворачивание по ширине окна.
@@ -114,28 +115,36 @@ export function AppShell() {
         <ul>
           {MENU.map((group, index) => (
             <div className="po-menu__group" key={index}>
-              {group.map((entry) => (
-                <li key={entry.to} className="po-menu-item__menuItem">
-                  <NavLink
-                    to={entry.to}
-                    title={collapsed ? entry.label : undefined}
-                    className={({ isActive }) => `po-menu-item__button po-menu-item__roundHover pa-menu__link po-menu__item${isActive ? ' po-menu__item--active' : ''}`}
-                  >
-                    <div className="po-data-cell__dataCell" style={{ ['--columns' as string]: 'max-content 1fr' }}>
-                      <div className="po-menu-item__block">
-                        <div className="po-menu__icon">
-                          <Icon name={entry.icon} />
+              {group.map((entry) => {
+                const active = matchPath({ path: entry.to, end: false }, pathname) !== null;
+                return (
+                  // Разметка пункта как в брендбуке: активный класс на li, внутри кнопка-ссылка (иначе не работают подсветка и hover).
+                  <li key={entry.to} className={`po-menu-item__menuItem po-menu__item${active ? ' po-menu__item--active' : ''}`}>
+                    <Link
+                      to={entry.to}
+                      title={collapsed ? entry.label : undefined}
+                      aria-label={collapsed ? entry.label : undefined}
+                      aria-current={active ? 'page' : undefined}
+                      className="po-menu-item__button po-menu-item__roundHover pa-menu__link"
+                      // Отступ пункта считается от --level-scale (уровень вложенности): без него padding невалиден и обнуляется.
+                      style={{ ['--level-scale' as string]: 0 }}
+                    >
+                      <div className="po-data-cell__dataCell" style={{ ['--columns' as string]: 'max-content 1fr' }}>
+                        <div className="po-menu-item__block">
+                          <div className="po-menu__icon">
+                            <Icon name={entry.icon} />
+                          </div>
+                        </div>
+                        <div className="po-data-cell__content">
+                          <div className="po-data-content__dataContent po-data-content__size-500">
+                            <div className="po-data-content__label po-data-content__label-size-500 ozi-table-500">{entry.label}</div>
+                          </div>
                         </div>
                       </div>
-                      <div className="po-data-cell__content">
-                        <div className="po-data-content__dataContent po-data-content__size-500">
-                          <div className="po-data-content__label po-data-content__label-size-500 ozi-table-500">{entry.label}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </NavLink>
-                </li>
-              ))}
+                    </Link>
+                  </li>
+                );
+              })}
             </div>
           ))}
         </ul>
