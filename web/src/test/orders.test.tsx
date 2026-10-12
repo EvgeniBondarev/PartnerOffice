@@ -358,7 +358,7 @@ describe('Печать этикетки', () => {
     URL.revokeObjectURL = vi.fn();
   });
 
-  const pdf = (generated: boolean) => ({ status: 200, blob: new Blob(['%PDF-1.4'], { type: 'application/pdf' }), headers: { 'X-Label-Generated': String(generated), 'X-Auto-Shipped': 'false' } });
+  const pdf = (generated: boolean) => ({ status: 200, file: new TextEncoder().encode('%PDF-1.4'), headers: { 'Content-Type': 'application/pdf', 'X-Label-Generated': String(generated), 'X-Auto-Shipped': 'false' } });
 
   it('готовая этикетка печатается сразу, без запроса требований, и открывается по ссылке', async () => {
     const user = userEvent.setup();

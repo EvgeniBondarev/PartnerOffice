@@ -9,8 +9,8 @@ export interface MockResponse {
   status: number;
   body?: unknown;
   headers?: Record<string, string>;
-  /** Файл вместо JSON (PDF этикетки). */
-  blob?: Blob;
+  /** Байты файла вместо JSON (PDF этикетки). Именно байты, а не Blob из jsdom: Node 22 не принимает его в Response. */
+  file?: Uint8Array;
 }
 export type Handler = (init?: RequestInit, url?: string) => MockResponse | Promise<MockResponse>;
 
@@ -35,8 +35,8 @@ export function mockApi(handlers: Record<string, Handler>) {
       // Ключ без метода относится только к GET: иначе GET и PUT одного адреса путались бы.
       const key = Object.keys(handlers).find((k) => k === exact || (method === 'GET' && k === url) || (k.endsWith('*') && (method === 'GET' ? url.startsWith(k.slice(0, -1)) : exact.startsWith(k.slice(0, -1)))));
       const handler: Handler = (key ? handlers[key] : undefined) ?? (() => ({ status: 404 }));
-      const { status, body, headers, blob } = await handler(init, url);
-      if (blob) return new Response(blob, { status, headers });
+      const { status, body, headers, file } = await handler(init, url);
+      if (file) return new Response(file as unknown as BodyInit, { status, headers });
       return new Response(body === undefined ? '' : JSON.stringify(body), { status, headers });
     })
   );
