@@ -4,7 +4,7 @@
 
 ## Брендбук
 
-**[Открыть брендбук](https://evgenibondarev.github.io/PartnerOffice/design/brandbook/index.html)** (GitHub Pages) · [исходник страницы](design/brandbook/index.html)
+**[Исходник страницы брендбука](design/brandbook/index.html)** (на GitHub открывается как код; чтобы увидеть страницу, скачайте репозиторий и откройте файл в браузере)
 
 Локально: откройте `design/brandbook/index.html` или выполните `python3 -m http.server` из папки `design` и перейдите на `/brandbook/index.html`. Пересборка: `python3 design/build/build_brandbook.py`.
 
