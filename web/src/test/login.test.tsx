@@ -132,6 +132,7 @@ describe('Страница входа', () => {
     expect(await screen.findByText('ООО Казань')).toBeInTheDocument();
     expect(calls.find((c) => c.url === '/partner-api/auth/code/request')!.body).toEqual({ email: 'boss@acme.ru' });
     expect(screen.getByRole('button', { name: /Отправить код ещё раз через \d+ с/ })).toBeDisabled();
+    expect(document.querySelector('img[src="/illustrations/email-code-sent.png"]')).toBeInTheDocument();
   });
 
   it('вход по коду: после шести цифр отправляет сам и открывает кабинет', async () => {
@@ -263,6 +264,8 @@ describe('Страница входа', () => {
     expect(await screen.findByText('Не удалось отправить письмо. Попробуйте позже.')).toBeInTheDocument();
     expect(screen.getByLabelText('Почта')).toBeInTheDocument();
     expect(screen.queryByLabelText('Цифра 1 из 6')).not.toBeInTheDocument();
+    expect(document.querySelector('img[src="/illustrations/email-send-failed.png"]')).toBeInTheDocument();
+    expect(screen.getByRole('alert').querySelector('.pa-informer__icon')).not.toBeInTheDocument();
   });
 
   it('сообщает, если сервер недоступен', async () => {

@@ -301,15 +301,18 @@ export function LoginPage() {
             Введите почту, на которую владелец отправил приглашение. Мы пришлём на неё код для входа.
           </p>
         ) : (
-          <p className="pa-auth__lead ozi-body-500">
-            {fromInvite && resendAt === null ? (
-              <>Открываем кабинет для <strong>{email}</strong> по коду из приглашения.</>
-            ) : (
-              <>
-                Мы отправили код на <strong>{email}</strong>. Он действует 10 минут. Если письма нет, загляните в папку «Спам».
-              </>
-            )}
-          </p>
+          <div className="pa-auth__sent">
+            <p className="pa-auth__lead ozi-body-500">
+              {fromInvite && resendAt === null ? (
+                <>Открываем кабинет для <strong>{email}</strong> по коду из приглашения.</>
+              ) : (
+                <>
+                  Мы отправили код на <strong>{email}</strong>. Он действует 10 минут. Если письма нет, загляните в папку «Спам».
+                </>
+              )}
+            </p>
+            {!(fromInvite && resendAt === null) && <img className="pa-auth__sentIllustration" src="/illustrations/email-code-sent.png" alt="" />}
+          </div>
         )}
 
         {lockedUntil && (
@@ -317,7 +320,7 @@ export function LoginPage() {
             {lockedUntil.text ? `Вход откроется в ${lockedUntil.text}.` : 'Подождите немного и попробуйте снова.'} Если почта указана неверно, попросите владельца исправить её.
           </Informer>
         )}
-        {serverMessage && <Informer kind="error">{serverMessage}</Informer>}
+        {serverMessage && <Informer kind="error" illustration="/illustrations/email-send-failed.png">{serverMessage}</Informer>}
 
         {step === 'email' ? (
           <form className="pa-auth__form" onSubmit={onEmailSubmit} noValidate>

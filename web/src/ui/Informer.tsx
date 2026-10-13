@@ -19,7 +19,7 @@ interface InformerProps {
   illustration?: string;
 }
 
-/** Информер дизайн-системы (design/components/ozon/informer.css): значок и текст, цвет — не единственный признак. */
+/** Информер дизайн-системы (design/components/ozon/informer.css): значок или иллюстрация и текст, цвет — не единственный признак. */
 export function Informer({ kind, title, children, id, reasons, action, onClose, illustration }: InformerProps) {
   return (
     <div
@@ -27,7 +27,7 @@ export function Informer({ kind, title, children, id, reasons, action, onClose, 
       className={`po-informer__informer ozi-body-500 po-informer__size-500 po-informer__${kind} po-informer__showAccentLine pa-informer`}
       role={kind === 'info' ? 'status' : 'alert'}
     >
-      <Icon name={ICONS[kind]} size={24} className={`pa-informer__icon pa-informer__icon--${kind}`} />
+      {!illustration && <Icon name={ICONS[kind]} size={24} className={`pa-informer__icon pa-informer__icon--${kind}`} />}
       {illustration && <img className="pa-informer__illustration" src={illustration} alt="" />}
       <div className="pa-informer__text">
         {title && <b className="pa-informer__title">{title}</b>}

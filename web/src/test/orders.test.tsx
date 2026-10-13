@@ -389,6 +389,7 @@ describe('Печать этикетки', () => {
 
     expect(await screen.findByText('Этикетка заказа 0123-0001-1 готова')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Открыть этикетку' })).toHaveAttribute('href', 'blob:label');
+    expect(screen.getByText('Этикетка заказа 0123-0001-1 готова').closest('.pa-informer')?.querySelector('.pa-informer__icon')).not.toBeInTheDocument();
     expect(calls.some((c) => c.url.includes('/ozon/requirements'))).toBe(false);
     expect(window.open).toHaveBeenCalled();
   });
