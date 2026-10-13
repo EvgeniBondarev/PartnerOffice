@@ -383,3 +383,26 @@ button.po-day:disabled { cursor: default; }
   .pa-col-actions { min-width: 112px; }
   .pa-product { max-width: 240px; }
 }
+
+/* ---------- Поле кода из письма: по ячейке на цифру ---------- */
+.pa-code { display: flex; flex-direction: column; gap: 8px; }
+.pa-code__label { color: var(--ozi-text-secondary-transparent); padding: 0 4px; }
+.pa-code__cells { display: flex; gap: 8px; }
+.pa-code__cell {
+  background: var(--ozi-bg-primary-transparent); border: 0; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ozi-graphic-quaternary-transparent);
+  caret-color: var(--ozi-graphic-action-primary); color: var(--ozi-text-primary-transparent); flex: 1 1 0; font: 600 24px/32px var(--global-font);
+  height: 56px; min-width: 0; outline: 0; padding: 0; text-align: center; transition: box-shadow .1s, background-color .1s; width: 100%;
+}
+/* Вторая тройка цифр отделена, как номер в письме: 123 456. */
+.pa-code__cell:nth-child(3) { margin-right: 8px; }
+.pa-code__cell:hover:not(:disabled):not(:focus):not(.pa-code__cell--error) { box-shadow: inset 0 0 0 1px var(--ozi-active-graphic-quaternary-transparent); }
+.pa-code__cell:focus { box-shadow: inset 0 0 0 2px var(--ozi-graphic-action-primary); }
+.pa-code__cell--filled { background: var(--action-25-opaque); }
+.pa-code__cell--error, .pa-code__cell--error:focus { box-shadow: inset 0 0 0 2px var(--ozi-graphic-negative-primary); }
+.pa-code__cell:disabled { opacity: .6; }
+.pa-code__spinner { height: 18px; width: 18px; border-width: 2px; }
+.pa-code__status { align-items: center; color: var(--ozi-text-secondary-transparent); display: flex; gap: 8px; justify-content: center; min-height: 24px; }
+@media (max-width: 480px) {
+  .pa-code__cells { gap: 6px; }
+  .pa-code__cell { font-size: 22px; height: 52px; }
+}

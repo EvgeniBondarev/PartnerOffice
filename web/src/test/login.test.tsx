@@ -10,6 +10,9 @@ const renderApp = () => renderAt('/login');
 
 const anonymous: Handler = () => ({ status: 401 });
 
+const firstCell = () => screen.findByLabelText('Цифра 1 из 6');
+const codeValue = () => [1, 2, 3, 4, 5, 6].map((n) => (screen.getByLabelText(`Цифра ${n} из 6`) as HTMLInputElement).value).join('');
+
 beforeEach(() => {
   vi.useRealTimers();
 });
@@ -116,7 +119,7 @@ describe('Страница входа', () => {
     await user.type(await screen.findByLabelText('Почта'), '  boss@acme.ru  ');
     await user.click(screen.getByRole('button', { name: 'Получить код' }));
 
-    expect(await screen.findByLabelText('Код из письма')).toHaveFocus();
+    expect(await firstCell()).toHaveFocus();
     expect(screen.getByText('boss@acme.ru')).toBeInTheDocument();
     expect(await screen.findByText('ООО Казань')).toBeInTheDocument();
     expect(calls.find((c) => c.url === '/partner-api/auth/code/request')!.body).toEqual({ email: 'boss@acme.ru' });
@@ -140,7 +143,7 @@ describe('Страница входа', () => {
     renderApp();
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
-    await user.type(await screen.findByLabelText('Код из письма'), '123456');
+    await user.type(await firstCell(), '123456');
 
     expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
     expect(calls.find((c) => c.url === '/partner-api/auth/code/verify')!.body).toEqual({ email: 'boss@acme.ru', code: '123456' });
@@ -157,7 +160,7 @@ describe('Страница входа', () => {
     renderApp();
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
-    await user.click(await screen.findByLabelText('Код из письма'));
+    await user.click(await firstCell());
     await user.paste('123 456');
 
     await waitFor(() => expect(calls.some((c) => c.url === '/partner-api/auth/code/verify')).toBe(true));
@@ -175,18 +178,18 @@ describe('Страница входа', () => {
     renderApp();
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
-    const code = await screen.findByLabelText('Код из письма');
-    await user.type(code, '000000');
+    await user.type(await firstCell(), '000000');
 
     expect(await screen.findByText('Неверный или просроченный код')).toBeInTheDocument();
-    expect(code).toHaveValue('');
-    expect(code).toHaveFocus();
+    await waitFor(() => expect(codeValue()).toBe(''));
+    await waitFor(() => expect(screen.getByLabelText('Цифра 1 из 6')).toHaveFocus());
+    expect(screen.getByLabelText('Цифра 1 из 6')).toHaveAttribute('aria-invalid', 'true');
 
-    await user.type(code, '1');
+    await user.keyboard('1');
     expect(screen.queryByText('Неверный или просроченный код')).not.toBeInTheDocument();
   });
 
-  it('проверяет код при отправке неполного значения и не ходит в API', async () => {
+  it('пока введено меньше шести цифр, ничего не отправляет и кнопки «Войти» нет', async () => {
     const user = userEvent.setup();
     const calls = mockApi({
       '/partner-api/auth/me': anonymous,
@@ -196,14 +199,15 @@ describe('Страница входа', () => {
     renderApp();
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
-    await user.type(await screen.findByLabelText('Код из письма'), '123');
-    await user.click(screen.getByRole('button', { name: 'Войти' }));
+    await user.type(await firstCell(), '123');
+    await user.keyboard('{Enter}');
 
-    expect(screen.getByText('Код состоит из 6 цифр')).toBeInTheDocument();
+    expect(codeValue()).toBe('123');
+    expect(screen.queryByRole('button', { name: 'Войти' })).not.toBeInTheDocument();
     expect(calls.some((c) => c.url === '/partner-api/auth/code/verify')).toBe(false);
   });
 
-  it('при блокировке показывает до какого времени и отключает кнопку', async () => {
+  it('при блокировке показывает до какого времени и отключает поле кода', async () => {
     const user = userEvent.setup();
     const until = new Date(Date.now() + 15 * 60_000).toISOString();
     mockApi({
@@ -215,11 +219,11 @@ describe('Страница входа', () => {
     renderApp();
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
-    await user.type(await screen.findByLabelText('Код из письма'), '000000');
+    await user.type(await firstCell(), '000000');
 
     expect(await screen.findByText('Слишком много неверных кодов')).toBeInTheDocument();
     expect(screen.getByText(/Вход откроется в \d{2}:\d{2}/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Войти' })).toBeDisabled();
+    expect(screen.getByLabelText('Цифра 1 из 6')).toBeDisabled();
   });
 
   it('если код уже отправляли минуту назад, всё равно показывает ввод кода и ждёт паузу', async () => {
@@ -233,7 +237,7 @@ describe('Страница входа', () => {
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
 
-    expect(await screen.findByLabelText('Код из письма')).toBeInTheDocument();
+    expect(await firstCell()).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Отправить код ещё раз через (4[12]|3\d) с/ })).toBeDisabled();
   });
 
@@ -250,7 +254,7 @@ describe('Страница входа', () => {
 
     expect(await screen.findByText('Не удалось отправить письмо. Попробуйте позже.')).toBeInTheDocument();
     expect(screen.getByLabelText('Почта')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Код из письма')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Цифра 1 из 6')).not.toBeInTheDocument();
   });
 
   it('сообщает, если сервер недоступен', async () => {
@@ -283,7 +287,7 @@ describe('Страница входа', () => {
     await user.click(await screen.findByRole('button', { name: 'Изменить почту' }));
 
     expect(await screen.findByLabelText('Почта')).toHaveValue('boss@acme.ru');
-    expect(screen.queryByLabelText('Код из письма')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Цифра 1 из 6')).not.toBeInTheDocument();
   });
 
   it('повторная отправка кода доступна после паузы', async () => {
@@ -308,8 +312,7 @@ describe('Страница входа', () => {
     await waitFor(() => expect(calls.filter((c) => c.url === '/partner-api/auth/code/request')).toHaveLength(2));
   });
 
-  it('ссылка из приглашения подставляет почту и код, убирает их из адреса и входит по кнопке', async () => {
-    const user = userEvent.setup();
+  it('ссылка из приглашения сразу входит по коду из неё и убирает почту и код из адреса', async () => {
     let signedIn = false;
     const calls = mockApi({
       '/partner-api/auth/me': () => (signedIn ? json(PARTNER_VIEW_ONLY) : { status: 401 }),
@@ -323,19 +326,24 @@ describe('Страница входа', () => {
     });
     renderAt('/login?email=boss%40acme.ru&code=482913');
 
-    const code = await screen.findByLabelText('Код из письма');
-    expect(code).toHaveValue('482913');
-    expect(screen.getByText('boss@acme.ru')).toBeInTheDocument();
-    expect(await screen.findByText('ООО Казань')).toBeInTheDocument();
-    expect(screen.getByText(/Код из приглашения уже подставлен/)).toBeInTheDocument();
-    // Сканер почты мог открыть ссылку: без нажатия кнопки вход не выполняется.
-    expect(calls.some((c) => c.url === '/partner-api/auth/code/verify')).toBe(false);
-    expect(calls.some((c) => c.url === '/partner-api/auth/code/request')).toBe(false);
-
-    await user.click(screen.getByRole('button', { name: 'Войти' }));
-
     expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
-    expect(calls.find((c) => c.url === '/partner-api/auth/code/verify')!.body).toEqual({ email: 'boss@acme.ru', code: '482913' });
+    const verifies = calls.filter((c) => c.url === '/partner-api/auth/code/verify');
+    expect(verifies).toHaveLength(1);
+    expect(verifies[0].body).toEqual({ email: 'boss@acme.ru', code: '482913' });
+    expect(calls.some((c) => c.url === '/partner-api/auth/code/request')).toBe(false);
+  });
+
+  it('если код из ссылки не подошёл, показывает ошибку и пустое поле для нового кода', async () => {
+    mockApi({
+      '/partner-api/auth/me': anonymous,
+      'POST /partner-api/auth/lookup': () => json({ name: 'ООО Казань' }),
+      'POST /partner-api/auth/code/verify': () => ({ status: 401, body: { error: 'Неверный или просроченный код.' } })
+    });
+    renderAt('/login?email=boss%40acme.ru&code=482913');
+
+    expect(await screen.findByText('Неверный или просроченный код')).toBeInTheDocument();
+    await waitFor(() => expect(codeValue()).toBe(''));
+    expect(screen.getByText('boss@acme.ru')).toBeInTheDocument();
   });
 
   it('ссылка только с почтой подставляет её на первом шаге', async () => {
@@ -343,7 +351,7 @@ describe('Страница входа', () => {
     renderAt('/login?email=boss%40acme.ru');
 
     expect(await screen.findByLabelText('Почта')).toHaveValue('boss@acme.ru');
-    expect(screen.queryByLabelText('Код из письма')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Цифра 1 из 6')).not.toBeInTheDocument();
   });
 
   it('«Не могу войти» объясняет, что приглашение отправляет владелец', async () => {

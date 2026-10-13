@@ -8,6 +8,7 @@ import { CODE_LENGTH, normalizeCode, validateCode, validateEmail } from '../lib/
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Informer } from '../ui/Informer';
+import { CodeField } from '../ui/CodeField';
 import { TextField } from '../ui/TextField';
 
 const INVALID_CODE = 'Неверный или просроченный код';
@@ -63,6 +64,9 @@ export function LoginPage() {
 
   const emailRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
+  // Код из ссылки отправляем один раз: в режиме разработки React запускает эффекты дважды, а код одноразовый.
+  const inviteSubmitted = useRef(false);
+  const signInRef = useRef<((value: string) => Promise<void>) | null>(null);
 
   useEffect(() => {
     if (invite) setSearchParams({}, { replace: true });
@@ -119,6 +123,14 @@ export function LoginPage() {
   useEffect(() => {
     if (step === 'code') codeRef.current?.focus();
   }, [step]);
+
+  // Ссылка из приглашения уже содержит код: входим сразу, без лишнего нажатия.
+  useEffect(() => {
+    if (!fromInvite || inviteSubmitted.current) return;
+    inviteSubmitted.current = true;
+    void signInRef.current?.(invite!.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (status === 'authenticated') return <Navigate to={from} replace />;
 
@@ -212,12 +224,12 @@ export function LoginPage() {
       await signInWithCode(email.trim(), value);
       navigate(from, { replace: true });
     } catch (caught) {
+      // Кнопки «Войти» нет, поэтому после любой неудачи поле очищается и ждёт новый ввод.
+      setCode('');
       if (!(caught instanceof ApiError)) {
         setServerMessage('Не удалось войти. Попробуйте ещё раз.');
       } else if (caught.status === 401) {
         setCodeRejected(true);
-        setCode('');
-        codeRef.current?.focus();
       } else if (caught.status === 429) {
         applyLock(caught.data as LockedResponse | null);
       } else {
@@ -225,15 +237,18 @@ export function LoginPage() {
       }
     } finally {
       setSubmitting(false);
+      window.setTimeout(() => codeRef.current?.focus(), 0);
     }
   };
+
+  signInRef.current = signIn;
 
   const onCodeChange = (value: string) => {
     const digits = normalizeCode(value);
     setCode(digits);
     resetServerFeedback();
-    if (codeError) setCodeError(validateCode(digits));
-    // Шесть цифр введены или вставлены целиком: отправляем без лишнего нажатия.
+    setCodeError(null);
+    // Шесть цифр введены или вставлены целиком: отправляем без кнопки.
     if (digits.length === CODE_LENGTH) void signIn(digits);
   };
 
@@ -293,7 +308,7 @@ export function LoginPage() {
         ) : (
           <p className="pa-auth__lead ozi-body-500">
             {fromInvite && resendAt === null ? (
-              <>Код из приглашения уже подставлен. Нажмите «Войти», чтобы открыть кабинет для <strong>{email}</strong>.</>
+              <>Открываем кабинет для <strong>{email}</strong> по коду из приглашения.</>
             ) : (
               <>
                 Мы отправили код на <strong>{email}</strong>. Он действует 10 минут. Если письма нет, загляните в папку «Спам».
@@ -342,29 +357,24 @@ export function LoginPage() {
         ) : (
           <form className="pa-auth__form" onSubmit={onCodeSubmit} noValidate>
             {organizationBadge}
-            <TextField
+            <CodeField
               label="Код из письма"
-              name="code"
-              inputMode="numeric"
               value={code}
               inputRef={codeRef}
               onValueChange={onCodeChange}
-              onBlur={() => {
-                if (code.length > 0 || codeError) setCodeError(validateCode(code));
-              }}
               error={codeRejected ? INVALID_CODE : codeError}
-              hint={`${CODE_LENGTH} цифр`}
-              autoComplete="one-time-code"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              maxLength={CODE_LENGTH + 4}
-              readOnly={submitting}
+              hint="Введите 6 цифр, вход выполнится сам"
+              disabled={submitting || Boolean(lockedUntil)}
+              autoFocus
             />
-
-            <Button type="submit" size={600} fill loading={submitting} disabled={Boolean(lockedUntil)}>
-              Войти
-            </Button>
+            <div className="pa-code__status ozi-body-500" role="status" aria-live="polite">
+              {submitting && (
+                <>
+                  <span className="pa-spinner pa-code__spinner" aria-hidden="true" />
+                  Проверяем код…
+                </>
+              )}
+            </div>
           </form>
         )}
 
