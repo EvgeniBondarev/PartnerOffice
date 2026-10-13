@@ -55,8 +55,8 @@ export function renderApp(path = '/login') {
   );
 }
 
-export const PARTNER_FULL = { id: 1, name: 'ООО Казань', login: 'kazan', permissions: [1, 2] }; // печать + отгрузка
-export const PARTNER_VIEW_ONLY = { id: 1, name: 'ООО Казань', login: 'kazan', permissions: [] };
+export const PARTNER_FULL = { id: 1, name: 'ООО Казань', email: 'kazan@example.ru', permissions: [1, 2] }; // печать + отгрузка
+export const PARTNER_VIEW_ONLY = { id: 1, name: 'ООО Казань', email: 'kazan@example.ru', permissions: [] };
 
 export function order(id: number, patch: Partial<OrderListItem> = {}): OrderListItem {
   return {

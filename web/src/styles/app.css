@@ -39,7 +39,17 @@ body { background: var(--ozi-layer-floor1); }
 .pa-auth__lead { color: var(--ozi-text-secondary-transparent); }
 .pa-auth__form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .pa-auth__form .po-button__button { margin-top: 12px; }
-.pa-auth__links { display: flex; justify-content: center; }
+.pa-auth__links { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: center; }
+.pa-link:disabled { color: var(--ozi-text-tertiary-transparent); cursor: default; }
+.pa-link:disabled:hover { color: var(--ozi-text-tertiary-transparent); }
+
+/* Название организации под полем почты и над кодом: подтверждает, что письмо уйдёт нужному партнёру. */
+.pa-org {
+  align-items: center; background: var(--action-25-opaque); border-radius: 12px; color: var(--ozi-text-primary-transparent);
+  display: flex; font: 400 15px/20px var(--global-font); gap: 8px; padding: 10px 12px;
+}
+.pa-org__icon { color: var(--ozi-graphic-action-primary); flex: none; }
+.pa-org strong { font-weight: 600; overflow-wrap: anywhere; }
 .pa-auth__footer { bottom: 16px; color: var(--ozi-text-secondary-transparent); left: 0; position: absolute; right: 0; text-align: center; z-index: 1; }
 
 /* ---------- Поле ввода: что дизайн-система не задаёт сама ---------- */

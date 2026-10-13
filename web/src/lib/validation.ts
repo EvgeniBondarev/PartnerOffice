@@ -1,36 +1,31 @@
-/** Правила совпадают с серверными (Studio2, PartnerManagementService): логин 3–100 символов, пароль не короче 8. */
-export const LOGIN_MIN = 3;
-export const LOGIN_MAX = 100;
-export const PASSWORD_MIN = 8;
-export const PASSWORD_MAX = 200;
+/** Правила совпадают с серверными (Studio2, PartnerEmail): почта до 320 символов, код из 6 цифр. */
+export const EMAIL_MAX = 320;
+export const CODE_LENGTH = 6;
 
-const LOGIN_PATTERN = /^[a-z0-9._@-]+$/i;
+// Как на сервере: что-то@что-то.зона, без пробелов и второй «@».
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
 
-/** Возвращает текст ошибки для поля или null, если значение подходит. */
-export function validateLogin(value: string): string | null {
-  const login = value.trim();
-  if (login.length === 0) return 'Введите логин';
-  if (/\s/.test(login)) return 'В логине не должно быть пробелов';
-  if (!LOGIN_PATTERN.test(login)) return 'Логин: латиница, цифры и символы . _ @ -';
-  if (login.length < LOGIN_MIN) return `Логин не короче ${LOGIN_MIN} символов`;
-  if (login.length > LOGIN_MAX) return `Логин не длиннее ${LOGIN_MAX} символов`;
+/** Возвращает текст ошибки для поля почты или null, если значение подходит. */
+export function validateEmail(value: string): string | null {
+  const email = value.trim();
+  if (email.length === 0) return 'Введите почту';
+  if (/\s/.test(email)) return 'В почте не должно быть пробелов';
+  if (!email.includes('@')) return 'В почте не хватает «@», например name@company.ru';
+  if ((email.match(/@/g) ?? []).length > 1) return 'В почте должна быть одна «@»';
+  if (email.startsWith('@')) return 'Перед «@» впишите имя почтового ящика';
+  if (email.endsWith('@')) return 'После «@» впишите домен, например company.ru';
+  if (!EMAIL_PATTERN.test(email)) return 'Домен указан неполностью, например company.ru';
+  if (email.length > EMAIL_MAX) return `Почта не длиннее ${EMAIL_MAX} символов`;
   return null;
 }
 
-export function validatePassword(value: string): string | null {
-  if (value.length === 0) return 'Введите пароль';
-  if (value.length < PASSWORD_MIN) return `Пароль не короче ${PASSWORD_MIN} символов`;
-  if (value.length > PASSWORD_MAX) return 'Пароль слишком длинный';
+/** Оставляет в коде только цифры: из письма его часто копируют с пробелами. */
+export const normalizeCode = (value: string): string => value.replace(/\D/g, '').slice(0, CODE_LENGTH);
+
+export function validateCode(value: string): string | null {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return 'Введите код из письма';
+  if (digits.length < CODE_LENGTH) return `Код состоит из ${CODE_LENGTH} цифр`;
+  if (digits.length > CODE_LENGTH || /[^\d\s]/.test(value)) return `Код состоит из ${CODE_LENGTH} цифр`;
   return null;
 }
-
-export interface LoginErrors {
-  login: string | null;
-  password: string | null;
-}
-
-export function validateLoginForm(login: string, password: string): LoginErrors {
-  return { login: validateLogin(login), password: validatePassword(password) };
-}
-
-export const hasErrors = (errors: LoginErrors) => errors.login !== null || errors.password !== null;

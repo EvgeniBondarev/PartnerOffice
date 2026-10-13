@@ -92,7 +92,7 @@ export function AppShell() {
           {userMenu.open && (
             <div className="po-dropdown po-dropdown--500 pa-popover pa-popover--right" role="menu">
               <div className="po-dropdown__list">
-                <div className="pa-usermenu__login">Логин: {partner?.login}</div>
+                <div className="pa-usermenu__login">Почта: {partner?.email}</div>
                 <button
                   type="button"
                   role="menuitem"

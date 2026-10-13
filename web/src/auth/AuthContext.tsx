@@ -8,8 +8,8 @@ type Status = 'loading' | 'anonymous' | 'authenticated';
 interface AuthState {
   status: Status;
   partner: PartnerProfile | null;
-  /** Входит по логину и паролю. При ошибке бросает ApiError: 401 — неверные данные, 429 — временная блокировка. */
-  signIn: (login: string, password: string) => Promise<void>;
+  /** Входит по почте и коду из письма. При ошибке бросает ApiError: 401 — неверный или просроченный код, 429 — временная блокировка. */
+  signInWithCode: (email: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -48,8 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, []);
 
-  const signIn = useCallback(async (login: string, password: string) => {
-    await authApi.login(login, password);
+  const signInWithCode = useCallback(async (email: string, code: string) => {
+    await authApi.verifyCode(email, code);
     // Профиль берём отдельным запросом: в нём есть возможности партнёра.
     const me = await authApi.fetchMe();
     setPartner(me);
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous');
   }, []);
 
-  const value = useMemo(() => ({ status, partner, signIn, signOut }), [status, partner, signIn, signOut]);
+  const value = useMemo(() => ({ status, partner, signInWithCode, signOut }), [status, partner, signInWithCode, signOut]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
