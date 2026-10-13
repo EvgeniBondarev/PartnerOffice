@@ -64,7 +64,7 @@ describe('Страница входа', () => {
     expect(calls.some((c) => c.url === '/partner-api/auth/code/request')).toBe(false);
   });
 
-  it('после верной почты подтягивает название организации', async () => {
+  it('при вводе почты название партнёра не показывает и не запрашивает', async () => {
     const user = userEvent.setup();
     const calls = mockApi({
       '/partner-api/auth/me': anonymous,
@@ -73,38 +73,46 @@ describe('Страница входа', () => {
     renderApp();
 
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru');
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    expect(screen.queryByText(/Партнёр:/)).not.toBeInTheDocument();
+    expect(screen.queryByText('ООО Казань')).not.toBeInTheDocument();
+    expect(calls.some((c) => c.url === '/partner-api/auth/lookup')).toBe(false);
+  });
+
+  it('после запроса кода показывает «Партнёр: …» для подтверждения', async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      '/partner-api/auth/me': anonymous,
+      'POST /partner-api/auth/lookup': () => json({ name: 'ООО Казань' }),
+      'POST /partner-api/auth/code/request': () => ({ status: 202 })
+    });
+    renderApp();
+
+    await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
 
     expect(await screen.findByText('ООО Казань')).toBeInTheDocument();
-    expect(screen.getByText(/Организация:/)).toBeInTheDocument();
+    expect(screen.getByText(/Партнёр:/)).toBeInTheDocument();
+    expect(screen.queryByText(/Организация:/)).not.toBeInTheDocument();
     const lookups = calls.filter((c) => c.url === '/partner-api/auth/lookup');
     expect(lookups).toHaveLength(1);
     expect(lookups[0].body).toEqual({ email: 'boss@acme.ru' });
   });
 
-  it('для незнакомой почты название не показывает и ничего не сообщает о том, что её нет', async () => {
+  it('для незнакомой почты на шаге кода название не показывает и ошибок не выдаёт', async () => {
     const user = userEvent.setup();
     mockApi({
       '/partner-api/auth/me': anonymous,
-      'POST /partner-api/auth/lookup': () => json({ name: null })
+      'POST /partner-api/auth/lookup': () => json({ name: null }),
+      'POST /partner-api/auth/code/request': () => ({ status: 202 })
     });
     renderApp();
 
-    await user.type(await screen.findByLabelText('Почта'), 'stranger@acme.ru');
+    await user.type(await screen.findByLabelText('Почта'), 'stranger@acme.ru{Enter}');
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/lookup'), expect.anything()));
 
-    expect(screen.queryByText(/Организация:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Партнёр:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('не запрашивает название, пока почта не введена полностью', async () => {
-    const user = userEvent.setup();
-    const calls = mockApi({ '/partner-api/auth/me': anonymous });
-    renderApp();
-
-    await user.type(await screen.findByLabelText('Почта'), 'boss@acme');
-    await new Promise((resolve) => setTimeout(resolve, 600));
-
-    expect(calls.some((c) => c.url === '/partner-api/auth/lookup')).toBe(false);
   });
 
   it('отправляет код и переходит на шаг ввода кода', async () => {

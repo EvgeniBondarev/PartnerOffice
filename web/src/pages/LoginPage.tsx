@@ -14,7 +14,6 @@ import { TextField } from '../ui/TextField';
 const INVALID_CODE = 'Неверный или просроченный код';
 /** Пауза перед повторной отправкой кода совпадает с серверной (Studio2, PartnerAuthService.ResendPause). */
 const RESEND_PAUSE_SECONDS = 60;
-const LOOKUP_DEBOUNCE_MS = 400;
 
 type Step = 'email' | 'code';
 
@@ -74,27 +73,23 @@ export function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Название организации подтягивается по полностью введённой и верной почте, с паузой после последнего символа.
+  // Название партнёра показываем только на шаге подтверждения, когда код уже запрошен (или пришёл по ссылке):
+  // при вводе почты оно не подсказывается, чтобы форма не выдавала, какие почты заведены.
   useEffect(() => {
     setOrganization(null);
     const trimmed = email.trim();
-    if (validateEmail(trimmed) !== null) return;
+    if (step !== 'code' || validateEmail(trimmed) !== null) return;
     const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      authApi
-        .lookupOrganization(trimmed, controller.signal)
-        .then((result) => {
-          if (!controller.signal.aborted) setOrganization(result?.name ?? null);
-        })
-        .catch(() => {
-          // Название лишь подсказка: при любой ошибке (сеть, лимит) просто не показываем его.
-        });
-    }, LOOKUP_DEBOUNCE_MS);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [email]);
+    authApi
+      .lookupOrganization(trimmed, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setOrganization(result?.name ?? null);
+      })
+      .catch(() => {
+        // Название лишь подсказка: при любой ошибке (сеть, лимит) просто не показываем его.
+      });
+    return () => controller.abort();
+  }, [email, step]);
 
   // Кнопка снова включается сама, когда блокировка на сервере закончилась.
   useEffect(() => {
@@ -284,7 +279,7 @@ export function LoginPage() {
     <div className="pa-org" role="status">
       <Icon name="ui-check" size={16} className="pa-org__icon" />
       <span>
-        Организация: <strong>{organization}</strong>
+        Партнёр: <strong>{organization}</strong>
       </span>
     </div>
   );
@@ -348,8 +343,6 @@ export function LoginPage() {
               autoFocus
               readOnly={submitting}
             />
-            {organizationBadge}
-
             <Button type="submit" size={600} fill loading={submitting} disabled={Boolean(lockedUntil)}>
               Получить код
             </Button>
