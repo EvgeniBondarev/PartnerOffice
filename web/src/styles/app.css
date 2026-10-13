@@ -196,11 +196,10 @@ button.po-day:disabled { cursor: default; }
   flex: 1;
   min-height: 0;
   overflow: auto;
-  /* Полоса не занимает место рядом с таблицей, но прокрутка колесом и трекпадом остаётся. */
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  /* Таблица шире мобильного экрана: полоса прокрутки подсказывает это и остаётся доступна мышью. */
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
 }
-.pa-scroll::-webkit-scrollbar { display: none; }
 .pa-scroll:focus-visible { outline: 2px solid var(--action-400); }
 .pa-table thead th { position: sticky; top: 0; z-index: 2; }
 .pa-scroll__end { height: 1px; }
@@ -332,3 +331,45 @@ button.po-day:disabled { cursor: default; }
 .pa-lightbox__close:focus-visible { outline: 2px solid var(--action-400); border-radius: 12px; }
 
 .pa-lightbox__spinner { color: var(--ozi-static-text-primary-on-dark-transparent); height: 48px; width: 48px; }
+
+/* ---------- Адаптация к узким экранам ---------- */
+@media (max-width: 900px) {
+  .pa-page { padding: 16px; }
+  .pa-toolbar__field { flex: 1 1 150px; }
+  .pa-toolbar__field--period { flex-basis: 210px; }
+  .pa-orders {
+    height: calc(100dvh - var(--header-height) - 32px);
+    min-height: 0;
+  }
+  .pa-table .po-table__table { min-width: 860px; }
+  .pa-col-product { max-width: 300px; min-width: 180px; width: 300px; }
+  .pa-col-status { min-width: 130px; }
+  .pa-col-date { min-width: 170px; width: 170px; }
+  .pa-col-actions { min-width: 120px; }
+  .pa-product { max-width: 300px; }
+}
+
+@media (max-width: 640px) {
+  .pa-toolbar { gap: 8px; }
+  .pa-toolbar__field { flex-basis: calc(50% - 4px); min-width: 0; width: auto; }
+  .pa-toolbar__field--period { flex-basis: 100%; }
+  .pa-toolbar > .po-button__button:first-of-type { flex: 1 1 0; }
+  .pa-copy-toast { left: 16px; right: 16px; top: 12px; }
+  .pa-informer { gap: 8px; }
+  .pa-informer__illustration { display: none; }
+  .pa-overlay__window--dialog { max-height: calc(100% - 24px); }
+  .pa-details { grid-template-columns: 1fr; gap: 4px; }
+  .pa-details__term { margin-top: 8px; }
+  .pa-lightbox__close { right: 4px; top: 4px; }
+}
+
+@media (max-width: 420px) {
+  .pa-toolbar__field { flex-basis: 100%; }
+  .pa-toolbar__field--period { flex-basis: 100%; }
+  .pa-table .po-table__table { min-width: 780px; }
+  .pa-col-product { max-width: 240px; min-width: 160px; width: 240px; }
+  .pa-col-status { min-width: 112px; }
+  .pa-col-date { min-width: 154px; width: 154px; }
+  .pa-col-actions { min-width: 112px; }
+  .pa-product { max-width: 240px; }
+}

@@ -135,3 +135,25 @@
 /* Брейкпоинты оригинала: ≤900 и 901–1279 → боковая колонка 300px, ≥1280 полная раскладка */
 @media screen and (max-width: 1279px) { .po-page__grid { grid-template-columns: 1fr 300px; } }
 @media screen and (max-width: 900px) { .po-page__grid { grid-template-columns: 1fr; } }
+
+/* Узкий экран: навигация остаётся доступной, а рабочая область получает максимум ширины. */
+@media screen and (max-width: 640px) {
+  .po-shell, .po-shell--collapsed { grid-template-columns: 64px minmax(0, 1fr); }
+  .po-menu, .po-shell--collapsed .po-menu { padding: 12px 8px 0; width: 64px; }
+  .po-header { gap: 8px; padding: 0 16px; }
+  .po-header__title { display: none; }
+  .po-header__logo { margin-right: 0; }
+  .po-header__user { gap: 4px; }
+  .po-page { padding: 16px; }
+  .po-page__title { font-size: 22px; line-height: 28px; }
+  .po-island, .po-widget, .po-article { padding: 16px; }
+  .po-empty { padding: 40px 16px; }
+}
+
+@media screen and (max-width: 420px) {
+  .po-shell, .po-shell--collapsed { grid-template-columns: 56px minmax(0, 1fr); }
+  .po-menu, .po-shell--collapsed .po-menu { padding-inline: 4px; width: 56px; }
+  .po-header { padding-inline: 12px; }
+  .po-header__user > :first-child { display: none; }
+  .po-page { padding: 12px; }
+}
