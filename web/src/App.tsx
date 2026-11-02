@@ -14,7 +14,8 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/returns" element={<Navigate to="/returns/waiting" replace />} />
-          <Route path="/returns/waiting" element={<ReturnsPage />} />
+          <Route path="/returns/waiting" element={<ReturnsPage key="waiting" section="waiting" />} />
+          <Route path="/returns/received" element={<ReturnsPage key="received" section="received" />} />
           <Route path="/" element={<HomePage />} />
         </Route>
       </Route>

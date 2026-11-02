@@ -69,4 +69,46 @@ describe('Возвраты', () => {
       expect(new URLSearchParams(url?.split('?')[1]).get('search')).toBe('');
     });
   });
+
+  const received = (extra = {}) => ({ items: [{ key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Товар А', status: 'ReceivedBySeller', status_name: 'Получен', qty: 1, mark: 'pending', ...extra }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false });
+
+  it('в разделе «Получено» просит нужный раздел и без права приёмки не показывает кнопки', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json(received())
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByText('Товар А')).toBeInTheDocument();
+    expect(calls.some(c => c.url.includes('section=received'))).toBe(true);
+    expect(screen.getByText('Ожидает')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Принять' })).not.toBeInTheDocument();
+  });
+
+  it('принимает возврат и показывает ответ сервера', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json(received()),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: true, missort: false, comment: '', marked_by: 'partner:1' })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Принять' }));
+    expect(await screen.findByText('Принят')).toBeInTheDocument();
+    expect(screen.getAllByText('Брак')).toHaveLength(2);
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+  });
+
+  it('показывает ошибку, если отметка не сохранилась', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json(received()),
+      'POST /partner-api/returns/mark': () => json({ error: 'Возврат не найден.' }, 404)
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Брак' }));
+    expect(await screen.findByText('Возврат не найден.')).toBeInTheDocument();
+    expect(screen.getByText('Ожидает')).toBeInTheDocument();
+  });
 });
+
