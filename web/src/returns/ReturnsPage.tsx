@@ -7,6 +7,7 @@ import { formatDate, formatDateTimeShort, formatQuantity } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { DateRangeField } from '../ui/DateRangeField';
 import { EmptyState } from '../ui/EmptyState';
 import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
@@ -33,7 +34,11 @@ const STATUS_OPTIONS = [
   { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' },
   { value: 'MovingToSeller', label: 'В пути к продавцу' }, { value: 'WaitingShipment', label: 'Ожидает отправки' }
 ];
-const EMPTY = { search: '', pvz: '', status: '', clientId: '' };
+const MARK_OPTIONS = [
+  { value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' },
+  { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
+];
+const EMPTY = { search: '', pvz: '', status: '', clientId: '', mark: '', dateFrom: '', dateTo: '' };
 
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
 function suggestionLabel(row: ReturnRow, query: string): string {
@@ -79,6 +84,14 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     return () => window.clearTimeout(timer);
   }, [draft.search, filters.search]);
 
+  // Пункт выдачи набирают текстом: применяем после паузы, как поиск. Списки и даты применяются сразу (pick).
+  useEffect(() => {
+    const pvz = draft.pvz.trim();
+    if (pvz === filters.pvz) return;
+    const timer = window.setTimeout(() => { setPage(1); setFilters(previous => ({ ...previous, pvz })); }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draft.pvz, filters.pvz]);
+
   useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
   useEffect(() => {
@@ -114,6 +127,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     } finally { setSaving(keys => keys.filter(key => key !== row.key)); }
   };
   const set = (values: Partial<typeof EMPTY>) => setDraft(previous => ({ ...previous, ...values }));
+  const pick = (values: Partial<typeof EMPTY>) => { setDraft(previous => ({ ...previous, ...values })); setPage(1); setFilters(previous => ({ ...previous, ...values })); };
   const apply = (event: FormEvent) => { event.preventDefault(); setSuggestionsOpen(false); setPage(1); setFilters({ ...draft, search: draft.search.trim() }); };
   const reset = () => { currentSearch.current = ''; setSuggestions([]); setSuggestionsOpen(false); setDraft(EMPTY); setPage(1); setFilters(EMPTY); };
   const chooseSuggestion = (row: ReturnRow) => {
@@ -169,8 +183,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
         )}
       </div>
       <div className="pa-toolbar__field"><TextField label="Пункт выдачи" value={draft.pvz} onValueChange={pvz => set({ pvz })} size={500} /></div>
-      <div className="pa-toolbar__field"><SelectField label="Кабинет" value={draft.clientId} onChange={clientId => set({ clientId })} options={(data?.cabinets ?? []).map(c => ({ value: String(c.id), label: c.name }))} /></div>
-      <div className="pa-toolbar__field"><SelectField label="Статус Ozon" value={draft.status} onChange={status => set({ status })} options={STATUS_OPTIONS} /></div>
+      <div className="pa-toolbar__field"><SelectField label="Кабинет" value={draft.clientId} onChange={clientId => pick({ clientId })} options={(data?.cabinets ?? []).map(c => ({ value: String(c.id), label: c.name }))} /></div>
+      {section === 'received'
+        ? <div className="pa-toolbar__field"><SelectField label="Статус приёмки" value={draft.mark} onChange={mark => pick({ mark })} options={MARK_OPTIONS} /></div>
+        : <div className="pa-toolbar__field"><SelectField label="Статус Ozon" value={draft.status} onChange={status => pick({ status })} options={STATUS_OPTIONS} /></div>}
+      <div className="pa-toolbar__field"><DateRangeField label={section === 'received' ? 'Дата получения' : 'Дата возврата'} from={draft.dateFrom} to={draft.dateTo} onChange={(dateFrom, dateTo) => pick({ dateFrom, dateTo })} /></div>
       <Button type="submit" size={500}>Найти</Button>
       <Button variant="secondary" size={500} icon="ui-clear-filters" iconOnly onClick={reset} disabled={!Object.values(draft).some(Boolean)}>Сбросить фильтры</Button>
     </form>

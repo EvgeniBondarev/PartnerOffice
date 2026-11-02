@@ -110,5 +110,21 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Возврат не найден.')).toBeInTheDocument();
     expect(screen.getByText('Ожидает')).toBeInTheDocument();
   });
+
+  it('в разделе «Получено» фильтры по статусу приёмки и пункту выдачи применяются сразу, без кнопки «Найти»', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json(received())
+    });
+    renderApp('/returns/received');
+    await screen.findByText('Товар А');
+    expect(screen.queryByRole('combobox', { name: /Статус Ozon/ })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('combobox', { name: /Статус приёмки/ }));
+    await user.click(await screen.findByRole('option', { name: 'Принят' }));
+    await waitFor(() => expect(calls.some(c => c.url.includes('section=received') && c.url.includes('mark=accepted'))).toBe(true));
+    await user.type(screen.getByLabelText('Пункт выдачи'), 'Истра');
+    await waitFor(() => expect(calls.some(c => c.url.includes('pvz=%D0%98%D1%81%D1%82%D1%80%D0%B0'))).toBe(true));
+  });
 });
 
