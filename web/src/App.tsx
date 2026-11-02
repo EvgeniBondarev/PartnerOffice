@@ -3,6 +3,7 @@ import { RequireAuth } from './auth/RequireAuth';
 import { AppShell } from './layout/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { OrdersPage } from './orders/OrdersPage';
+import { ReturnsPage } from './returns/ReturnsPage';
 
 export function App() {
   return (
@@ -11,6 +12,8 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/returns" element={<Navigate to="/returns/waiting" replace />} />
+          <Route path="/returns/waiting" element={<ReturnsPage />} />
           <Route path="/" element={<Navigate to="/orders" replace />} />
         </Route>
       </Route>

@@ -3,6 +3,7 @@ import { Link, Outlet, matchPath, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { Icon } from '../ui/Icon';
 import { usePopover } from '../ui/usePopover';
+import { hasPermission } from '../lib/permissions';
 
 const COLLAPSED_KEY = 'partner-office.menu-collapsed';
 
@@ -31,6 +32,7 @@ const MENU: MenuEntry[][] = [[{ to: '/orders', icon: 'nav-shipping', label: 'З�
 /** Каркас по брендбуку (раздел 5): шапка 56px, меню слева 260px (свёрнутое 88px), страница с отступами 24/32. */
 export function AppShell() {
   const { partner, signOut } = useAuth();
+  const menu = hasPermission(partner, 'ViewReturns') ? [...MENU, [{ to: '/returns', icon: 'nav-returns', label: 'Возвраты' }]] : MENU;
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const userMenu = usePopover();
   const { pathname } = useLocation();
@@ -113,7 +115,7 @@ export function AppShell() {
 
       <nav className="po-menu" aria-label="Разделы кабинета">
         <ul>
-          {MENU.map((group, index) => (
+          {menu.map((group, index) => (
             <div className="po-menu__group" key={index}>
               {group.map((entry) => {
                 const active = matchPath({ path: entry.to, end: false }, pathname) !== null;

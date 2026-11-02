@@ -410,3 +410,6 @@ button.po-day:disabled { cursor: default; }
   .pa-code__cells { gap: 6px; }
   .pa-code__cell { font-size: 22px; height: 52px; }
 }
+.pa-returns-filters, .pa-returns-pagination { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.pa-returns-filters { margin: 16px 0; }
+.pa-returns-pagination { margin: 16px 0; }
