@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { json, mockApi, renderApp } from './helpers';
@@ -34,5 +34,29 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Товар FBO')).toBeInTheDocument();
     expect(screen.getByText('boxId 42')).toBeInTheDocument();
     expect(screen.getByText('Коробка FBO')).toBeInTheDocument();
+  });
+
+  it('ищет при вводе и позволяет выбрать подсказку FBO клавиатурой', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [{ key: 'fbo:one', return_type: 'fbo', id: null, client_id: '1', box_id: 424242, name: 'Фильтр', offer_id: 'FILTER-123', status: 'ArrivedAtReturnPlace', status_name: 'В пункте выдачи', qty: 1 }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/waiting');
+    await screen.findByText('boxId 424242');
+    const user = userEvent.setup();
+    const search = screen.getByRole('searchbox', { name: 'Поиск возвратов' });
+    await user.type(search, 'FIL');
+    const list = await screen.findByRole('listbox', { name: 'Подсказки по возвратам' });
+    expect(within(list).getByRole('option')).toHaveTextContent('FILTER-123');
+    expect(calls.some(c => c.url.includes('search=FIL'))).toBe(true);
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(search).toHaveValue('FILTER-123');
+    await waitFor(() => expect(calls.some(c => c.url.includes('search=FILTER-123'))).toBe(true));
+    expect(screen.queryByRole('listbox', { name: 'Подсказки по возвратам' })).not.toBeInTheDocument();
+    await user.clear(search);
+    await waitFor(() => {
+      const url = calls.filter(c => c.url.startsWith('/partner-api/returns?')).at(-1)?.url;
+      expect(new URLSearchParams(url?.split('?')[1]).get('search')).toBe('');
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { request } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { formatDate, formatDateTimeShort, formatQuantity } from '../lib/format';
@@ -14,7 +14,7 @@ import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 interface ReturnRow {
   key?: string; return_type?: string; id: number | null; client_id: string; posting_number: string | null; barcode: string | null;
-  box_id?: number | null; box_barcode?: string | null; name: string | null; offer_id: string | null; qty: number | null;
+  box_id?: number | null; box_barcode?: string | null; sku?: number | null; name: string | null; offer_id: string | null; qty: number | null;
   status: string | null; status_name: string | null; target_place: string | null; target_place_addr: string | null; return_date: string | null;
 }
 interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; cabinets?: { id: number; name: string; ozonClientId: string }[] }
@@ -26,6 +26,13 @@ const STATUS_OPTIONS = [
 ];
 const EMPTY = { search: '', pvz: '', status: '', clientId: '' };
 
+/** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
+function suggestionLabel(row: ReturnRow, query: string): string {
+  const fields = [row.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.offer_id, row.sku?.toString(), row.name];
+  const search = query.toLocaleLowerCase();
+  return fields.find(value => value?.toLocaleLowerCase().includes(search)) || row.name || 'Возврат';
+}
+
 export function ReturnsPage() {
   const { partner } = useAuth();
   const allowed = hasPermission(partner, 'ViewReturns');
@@ -36,6 +43,30 @@ export function ReturnsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [suggestions, setSuggestions] = useState<ReturnRow[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+  const focused = useRef(false);
+  const currentSearch = useRef('');
+  const suggestionSearch = useRef('');
+  const suppressedSearch = useRef<string | null>(null);
+  const blurTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const search = draft.search.trim();
+    currentSearch.current = search;
+    setSuggestions([]);
+    setSuggestionsOpen(false);
+    setActiveSuggestion(-1);
+    if (search === filters.search) return;
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setFilters(previous => ({ ...previous, search }));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [draft.search, filters.search]);
+
+  useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
   useEffect(() => {
     if (!allowed) return;
@@ -43,22 +74,71 @@ export function ReturnsPage() {
     const query = new URLSearchParams({ page: String(page), pageSize: '50', ...filters });
     setLoading(true); setError('');
     request<ReturnPage>(`/partner-api/returns?${query}`, { signal: controller.signal })
-      .then(setData)
+      .then(result => {
+        if (filters.search !== currentSearch.current) return;
+        setData(result);
+        if (filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
+          suggestionSearch.current = filters.search;
+          setSuggestions(result.items.slice(0, 10));
+          setActiveSuggestion(-1);
+          setSuggestionsOpen(focused.current);
+        }
+      })
       .catch((err: unknown) => { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Не удалось загрузить возвраты.'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [allowed, filters, page, retry]);
 
   const set = (values: Partial<typeof EMPTY>) => setDraft(previous => ({ ...previous, ...values }));
-  const apply = (event: FormEvent) => { event.preventDefault(); setPage(1); setFilters({ ...draft }); };
-  const reset = () => { setDraft(EMPTY); setPage(1); setFilters(EMPTY); };
+  const apply = (event: FormEvent) => { event.preventDefault(); setSuggestionsOpen(false); setPage(1); setFilters({ ...draft, search: draft.search.trim() }); };
+  const reset = () => { currentSearch.current = ''; setSuggestions([]); setSuggestionsOpen(false); setDraft(EMPTY); setPage(1); setFilters(EMPTY); };
+  const chooseSuggestion = (row: ReturnRow) => {
+    const search = suggestionLabel(row, draft.search.trim());
+    currentSearch.current = search;
+    suppressedSearch.current = search;
+    setDraft(previous => ({ ...previous, search }));
+    setSuggestionsOpen(false);
+    setPage(1);
+    setFilters(previous => ({ ...previous, search }));
+  };
+  const searchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') { setSuggestionsOpen(false); setActiveSuggestion(-1); }
+    else if (event.key === 'ArrowDown' && suggestions.length) {
+      event.preventDefault(); setSuggestionsOpen(true); setActiveSuggestion(value => Math.min(value + 1, suggestions.length - 1));
+    } else if (event.key === 'ArrowUp' && suggestionsOpen && suggestions.length) {
+      event.preventDefault(); setActiveSuggestion(value => Math.max(value - 1, 0));
+    } else if (event.key === 'Enter' && suggestionsOpen && activeSuggestion >= 0) {
+      event.preventDefault(); chooseSuggestion(suggestions[activeSuggestion]);
+    }
+  };
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
   return <div className="pa-orders">
     <h1 className="po-page__title">Возвраты</h1>
     <div className="pa-returns__section ozi-body-500-true">Ждёт получения</div>
     <p className="pa-returns__description">В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.</p>
     <form className="po-page__toolbar pa-toolbar pa-returns__toolbar" role="search" aria-label="Фильтры возвратов" onSubmit={apply}>
-      <div className="pa-toolbar__search"><SearchField label="Поиск возвратов" placeholder="Товар, артикул, отправление или коробка" value={draft.search} onValueChange={search => set({ search })} maxLength={100} /></div>
+      <div className="pa-toolbar__search">
+        <SearchField label="Поиск возвратов" placeholder="Товар, артикул, отправление или коробка" value={draft.search}
+          onValueChange={search => { suppressedSearch.current = null; currentSearch.current = search.trim(); set({ search }); }}
+          onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === draft.search.trim() && suggestions.length) setSuggestionsOpen(true); }}
+          onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
+          onKeyDown={searchKeyDown} aria-autocomplete="list" aria-controls={suggestionsOpen && suggestions.length ? 'return-suggestions' : undefined}
+          aria-activedescendant={suggestionsOpen && activeSuggestion >= 0 ? `return-suggestion-${activeSuggestion}` : undefined} maxLength={100} />
+        {suggestionsOpen && suggestions.length > 0 && (
+          <div className="po-dropdown po-dropdown--500 pa-popover pa-order-suggestions">
+            <div className="po-dropdown__scroll"><div id="return-suggestions" className="po-dropdown__list" role="listbox" aria-label="Подсказки по возвратам">
+              {suggestions.map((row, index) => <div id={`return-suggestion-${index}`} key={row.key || `${row.client_id}:${row.id}`} role="option"
+                aria-selected={activeSuggestion === index} className={`po-dropdown-item${activeSuggestion === index ? ' po-dropdown-item--focused' : ''}`}
+                onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActiveSuggestion(index)} onClick={() => chooseSuggestion(row)}>
+                <div className="po-dropdown-item__block pa-order-suggestions__block">
+                  <span className="po-dropdown-item__text pa-order-suggestions__title">{suggestionLabel(row, filters.search)}</span>
+                  <span className="pa-order-suggestions__detail">{[row.name, row.offer_id, row.return_type === 'fbo' ? 'Коробка FBO' : row.posting_number].filter(Boolean).join(' · ')}</span>
+                </div>
+              </div>)}
+            </div></div>
+          </div>
+        )}
+      </div>
       <div className="pa-toolbar__field"><TextField label="Пункт выдачи" value={draft.pvz} onValueChange={pvz => set({ pvz })} size={500} /></div>
       <div className="pa-toolbar__field"><SelectField label="Кабинет" value={draft.clientId} onChange={clientId => set({ clientId })} options={(data?.cabinets ?? []).map(c => ({ value: String(c.id), label: c.name }))} /></div>
       <div className="pa-toolbar__field"><SelectField label="Статус Ozon" value={draft.status} onChange={status => set({ status })} options={STATUS_OPTIONS} /></div>
