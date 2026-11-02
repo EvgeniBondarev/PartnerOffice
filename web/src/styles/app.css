@@ -416,3 +416,12 @@ button.po-day:disabled { cursor: default; }
 .pa-returns__summary .po-page__count { color: var(--ozi-text-primary-transparent); }
 .pa-returns-pagination { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .pa-returns-pagination { margin: 16px 0; }
+
+/* Главная: плитки по шаблону брендбука, с собственными иллюстрациями кабинета. */
+.pa-home .po-section-title { margin-top: 12px; }
+.pa-home__tile { text-decoration: none; }
+.pa-home__tile .po-tile__title { display: block; }
+.pa-home__tile .po-tile__art img { width: 104px; height: 100px; object-fit: contain; }
+.pa-home__tile:focus-visible, .pa-home__logo:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
+.pa-home__logo { color: inherit; text-decoration: none; }
+@media (max-width: 420px) { .pa-home .po-tile { max-width: 100%; } }

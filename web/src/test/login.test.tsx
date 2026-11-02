@@ -154,7 +154,7 @@ describe('Страница входа', () => {
     await user.type(await screen.findByLabelText('Почта'), 'boss@acme.ru{Enter}');
     await user.type(await firstCell(), '123456');
 
-    expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
     expect(calls.find((c) => c.url === '/partner-api/auth/code/verify')!.body).toEqual({ email: 'boss@acme.ru', code: '123456' });
   });
 
@@ -337,7 +337,7 @@ describe('Страница входа', () => {
     });
     renderAt('/login?email=boss%40acme.ru&code=482913');
 
-    expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
     const verifies = calls.filter((c) => c.url === '/partner-api/auth/code/verify');
     expect(verifies).toHaveLength(1);
     expect(verifies[0].body).toEqual({ email: 'boss@acme.ru', code: '482913' });
@@ -395,6 +395,6 @@ describe('Защита маршрутов', () => {
       '/partner-api/orders?*': () => ({ status: 200, body: { items: [], total: 0, page: 1, pageSize: 50 } }),
     });
     renderApp();
-    expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
   });
 });

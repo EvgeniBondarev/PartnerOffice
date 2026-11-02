@@ -4,6 +4,7 @@ import { AppShell } from './layout/AppShell';
 import { LoginPage } from './pages/LoginPage';
 import { OrdersPage } from './orders/OrdersPage';
 import { ReturnsPage } from './returns/ReturnsPage';
+import { HomePage } from './pages/HomePage';
 
 export function App() {
   return (
@@ -14,10 +15,10 @@ export function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/returns" element={<Navigate to="/returns/waiting" replace />} />
           <Route path="/returns/waiting" element={<ReturnsPage />} />
-          <Route path="/" element={<Navigate to="/orders" replace />} />
+          <Route path="/" element={<HomePage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/orders" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -61,7 +61,7 @@ export function AppShell() {
   return (
     <div className={`po-shell${collapsed ? ' po-shell--collapsed' : ''}`}>
       <header className="po-header">
-        <div className="po-header__logo">
+        <Link className="po-header__logo pa-home__logo" to="/" aria-label="На главную">
           <img
             className="pa-brand__mark"
             src="/brand/partner-office-nav-32.png"
@@ -69,7 +69,7 @@ export function AppShell() {
             alt=""
           />
           <span className="po-header__title">PartnerOffice</span>
-        </div>
+        </Link>
         <span className="po-header__spacer" />
 
         <div className="pa-usermenu" ref={userMenu.rootRef}>
