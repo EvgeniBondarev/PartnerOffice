@@ -24,4 +24,15 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Нет доступа')).toBeInTheDocument();
     expect(calls.some(c => c.url.startsWith('/partner-api/returns'))).toBe(false);
   });
+
+  it('показывает FBO-коробку и её идентификатор', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [{ key: 'fbo:one', return_type: 'fbo', id: null, client_id: '1', box_id: 42, name: 'Товар FBO', status: 'ArrivedAtReturnPlace', status_name: 'В пункте выдачи', qty: 1 }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/waiting');
+    expect(await screen.findByText('Товар FBO')).toBeInTheDocument();
+    expect(screen.getByText('boxId 42')).toBeInTheDocument();
+    expect(screen.getByText('Коробка FBO')).toBeInTheDocument();
+  });
 });
