@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { request } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { ozonImage } from '../lib/images';
 import { formatDate, formatDateTimeShort, formatQuantity } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { Informer } from '../ui/Informer';
+import { Lightbox } from '../ui/Lightbox';
+import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
 import { SelectField } from '../ui/SelectField';
 import { TextField } from '../ui/TextField';
@@ -16,6 +19,7 @@ interface ReturnRow {
   key?: string; return_type?: string; id: number | null; client_id: string; posting_number: string | null; barcode: string | null;
   box_id?: number | null; box_barcode?: string | null; sku?: number | null; name: string | null; offer_id: string | null; qty: number | null;
   status: string | null; status_name: string | null; target_place: string | null; target_place_addr: string | null; return_date: string | null;
+  image_url?: string | null;
 }
 interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; cabinets?: { id: number; name: string; ozonClientId: string }[] }
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
@@ -43,6 +47,7 @@ export function ReturnsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
   const [suggestions, setSuggestions] = useState<ReturnRow[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -152,7 +157,9 @@ export function ReturnsPage() {
     {!loading && !error && data && (data.items.length === 0 ? <EmptyState illustration={emptyIllustration} title={Object.values(filters).some(Boolean) ? 'Ничего не найдено' : 'Возвратов пока нет'}>{Object.values(filters).some(Boolean) ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState> :
       <div className="pa-scroll" tabIndex={0} role="region" aria-label="Возвраты, ожидающие получения"><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Кабинет', 'Дата возврата', 'Количество'].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
         <tbody>{data.items.map(row => <tr className="po-table-row__row" key={row.key || `${row.client_id}:${row.id}`}>
-          <td className={`${TD} pa-col-product`}>{row.name || '—'}<div className="pa-sub">{row.offer_id || '—'}</div></td>
+          <td className={`${TD} pa-col-product`}><div className="pa-returns__product">
+            <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
+            <div>{row.name || '—'}<div className="pa-sub">{row.offer_id || '—'}</div></div></div></td>
           <td className={TD}>{row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—')}<div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : (row.barcode || 'Возврат')}</div></td>
           <td className={TD}><Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge></td>
           <td className={TD}>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></td>
@@ -161,5 +168,6 @@ export function ReturnsPage() {
         </tr>)}</tbody></table></div></div>)}
     {data && data.total > data.page_size && !error && <div className="pa-returns-pagination"><Button variant="secondary" size={400} disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Назад</Button>
       <span>Страница {page}</span><Button variant="secondary" size={400} disabled={loading || page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Далее</Button></div>}
+    {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
   </div>;
 }

@@ -18,6 +18,16 @@ describe('Возвраты', () => {
     expect(calls.some(c => c.url.includes('pvz=%D0%9C'))).toBe(true);
   });
 
+  it('показывает миниатюру товара из Studio2', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [{ id: 12, client_id: '1', sku: 777, name: 'Товар А', image_url: 'https://cdn1.ozone.ru/s3/folder/pic.jpg', qty: 1 }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/waiting');
+    const image = await screen.findByRole('img', { name: 'Товар А' });
+    expect(image).toHaveAttribute('src', 'https://ir.ozone.ru/s3/folder/c100/pic.jpg');
+  });
+
   it('не запрашивает возвраты без разрешения', async () => {
     const calls = mockApi({ '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [] }) });
     renderApp('/returns/waiting');

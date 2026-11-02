@@ -221,6 +221,8 @@ button.po-day:disabled { cursor: default; }
 .pa-table .po-table__table { min-width: 980px; table-layout: auto; width: 100%; }
 .pa-table th { white-space: nowrap; }
 .pa-nowrap { white-space: nowrap; }
+.pa-returns__product { display: flex; align-items: flex-start; gap: 12px; }
+.pa-returns__product > .pa-photo, .pa-returns__product > .pa-photo__button { flex: none; }
 .pa-col-product { max-width: 380px; min-width: 220px; width: 380px; }
 .pa-col-status { min-width: 150px; }
 /* Две даты и стрелки сортировки требуют своей ширины: не даём колонке сжимать дату до одного слова. */
