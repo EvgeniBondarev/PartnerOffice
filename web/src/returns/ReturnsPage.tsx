@@ -10,7 +10,7 @@ import { Informer } from '../ui/Informer';
 import { SearchField } from '../ui/SearchField';
 import { SelectField } from '../ui/SelectField';
 import { TextField } from '../ui/TextField';
-import emptyIllustration from '../assets/illustrations/returns-empty.png';
+import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 interface ReturnRow {
   key?: string; return_type?: string; id: number | null; client_id: string; posting_number: string | null; barcode: string | null;

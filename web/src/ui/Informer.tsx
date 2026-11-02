@@ -28,7 +28,7 @@ export function Informer({ kind, title, children, id, reasons, action, onClose, 
       role={kind === 'info' ? 'status' : 'alert'}
     >
       {!illustration && <Icon name={ICONS[kind]} size={24} className={`pa-informer__icon pa-informer__icon--${kind}`} />}
-      {illustration && <img className="pa-informer__illustration" src={illustration} alt="" />}
+      {illustration && <img className="pa-informer__illustration" src={illustration} alt="" width={88} height={88} decoding="async" />}
       <div className="pa-informer__text">
         {title && <b className="pa-informer__title">{title}</b>}
         <span>{children}</span>
