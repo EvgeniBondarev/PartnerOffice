@@ -138,7 +138,8 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Товар А')).toBeInTheDocument();
     expect(calls.some(c => c.url.includes('section=received'))).toBe(true);
     expect(screen.getByText('Ожидает')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Принять' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Статус приёмки/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
   });
 
   it('принимает возврат и показывает ответ сервера', async () => {
@@ -149,10 +150,31 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Принять' }));
-    expect(await screen.findByText('Принят')).toBeInTheDocument();
-    expect(screen.getAllByText('Брак')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Принять' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    expect(screen.getByText('Брак')).toBeInTheDocument();
     expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+  });
+
+  it('список статуса открывается с клавиатуры и закрывается по Esc', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json(received()),
+      'POST /partner-api/returns/mark': () => json({ mark: 'rejected', defect: false, missort: false })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(await screen.findByRole('menu', { name: 'Статус приёмки' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
+    await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'rejected' }));
   });
 
   it('показывает ошибку, если отметка не сохранилась', async () => {
@@ -163,9 +185,10 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Брак' }));
+    await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
+    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Брак' }));
     expect(await screen.findByText('Возврат не найден.')).toBeInTheDocument();
-    expect(screen.getByText('Ожидает')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' })).toBeInTheDocument();
   });
 
   it('в разделе «Получено» фильтры по статусу приёмки и пункту выдачи применяются сразу, без кнопки «Найти»', async () => {

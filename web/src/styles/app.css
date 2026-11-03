@@ -416,10 +416,13 @@ button.po-day:disabled { cursor: default; }
 .pa-returns__tabs { display: flex; gap: 4px; margin: 0 0 8px; border-bottom: 1px solid var(--ozi-border-primary-transparent, rgba(0,0,0,.12)); }
 .pa-returns__tab { border-bottom: 2px solid transparent; color: var(--ozi-text-secondary-transparent); margin-bottom: -1px; padding: 8px 12px; text-decoration: none; }
 .pa-returns__tab.is-active { border-bottom-color: var(--action-400); color: var(--ozi-text-primary-transparent); }
-.pa-returns__mark { min-width: 260px; }
-.pa-returns__mark-box { display: flex; flex-direction: column; gap: 8px; }
-.pa-returns__mark-state, .pa-returns__mark-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
-.pa-returns__comment { border: 1px solid var(--ozi-border-primary-transparent, rgba(0,0,0,.2)); border-radius: 8px; flex: 1 1 100%; font: inherit; height: 32px; padding: 0 8px; }
+.pa-returns__mark { width: 1%; white-space: nowrap; }
+.pa-returns__mark-box { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
+.pa-badge-button { appearance: none; background: none; border: 0; border-radius: 8px; cursor: pointer; display: inline-flex; padding: 0; }
+.pa-badge-button:disabled { cursor: default; opacity: .6; }
+.pa-badge-button:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
+.pa-returns__menu { min-width: 200px; z-index: 1600; }
+.pa-returns__menu-sep { background: var(--ozi-border-primary-transparent, rgba(0,0,0,.12)); height: 1px; margin: 4px 12px; }
 .pa-returns__description { color: var(--ozi-text-secondary-transparent); margin: 0 0 16px; }
 .pa-returns__summary { align-items: baseline; color: var(--ozi-text-secondary-transparent); display: flex; flex-wrap: wrap; gap: 8px 20px; }
 .pa-returns__summary .po-page__count { color: var(--ozi-text-primary-transparent); }
