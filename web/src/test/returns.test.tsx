@@ -105,6 +105,23 @@ describe('Возвраты', () => {
     expect(calls.some(c => c.method === 'POST' || c.url.includes('exact=true'))).toBe(false);
   });
 
+  it('FBO-коробка «Получена» видна в «Получено», скан по коду коробки принимает её', async () => {
+    const box = { key: 'fbo:abc:1', return_type: 'fbo', id: null, client_id: '1', box_id: 10230649418, box_barcode: 'ii14471039742', name: 'Подушка двигателя 11483 FEBI', offer_id: '11483=FEB', status: 'ReceivedBySeller', status_name: 'Получена', qty: 1, mark: 'pending' };
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ items: [box], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false, exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: false, missort: false, comment: '' })
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByText('Подушка двигателя 11483 FEBI')).toBeInTheDocument();
+    expect(screen.getByText('ii14471039742')).toBeInTheDocument();
+    expect(screen.getByText('Получена')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск возвратов' }), 'ii14471039742{Enter}');
+    expect(await screen.findByText('Принят: Подушка двигателя 11483 FEBI')).toBeInTheDocument();
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbo:abc:1', status: 'accepted' });
+  });
+
   it('не принимает возвраты при нескольких совпадениях', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),

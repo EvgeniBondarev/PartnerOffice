@@ -242,7 +242,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     </nav>
     <p className="pa-returns__description">{section === 'waiting'
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
-      : 'Возвраты, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
+      : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
     {section === 'received' && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
     <form className="po-page__toolbar pa-toolbar pa-returns__toolbar" role="search" aria-label="Фильтры возвратов" onSubmit={apply}>
       <div className="pa-toolbar__search">
