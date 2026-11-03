@@ -434,7 +434,4 @@ button.po-day:disabled { cursor: default; }
 .pa-home__tile:focus-visible, .pa-home__logo:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
 .pa-home__logo { color: inherit; text-decoration: none; }
 @media (max-width: 420px) { .pa-home .po-tile { max-width: 100%; } }
-.pa-scan { margin: 16px 0; }
-.pa-scan__form { display: flex; align-items: start; gap: 12px; margin-top: 12px; }
-.pa-scan__form .pa-field { flex: 1; max-width: 440px; }
 .pa-returns__row--highlight > td { background: var(--ozi-bg-success-secondary); }

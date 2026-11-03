@@ -61,13 +61,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
   const [saving, setSaving] = useState<string[]>([]);
   const [markError, setMarkError] = useState('');
-  const [scanMode, setScanMode] = useState(false);
-  const [scanValue, setScanValue] = useState('');
-  const [scanBusy, setScanBusy] = useState(false);
-  const [scanMessage, setScanMessage] = useState('');
+  const [scanResult, setScanResult] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
-  const scanInProgress = useRef(false);
-  const scanInput = useRef<HTMLInputElement>(null);
+  const scanQueue = useRef<Promise<void>>(Promise.resolve());
+  const typing = useRef({ at: 0, fast: 0, length: 0 });
   const highlightedRow = useRef<HTMLTableRowElement>(null);
   const [suggestions, setSuggestions] = useState<ReturnRow[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -109,7 +106,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     setLoading(true); setError('');
     request<ReturnPage>(`/partner-api/returns?${query}`, { signal: controller.signal })
       .then(result => {
-        if (filters.search !== currentSearch.current || scanInProgress.current) return;
+        if (filters.search !== currentSearch.current) return;
         setData(result);
         if (filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
           suggestionSearch.current = filters.search;
@@ -136,33 +133,46 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   };
   useEffect(() => { if (highlighted) highlightedRow.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, data]);
 
-  const scan = async (event: FormEvent) => {
-    event.preventDefault();
-    const code = scanValue.trim();
-    if (!code || scanInProgress.current || !canWork) return;
-    scanInProgress.current = true; setScanBusy(true); setScanMessage(''); setHighlighted(null);
-    setScanValue('');
+  /** Сканер вводит код как очень быстрый набор и завершает его Enter: так отличаем скан от ручного ввода. */
+  const noteInput = (value: string) => {
+    const now = performance.now(), t = typing.current;
+    t.fast = !value || value.length < t.length ? 0 : value.length - t.length > 1 ? value.length : now - t.at < 60 ? t.fast + 1 : 0;
+    t.at = now; t.length = value.length;
+  };
+  const looksScanned = (value: string) => value.length >= 4 && typing.current.fast >= value.length - 1;
+
+  const processScan = async (code: string) => {
+    setScanResult(null); setHighlighted(null);
     try {
       const query = new URLSearchParams({ section: 'received', page: '1', pageSize: '50', search: code, exact: 'true' });
       const result = await request<ReturnPage>(`/partner-api/returns?${query}`);
-      setData(result);
-      if (!result.exact_search) { setScanMessage('Точный поиск недоступен. Проверьте возврат вручную.'); return; }
-      if (result.partial) { setScanMessage('Данные обновлены не полностью. Проверьте возврат вручную.'); return; }
+      if (!result.exact_search) { setScanResult({ kind: 'warning', text: 'Точный поиск недоступен. Проверьте возврат вручную.' }); return; }
+      if (result.partial) { setScanResult({ kind: 'warning', text: 'Данные обновлены не полностью. Проверьте возврат вручную.' }); return; }
       if (result.total !== 1 || result.items.length !== 1 || !result.items[0].key) {
-        setScanMessage(result.total ? 'Найдено несколько позиций. Выберите нужную вручную.' : 'Возврат не найден.');
+        setScanResult(result.total ? { kind: 'warning', text: `Код ${code}: найдено несколько позиций. Выберите нужную вручную.` } : { kind: 'warning', text: `Код ${code}: возврат не найден.` });
         return;
       }
       const row = result.items[0];
+      const title = row.name || row.posting_number || code;
       setHighlighted(row.key!);
-      if (row.mark === 'accepted') { setScanMessage('Возврат уже принят.'); return; }
-      const mark = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, status: 'accepted' }) });
-      setData(previous => previous && { ...previous, items: previous.items.map(item => item.key === row.key ? { ...item, ...mark } : item) });
-      setScanMessage('Возврат принят.');
+      if (row.mark === 'accepted') { setScanResult({ kind: 'success', text: `Уже принят: ${title}` }); return; }
+      await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, status: 'accepted' }) });
+      setScanResult({ kind: 'success', text: `Принят: ${title}` });
+      setRetry(n => n + 1);
     } catch (err) {
-      setScanMessage(err instanceof Error ? err.message : 'Не удалось обработать сканирование.');
-    } finally {
-      scanInProgress.current = false; setScanBusy(false); scanInput.current?.focus();
+      setScanResult({ kind: 'error', text: err instanceof Error ? err.message : 'Не удалось обработать сканирование.' });
     }
+  };
+  /** Скан сразу принимает найденную позицию; коды обрабатываются по очереди, чтобы быстрые сканы не терялись. */
+  const scan = (value: string) => {
+    const code = value.trim();
+    if (!code) return;
+    currentSearch.current = ''; suppressedSearch.current = null;
+    setSuggestions([]); setSuggestionsOpen(false); setActiveSuggestion(-1);
+    setDraft(previous => ({ ...previous, search: '' })); setPage(1);
+    setFilters(previous => previous.search ? { ...previous, search: '' } : previous);
+    typing.current = { at: 0, fast: 0, length: 0 };
+    scanQueue.current = scanQueue.current.then(() => processScan(code));
   };
   const set = (values: Partial<typeof EMPTY>) => setDraft(previous => ({ ...previous, ...values }));
   const pick = (values: Partial<typeof EMPTY>) => { setDraft(previous => ({ ...previous, ...values })); setPage(1); setFilters(previous => ({ ...previous, ...values })); };
@@ -185,6 +195,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       event.preventDefault(); setActiveSuggestion(value => Math.max(value - 1, 0));
     } else if (event.key === 'Enter' && suggestionsOpen && activeSuggestion >= 0) {
       event.preventDefault(); chooseSuggestion(suggestions[activeSuggestion]);
+    } else if (event.key === 'Enter' && section === 'received' && canWork && looksScanned(event.currentTarget.value)) {
+      event.preventDefault(); scan(event.currentTarget.value);
     }
   };
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
@@ -198,25 +210,15 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
       : 'Возвраты, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
     {section === 'received' && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
-    {section === 'received' && canWork && <div className="pa-scan">
-      <Button type="button" size={400} variant="secondary" disabled={scanBusy} aria-pressed={scanMode} onClick={() => { setScanMode(!scanMode); setScanMessage(''); setHighlighted(null); }}>
-        {scanMode ? 'Выключить сканер' : 'Включить сканер'}
-      </Button>
-      {scanMode && <form onSubmit={scan} className="pa-scan__form">
-        <TextField label="Код для приёмки" value={scanValue} onValueChange={setScanValue} inputRef={scanInput} autoFocus autoComplete="off" size={500} maxLength={100} />
-        <Button type="submit" size={500} disabled={scanBusy}>Принять по коду</Button>
-      </form>}
-      {scanMode && <p className="pa-muted">Сканирование ищет среди всех доступных полученных возвратов, независимо от фильтров.</p>}
-      {scanMessage && <p role="status">{scanMessage}</p>}
-    </div>}
     <form className="po-page__toolbar pa-toolbar pa-returns__toolbar" role="search" aria-label="Фильтры возвратов" onSubmit={apply}>
       <div className="pa-toolbar__search">
-        <SearchField label="Поиск возвратов" placeholder="Товар, артикул, отправление или коробка" value={draft.search}
-          onValueChange={search => { setHighlighted(null); suppressedSearch.current = null; currentSearch.current = search.trim(); set({ search }); }}
+        <SearchField label="Поиск возвратов" placeholder={section === 'received' && canWork ? 'Товар, артикул, коробка или код со сканера' : 'Товар, артикул, отправление или коробка'} value={draft.search}
+          onValueChange={search => { noteInput(search); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = search.trim(); set({ search }); }}
           onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === draft.search.trim() && suggestions.length) setSuggestionsOpen(true); }}
           onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
           onKeyDown={searchKeyDown} aria-autocomplete="list" aria-controls={suggestionsOpen && suggestions.length ? 'return-suggestions' : undefined}
-          aria-activedescendant={suggestionsOpen && activeSuggestion >= 0 ? `return-suggestion-${activeSuggestion}` : undefined} maxLength={100} />
+          aria-activedescendant={suggestionsOpen && activeSuggestion >= 0 ? `return-suggestion-${activeSuggestion}` : undefined} maxLength={100}
+          autoFocus={section === 'received' && canWork} />
         {suggestionsOpen && suggestions.length > 0 && (
           <div className="po-dropdown po-dropdown--500 pa-popover pa-order-suggestions">
             <div className="po-dropdown__scroll"><div id="return-suggestions" className="po-dropdown__list" role="listbox" aria-label="Подсказки по возвратам">
@@ -242,6 +244,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       <Button variant="secondary" size={500} icon="ui-clear-filters" iconOnly onClick={reset} disabled={!Object.values(draft).some(Boolean)}>Сбросить фильтры</Button>
     </form>
     {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
+    {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
     {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
     {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
     {data && !error && <div className="pa-returns__summary"><div className="po-page__count">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки (UTC): {formatDateTimeShort(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatDateTimeShort(data.fbo_snapshot_at)}` : ''}</span></div>}

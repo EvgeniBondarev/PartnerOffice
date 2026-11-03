@@ -80,12 +80,29 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Включить сканер' }));
-    await user.type(screen.getByLabelText('Код для приёмки'), '2698515728645041{Enter}');
-    expect(await screen.findByText('Возврат принят.')).toBeInTheDocument();
-    expect(screen.getByText('Товар А').closest('tr')).toHaveClass('pa-returns__row--highlight');
+    await screen.findByText('Товар А');
+    expect(screen.queryByRole('button', { name: /сканер/i })).not.toBeInTheDocument();
+    const search = screen.getByRole('searchbox', { name: 'Поиск возвратов' });
+    expect(search).toHaveFocus();
+    await user.type(search, '2698515728645041{Enter}');
+    expect(await screen.findByText('Принят: Товар А')).toBeInTheDocument();
+    expect(search).toHaveValue('');
+    expect(screen.queryByRole('listbox', { name: 'Подсказки по возвратам' })).not.toBeInTheDocument();
     expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
     expect(calls.some(c => c.url.includes('exact=true'))).toBe(true);
+  });
+
+  it('ручной ввод с Enter только ищет и ничего не принимает', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), exact_search: true })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup({ delay: 120 });
+    await screen.findByText('Товар А');
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск возвратов' }), '770158{Enter}');
+    await waitFor(() => expect(calls.some(c => c.url.includes('search=770158'))).toBe(true));
+    expect(calls.some(c => c.method === 'POST' || c.url.includes('exact=true'))).toBe(false);
   });
 
   it('не принимает возвраты при нескольких совпадениях', async () => {
@@ -95,9 +112,8 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Включить сканер' }));
-    await user.type(screen.getByLabelText('Код для приёмки'), '770158{Enter}');
-    expect(await screen.findByText(/Найдено несколько позиций/)).toBeInTheDocument();
+    await user.type(await screen.findByRole('searchbox', { name: 'Поиск возвратов' }), '770158{Enter}');
+    expect(await screen.findByText(/найдено несколько позиций/)).toBeInTheDocument();
     expect(calls.some(c => c.method === 'POST')).toBe(false);
   });
 
@@ -108,8 +124,7 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Включить сканер' }));
-    await user.type(screen.getByLabelText('Код для приёмки'), '770158{Enter}');
+    await user.type(await screen.findByRole('searchbox', { name: 'Поиск возвратов' }), '770158{Enter}');
     expect(await screen.findByText(/Точный поиск недоступен/)).toBeInTheDocument();
     expect(calls.some(c => c.method === 'POST')).toBe(false);
   });
