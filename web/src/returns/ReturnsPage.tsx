@@ -50,6 +50,7 @@ const MARK_FLAGS: { field: 'defect' | 'missort'; label: string; kind: BadgeKind 
   { field: 'defect', label: 'Брак', kind: 'secondary negative' },
   { field: 'missort', label: 'Пересорт', kind: 'secondary info' }
 ];
+const MENU_WIDTH = 220, MENU_HEIGHT = 260;
 const EMPTY = { search: '', pvz: '', status: '', clientId: '', mark: '', dateFrom: '', dateTo: '' };
 
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
@@ -286,7 +287,7 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
   const flags = MARK_FLAGS.filter(flag => row[flag.field]);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
   const [active, setActive] = useState(0);
-  const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const items = [
     ...MARK_STATUSES.map(item => ({ id: item.value, label: item.label, kind: item.kind, role: 'menuitemradio', checked: item.value === status.value, apply: () => onChange({ status: item.value }) })),
@@ -297,8 +298,10 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
   useLayoutEffect(() => {
     if (!open || !buttonRef.current) { setPosition(null); return; }
     const rect = buttonRef.current.getBoundingClientRect();
-    const below = window.innerHeight - rect.bottom;
-    setPosition(below < 240 && rect.top > below ? { bottom: window.innerHeight - rect.top + 4, left: rect.left } : { top: rect.bottom + 4, left: rect.left });
+    const gap = 8, width = Math.min(MENU_WIDTH, window.innerWidth - gap * 2);
+    const left = Math.min(Math.max(gap, rect.left), window.innerWidth - width - gap);
+    const below = window.innerHeight - rect.bottom - gap - 4, above = rect.top - gap - 4;
+    setPosition(below < MENU_HEIGHT && above > below ? { bottom: window.innerHeight - rect.top + 4, left, width, maxHeight: above } : { top: rect.bottom + 4, left, width, maxHeight: below });
     setActive(Math.max(0, items.findIndex(item => item.id === status.value)));
     const hide = () => setOpen(false);
     window.addEventListener('scroll', hide, true); window.addEventListener('resize', hide);
