@@ -159,6 +159,22 @@ describe('Возвраты', () => {
     expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
   });
 
+  it('подтягивает свежие данные при возврате на вкладку, не прячет таблицу', async () => {
+    let status = 'pending';
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json(received({ mark: status }))
+    });
+    renderApp('/returns/received');
+    await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
+    const before = calls.filter(c => c.url.startsWith('/partner-api/returns?')).length;
+    status = 'accepted';
+    window.dispatchEvent(new Event('focus'));
+    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    expect(calls.filter(c => c.url.startsWith('/partner-api/returns?')).length).toBeGreaterThan(before);
+    expect(screen.queryByText('Загружаем возвраты…')).not.toBeInTheDocument();
+  });
+
   it('список статуса открывается с клавиатуры и закрывается по Esc', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),

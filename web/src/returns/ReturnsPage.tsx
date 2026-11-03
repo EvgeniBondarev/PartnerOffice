@@ -71,6 +71,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  const quietRefresh = useRef(false);
+  const savingNow = useRef(false);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
   const [saving, setSaving] = useState<string[]>([]);
   const [markError, setMarkError] = useState('');
@@ -116,33 +118,52 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     if (!allowed) return;
     const controller = new AbortController();
     const query = new URLSearchParams({ section, page: String(page), pageSize: '50', ...filters });
-    setLoading(true); setError('');
+    // Фоновое обновление не прячет таблицу, не трогает подсказки и не показывает ошибку: остаётся прежний список.
+    const quiet = quietRefresh.current;
+    quietRefresh.current = false;
+    if (!quiet) { setLoading(true); setError(''); }
     request<ReturnPage>(`/partner-api/returns?${query}`, { signal: controller.signal })
       .then(result => {
         if (filters.search !== currentSearch.current) return;
         setData(result);
-        if (filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
+        if (!quiet && filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
           suggestionSearch.current = filters.search;
           setSuggestions(result.items.slice(0, 10));
           setActiveSuggestion(-1);
           setSuggestionsOpen(focused.current);
         }
       })
-      .catch((err: unknown) => { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Не удалось загрузить возвраты.'); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      .catch((err: unknown) => { if (!controller.signal.aborted && !quiet) setError(err instanceof Error ? err.message : 'Не удалось загрузить возвраты.'); })
+      .finally(() => { if (!controller.signal.aborted && !quiet) setLoading(false); });
     return () => controller.abort();
   }, [allowed, section, filters, page, retry]);
+
+  // Выгрузка из Ozon и отметки из ozon-returns приходят без участия страницы: подтягиваем их раз в минуту
+  // и при возврате на вкладку, пока открыта вкладка и нет несохранённой отметки.
+  useEffect(() => {
+    if (!allowed) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || savingNow.current) return;
+      quietRefresh.current = true;
+      setRetry(n => n + 1);
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh); };
+  }, [allowed]);
 
   /** Отметка приёмки: сервер возвращает итоговое состояние, им и заменяем строку (без угадывания на клиенте). */
   const mark = async (row: ReturnRow, patch: MarkPatch) => {
     if (!row.key || saving.includes(row.key)) return;
+    savingNow.current = true;
     setMarkError(''); setSaving(keys => [...keys, row.key!]);
     try {
       const result = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, ...patch }) });
       setData(previous => previous && { ...previous, items: previous.items.map(item => item.key === row.key ? { ...item, ...result } : item) });
     } catch (err) {
       setMarkError(err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
-    } finally { setSaving(keys => keys.filter(key => key !== row.key)); }
+    } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
   };
   useEffect(() => { if (highlighted) highlightedRow.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, data]);
 
