@@ -53,6 +53,9 @@ const MARK_FLAGS: { field: 'defect' | 'missort'; label: string; kind: BadgeKind 
 const MENU_WIDTH = 220, MENU_HEIGHT = 260;
 const EMPTY = { search: '', pvz: '', status: '', clientId: '', mark: '', dateFrom: '', dateTo: '' };
 
+/** Похоже на код этикетки или отправление: ii…/bx… с цифрами, длинное число (в том числе искажённое сканером) или номер отправления. */
+const looksLikeCode = (value: string) => /^(?:(?:ii|bx)\d{6,}|\d{10,}|\d{6,}-\d{3,}(?:-\d+)?)$/i.test(value);
+
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
 function suggestionLabel(row: ReturnRow, query: string): string {
   const fields = [row.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.offer_id, row.sku?.toString(), row.name];
@@ -81,6 +84,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const scanQueue = useRef<Promise<void>>(Promise.resolve());
   const typing = useRef({ at: 0, fast: 0, length: 0 });
+  const autoTried = useRef('');
+  const formRef = useRef<HTMLFormElement>(null);
   const highlightedRow = useRef<HTMLTableRowElement>(null);
   const [suggestions, setSuggestions] = useState<ReturnRow[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
@@ -99,6 +104,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     setActiveSuggestion(-1);
     if (search === filters.search) return;
     const timer = window.setTimeout(() => {
+      // Сканер без Enter: код набран машинной скоростью и похож на код этикетки — принимаем, не дожидаясь Enter.
+      if (section === 'received' && canWork && looksLikeCode(search) && search !== autoTried.current && looksScanned(search)) { scan(search); return; }
       setPage(1);
       setFilters(previous => ({ ...previous, search }));
     }, 350);
@@ -183,43 +190,54 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   /** Сканер вводит код как очень быстрый набор и завершает его Enter: так отличаем скан от ручного ввода. */
   const noteInput = (value: string) => {
     const now = performance.now(), t = typing.current;
-    t.fast = !value || value.length < t.length ? 0 : value.length - t.length > 1 ? value.length : now - t.at < 60 ? t.fast + 1 : 0;
+    t.fast = !value || value.length < t.length ? 0 : value.length - t.length > 1 ? value.length : now - t.at < 100 ? t.fast + 1 : 0;
     t.at = now; t.length = value.length;
   };
   const looksScanned = (value: string) => value.length >= 4 && typing.current.fast >= value.length - 1;
 
-  const processScan = async (code: string) => {
+  /** true — позиция принята (или уже была принята); false — ничего не принято, поиск остаётся в поле. */
+  const processScan = async (code: string): Promise<boolean> => {
     setScanResult(null); setHighlighted(null);
     try {
       const query = new URLSearchParams({ section: 'received', page: '1', pageSize: '50', search: code, exact: 'true' });
       const result = await request<ReturnPage>(`/partner-api/returns?${query}`);
-      if (!result.exact_search) { setScanResult({ kind: 'warning', text: 'Точный поиск недоступен. Проверьте возврат вручную.' }); return; }
-      if (result.partial) { setScanResult({ kind: 'warning', text: 'Данные обновлены не полностью. Проверьте возврат вручную.' }); return; }
+      if (!result.exact_search) { setScanResult({ kind: 'warning', text: 'Точный поиск недоступен. Проверьте возврат вручную.' }); return false; }
+      if (result.partial) { setScanResult({ kind: 'warning', text: 'Данные обновлены не полностью. Проверьте возврат вручную.' }); return false; }
       if (result.total !== 1 || result.items.length !== 1 || !result.items[0].key) {
         setScanResult(result.total ? { kind: 'warning', text: `Код ${code}: найдено несколько позиций. Выберите нужную вручную.` } : { kind: 'warning', text: `Код ${code}: возврат не найден.` });
-        return;
+        return false;
       }
       const row = result.items[0];
       const title = row.name || row.posting_number || code;
       setHighlighted(row.key!);
-      if (row.mark === 'accepted') { setScanResult({ kind: 'success', text: `Уже принят: ${title}` }); return; }
+      if (row.mark === 'accepted') { setScanResult({ kind: 'success', text: `Уже принят: ${title}` }); return true; }
       await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, status: 'accepted' }) });
       setScanResult({ kind: 'success', text: `Принят: ${title}` });
       setRetry(n => n + 1);
+      return true;
     } catch (err) {
       setScanResult({ kind: 'error', text: err instanceof Error ? err.message : 'Не удалось обработать сканирование.' });
+      return false;
     }
+  };
+  /** Код не принят: возвращаем его в поиск, чтобы список показал совпадения, и выделяем, чтобы следующий скан заменил его, а не дописался. */
+  const keepSearch = (code: string) => {
+    autoTried.current = code; currentSearch.current = code; suppressedSearch.current = code;
+    setDraft(previous => ({ ...previous, search: code })); setPage(1);
+    setFilters(previous => ({ ...previous, search: code }));
+    window.setTimeout(() => formRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.select(), 0);
   };
   /** Скан сразу принимает найденную позицию; коды обрабатываются по очереди, чтобы быстрые сканы не терялись. */
   const scan = (value: string) => {
     const code = value.trim();
     if (!code) return;
+    autoTried.current = '';
     currentSearch.current = ''; suppressedSearch.current = null;
     setSuggestions([]); setSuggestionsOpen(false); setActiveSuggestion(-1);
     setDraft(previous => ({ ...previous, search: '' })); setPage(1);
     setFilters(previous => previous.search ? { ...previous, search: '' } : previous);
     typing.current = { at: 0, fast: 0, length: 0 };
-    scanQueue.current = scanQueue.current.then(() => processScan(code));
+    scanQueue.current = scanQueue.current.then(async () => { if (!await processScan(code)) keepSearch(code); });
   };
   const set = (values: Partial<typeof EMPTY>) => setDraft(previous => ({ ...previous, ...values }));
   const pick = (values: Partial<typeof EMPTY>) => { setDraft(previous => ({ ...previous, ...values })); setPage(1); setFilters(previous => ({ ...previous, ...values })); };
@@ -257,10 +275,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
       : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
     {section === 'received' && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
-    <form className="po-page__toolbar pa-toolbar pa-returns__toolbar" role="search" aria-label="Фильтры возвратов" onSubmit={apply}>
+    <form ref={formRef} className="po-page__toolbar pa-toolbar pa-returns__toolbar" role="search" aria-label="Фильтры возвратов" onSubmit={apply}>
       <div className="pa-toolbar__search">
         <SearchField label="Поиск возвратов" placeholder={section === 'received' && canWork ? 'Товар, артикул, коробка или код со сканера' : 'Товар, артикул, отправление или коробка'} value={draft.search}
-          onValueChange={search => { noteInput(search); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = search.trim(); set({ search }); }}
+          onValueChange={search => { if (search !== autoTried.current) autoTried.current = ''; noteInput(search); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = search.trim(); set({ search }); }}
           onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === draft.search.trim() && suggestions.length) setSuggestionsOpen(true); }}
           onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
           onKeyDown={searchKeyDown} aria-autocomplete="list" aria-controls={suggestionsOpen && suggestions.length ? 'return-suggestions' : undefined}

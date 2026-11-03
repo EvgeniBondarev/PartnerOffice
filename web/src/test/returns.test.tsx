@@ -137,6 +137,56 @@ describe('Возвраты', () => {
     expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbo:abc:1', status: 'accepted' });
   });
 
+  it('принимает позицию по быстро набранному коду и без Enter', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received({ ii_code: 'ii14471039743' }), exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: false, missort: false, comment: '' })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await screen.findByText('Товар А');
+    const search = screen.getByRole('searchbox', { name: 'Поиск возвратов' });
+    await user.type(search, 'ii14471039743');
+    expect(await screen.findByText('Принят: Товар А')).toBeInTheDocument();
+    expect(search).toHaveValue('');
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+    expect(calls.filter(c => c.url.includes('exact=true')).every(c => c.url.includes('search=ii14471039743'))).toBe(true);
+  });
+
+  it('медленно набранный номер не принимается сам: это обычный поиск', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), exact_search: true })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup({ delay: 150 });
+    await screen.findByText('Товар А');
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск возвратов' }), 'ii14471039');
+    await waitFor(() => expect(calls.some(c => c.url.includes('search=ii14471039'))).toBe(true), { timeout: 3000 });
+    expect(calls.some(c => c.method === 'POST' || c.url.includes('exact=true'))).toBe(false);
+  });
+
+  it('код не найден: остаётся в поле выделенным, чтобы следующий скан его заменил', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': (_init, url) => url?.includes('exact=true')
+        ? json({ ...received(), items: [], total: 0, exact_search: true })
+        : json(received())
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await screen.findByText('Товар А');
+    const search = screen.getByRole('searchbox', { name: 'Поиск возвратов' }) as HTMLInputElement;
+    await user.type(search, '8053379083565{Enter}');
+    expect(await screen.findByText(/возврат не найден/)).toBeInTheDocument();
+    await waitFor(() => expect(search).toHaveValue('8053379083565'));
+    await waitFor(() => expect(search.selectionStart === 0 && search.selectionEnd === 13).toBe(true));
+    expect(calls.some(c => c.method === 'POST')).toBe(false);
+    await user.keyboard('2698514471039743');
+    expect(search).toHaveValue('2698514471039743');
+  });
+
   it('не принимает возвраты при нескольких совпадениях', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
