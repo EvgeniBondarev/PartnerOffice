@@ -157,6 +157,7 @@ body { background: var(--ozi-layer-floor1); }
 }
 .pa-select__clear:hover { color: var(--ozi-graphic-secondary-transparent); }
 .po-select__value { color: var(--ozi-text-primary-transparent); }
+.po-select__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pa-popover { left: 0; min-width: 100%; position: absolute; top: calc(100% + 4px); z-index: 1600; }
 .pa-popover--right { left: auto; min-width: 200px; right: 0; }
@@ -185,6 +186,11 @@ button.po-day:disabled { cursor: default; }
 .pa-toolbar__search { flex: 1 1 220px; max-width: 420px; min-width: 160px; position: relative; }
 .pa-toolbar__field { flex: none; width: 150px; }
 .pa-toolbar__field--period { width: 210px; }
+/* Подписи «Статус приёмки» и «Дата получения» длиннее 150px: поля возвратов шире, а подпись не переносится и обрезается многоточием. */
+@media (min-width: 901px) {
+  .pa-returns__toolbar .pa-toolbar__field { width: 172px; }
+  .pa-returns__toolbar .pa-toolbar__field--period { width: 210px; }
+}
 /* Правило брендбука: фильтры в одну строку. На узком экране поиск уходит на свою строку, поля остаются рядом. */
 @media (max-width: 1359px) {
   .pa-toolbar { flex-wrap: wrap; }

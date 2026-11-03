@@ -273,7 +273,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       {section === 'received'
         ? <div className="pa-toolbar__field"><SelectField label="Статус приёмки" value={draft.mark} onChange={mark => pick({ mark })} options={MARK_OPTIONS} /></div>
         : <div className="pa-toolbar__field"><SelectField label="Статус Ozon" value={draft.status} onChange={status => pick({ status })} options={STATUS_OPTIONS} /></div>}
-      <div className="pa-toolbar__field"><DateRangeField label={section === 'received' ? 'Дата получения' : 'Дата возврата'} from={draft.dateFrom} to={draft.dateTo} onChange={(dateFrom, dateTo) => pick({ dateFrom, dateTo })} /></div>
+      <div className="pa-toolbar__field pa-toolbar__field--period"><DateRangeField label={section === 'received' ? 'Дата получения' : 'Дата возврата'} from={draft.dateFrom} to={draft.dateTo} onChange={(dateFrom, dateTo) => pick({ dateFrom, dateTo })} /></div>
       <Button type="submit" size={500}>Найти</Button>
       <Button variant="secondary" size={500} icon="ui-clear-filters" iconOnly onClick={reset} disabled={!Object.values(draft).some(Boolean)}>Сбросить фильтры</Button>
     </form>
