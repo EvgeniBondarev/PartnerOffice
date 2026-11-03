@@ -14,6 +14,15 @@ import { TextField } from '../ui/TextField';
 const INVALID_CODE = 'Неверный или просроченный код';
 /** Пауза перед повторной отправкой кода совпадает с серверной (Studio2, PartnerAuthService.ResendPause). */
 const RESEND_PAUSE_SECONDS = 60;
+const REMEMBERED_EMAIL_KEY = 'partner-office.email';
+
+function rememberedEmail(): string {
+  try { return localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? ''; } catch { return ''; }
+}
+
+function rememberEmail(email: string) {
+  try { localStorage.setItem(REMEMBERED_EMAIL_KEY, email); } catch { /* Хранилище может быть недоступно. */ }
+}
 
 type Step = 'email' | 'code';
 
@@ -47,7 +56,8 @@ export function LoginPage() {
   const fromInvite = Boolean(invite && validateEmail(invite.email) === null && invite.code.length === CODE_LENGTH);
 
   const [step, setStep] = useState<Step>(fromInvite ? 'code' : 'email');
-  const [email, setEmail] = useState(invite?.email ?? '');
+  const [savedEmail] = useState(rememberedEmail);
+  const [email, setEmail] = useState(invite?.email ?? savedEmail);
   const [code, setCode] = useState(fromInvite ? invite!.code : '');
   const [organization, setOrganization] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -217,6 +227,7 @@ export function LoginPage() {
     resetServerFeedback();
     try {
       await signInWithCode(email.trim(), value);
+      rememberEmail(email.trim());
       navigate(from, { replace: true });
     } catch (caught) {
       // Кнопки «Войти» нет, поэтому после любой неудачи поле очищается и ждёт новый ввод.
@@ -340,12 +351,16 @@ export function LoginPage() {
               error={emailError}
               hint="Например, name@company.ru"
               autoComplete="email"
+              list="remembered-email"
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
               autoFocus
               readOnly={submitting}
             />
+            <datalist id="remembered-email">
+              {savedEmail && <option value={savedEmail} />}
+            </datalist>
             <Button type="submit" size={600} fill loading={submitting} disabled={Boolean(lockedUntil)}>
               Получить код
             </Button>

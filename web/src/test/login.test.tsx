@@ -15,6 +15,7 @@ const codeValue = () => [1, 2, 3, 4, 5, 6].map((n) => (screen.getByLabelText(`Ц
 
 beforeEach(() => {
   vi.useRealTimers();
+  localStorage.clear();
 });
 
 afterEach(() => {
@@ -22,6 +23,17 @@ afterEach(() => {
 });
 
 describe('Страница входа', () => {
+  it('подставляет сохранённую почту и предлагает её при вводе', async () => {
+    localStorage.setItem('partner-office.email', 'saved@example.ru');
+    mockApi({ '/partner-api/auth/me': anonymous });
+    renderApp();
+
+    const email = await screen.findByLabelText('Почта');
+    expect(email).toHaveValue('saved@example.ru');
+    expect(email).toHaveAttribute('autocomplete', 'email');
+    expect(document.querySelector('#remembered-email option')).toHaveAttribute('value', 'saved@example.ru');
+  });
+
   it('показывает шаг почты с подсказкой и фокусом в поле', async () => {
     mockApi({ '/partner-api/auth/me': anonymous });
     renderApp();
@@ -156,6 +168,7 @@ describe('Страница входа', () => {
 
     expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
     expect(calls.find((c) => c.url === '/partner-api/auth/code/verify')!.body).toEqual({ email: 'boss@acme.ru', code: '123456' });
+    expect(localStorage.getItem('partner-office.email')).toBe('boss@acme.ru');
   });
 
   it('вставленный из письма код с пробелом принимается', async () => {
