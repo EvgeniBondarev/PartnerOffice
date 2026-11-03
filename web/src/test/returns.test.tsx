@@ -72,6 +72,48 @@ describe('Возвраты', () => {
 
   const received = (extra = {}) => ({ items: [{ key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Товар А', status: 'ReceivedBySeller', status_name: 'Получен', qty: 1, mark: 'pending', ...extra }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false });
 
+  it('принимает однозначный результат сканирования и выделяет строку', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received({ ii_code: 'ii15728645041' }), exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: false, missort: false, comment: '' })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Включить сканер' }));
+    await user.type(screen.getByLabelText('Код для приёмки'), '2698515728645041{Enter}');
+    expect(await screen.findByText('Возврат принят.')).toBeInTheDocument();
+    expect(screen.getByText('Товар А').closest('tr')).toHaveClass('pa-returns__row--highlight');
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+    expect(calls.some(c => c.url.includes('exact=true'))).toBe(true);
+  });
+
+  it('не принимает возвраты при нескольких совпадениях', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), total: 2, exact_search: true })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Включить сканер' }));
+    await user.type(screen.getByLabelText('Код для приёмки'), '770158{Enter}');
+    expect(await screen.findByText(/Найдено несколько позиций/)).toBeInTheDocument();
+    expect(calls.some(c => c.method === 'POST')).toBe(false);
+  });
+
+  it('не принимает результат, если сервер не подтвердил точный поиск', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json(received())
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Включить сканер' }));
+    await user.type(screen.getByLabelText('Код для приёмки'), '770158{Enter}');
+    expect(await screen.findByText(/Точный поиск недоступен/)).toBeInTheDocument();
+    expect(calls.some(c => c.method === 'POST')).toBe(false);
+  });
+
   it('в разделе «Получено» просит нужный раздел и без права приёмки не показывает кнопки', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),

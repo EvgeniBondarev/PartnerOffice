@@ -25,6 +25,7 @@ const suggestionDetails = (item: OrderSuggestion) => [item.productName, item.art
 export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy }: OrdersToolbarProps) {
   const [suggestions, setSuggestions] = useState<OrderSuggestion[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const appliedSearch = useRef(draft.search.trim());
   const set = (patch: Partial<OrderFilterState>) => onChange({ ...draft, ...patch });
   const onSubmit = (event: FormEvent) => {
@@ -54,6 +55,7 @@ export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy
       getOrderSuggestions(search, controller.signal)
         .then((items) => {
           setSuggestions(items);
+          setActiveSuggestion(-1);
           setSuggestionsOpen(true);
         })
         .catch(() => !controller.signal.aborted && setSuggestions([]));
@@ -77,18 +79,28 @@ export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy
           }}
           onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
           onBlur={() => window.setTimeout(() => setSuggestionsOpen(false), 150)}
+          aria-autocomplete="list"
+          aria-controls={suggestionsOpen && suggestions.length ? 'orders-suggestions' : undefined}
+          aria-activedescendant={suggestionsOpen && activeSuggestion >= 0 ? `order-suggestion-${activeSuggestion}` : undefined}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') { setSuggestionsOpen(false); setActiveSuggestion(-1); }
+            else if (event.key === 'ArrowDown' && suggestions.length) { event.preventDefault(); setSuggestionsOpen(true); setActiveSuggestion(value => Math.min(value + 1, suggestions.length - 1)); }
+            else if (event.key === 'ArrowUp' && suggestionsOpen && suggestions.length) { event.preventDefault(); setActiveSuggestion(value => Math.max(value - 1, 0)); }
+            else if (event.key === 'Enter' && suggestionsOpen && activeSuggestion >= 0) { event.preventDefault(); set({ search: suggestionLabel(suggestions[activeSuggestion]) }); setSuggestionsOpen(false); }
+          }}
           maxLength={100}
         />
         {suggestionsOpen && suggestions.length > 0 && (
           <div className="po-dropdown po-dropdown--500 pa-popover pa-order-suggestions">
             <div className="po-dropdown__scroll">
-              <div className="po-dropdown__list" role="listbox" aria-label="Подсказки по заказам">
-                {suggestions.map((item) => (
+              <div id="orders-suggestions" className="po-dropdown__list" role="listbox" aria-label="Подсказки по заказам">
+                {suggestions.map((item, index) => (
                   <div
+                    id={`order-suggestion-${index}`}
                     key={item.id}
                     role="option"
-                    aria-selected={false}
-                    className="po-dropdown-item"
+                    aria-selected={activeSuggestion === index}
+                    className={`po-dropdown-item${activeSuggestion === index ? ' po-dropdown-item--focused' : ''}`}
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
                       set({ search: suggestionLabel(item) });
