@@ -35,6 +35,12 @@ export function formatDateTimeShort(value: string | null | undefined): string {
   return `${date.toLocaleDateString('ru-RU')}, ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
+/** Время выгрузки сервис возвратов отдаёт по UTC без зоны («2026-11-03T11:55:00»): показываем по местному времени. */
+export function formatUtcDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  return formatDateTimeShort(/(Z|[+-]\d\d:?\d\d)$/i.test(value) ? value : `${value.replace(' ', 'T')}Z`);
+}
+
 export function formatDate(value: string | null | undefined): string {
   const date = parseDate(value);
   return date ? date.toLocaleDateString('ru-RU') : '—';

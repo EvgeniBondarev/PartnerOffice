@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { request } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ozonImage } from '../lib/images';
-import { formatDate, formatDateTimeShort, formatQuantity } from '../lib/format';
+import { formatDate, formatQuantity, formatUtcDateTime } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge, type BadgeKind } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -260,7 +260,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
     {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
     {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
-    {data && !error && <div className="pa-returns__summary"><div className="po-page__count">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки (UTC): {formatDateTimeShort(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatDateTimeShort(data.fbo_snapshot_at)}` : ''}</span></div>}
+    {data && !error && <div className="pa-returns__summary"><div className="po-page__count">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки: {formatUtcDateTime(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatUtcDateTime(data.fbo_snapshot_at)}` : ''}</span></div>}
     {loading && <p role="status" className="pa-muted">Загружаем возвраты…</p>}
     {!loading && !error && data && (data.items.length === 0 ? <EmptyState illustration={emptyIllustration} title={Object.values(filters).some(Boolean) ? 'Ничего не найдено' : 'Возвратов пока нет'}>{Object.values(filters).some(Boolean) ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState> :
       <div className="pa-scroll" tabIndex={0} role="region" aria-label="Возвраты, ожидающие получения"><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Кабинет', 'Дата возврата', 'Количество', ...(canWork || section === 'received' ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>

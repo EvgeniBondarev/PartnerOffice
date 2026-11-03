@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canShipOzonOrder, formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, formatRange, isOverdue, ozonStatusTone, toIsoDate, fromIsoDate } from '../lib/format';
+import { canShipOzonOrder, formatDateTime, formatDateTimeShort, formatUtcDateTime, formatMoney, formatQuantity, formatRange, isOverdue, ozonStatusTone, toIsoDate, fromIsoDate } from '../lib/format';
 import { ozonImage } from '../lib/images';
 import { hasPermission, isOzonOrder } from '../lib/permissions';
 import { validateExemplar } from '../orders/RequirementsDialog';
@@ -19,6 +19,13 @@ describe('формат', () => {
     expect(formatDateTime('2026-10-13T18:00:00', new Date(2026, 9, 1))).toBe('13 октября, 18:00');
     expect(formatDateTime('2025-10-13T18:00:00', new Date(2026, 9, 1))).toContain('2025');
     expect(formatDateTimeShort('2026-10-13T08:05:00')).toBe('13.10.2026, 08:05');
+    // Время без зоны считается UTC и переводится в местное: ожидание считаем тем же Date, чтобы тест не зависел от пояса машины.
+    const utc = new Date(Date.UTC(2026, 10, 3, 11, 55));
+    const local = `${utc.toLocaleDateString('ru-RU')}, ${utc.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`;
+    expect(formatUtcDateTime('2026-11-03T11:55:00')).toBe(local);
+    expect(formatUtcDateTime('2026-11-03T11:55:00Z')).toBe(local);
+    expect(formatUtcDateTime('2026-11-03 11:55:00')).toBe(local);
+    expect(formatUtcDateTime(null)).toBe('—');
     expect(formatDateTime(null)).toBe('—');
   });
 
