@@ -419,9 +419,8 @@ button.po-day:disabled { cursor: default; }
   .pa-code__cell { font-size: 22px; height: 52px; }
 }
 .pa-returns__section { padding-bottom: 6px; }
-.pa-returns__tabs { display: flex; gap: 4px; margin: 0 0 8px; border-bottom: 1px solid var(--ozi-border-primary-transparent, rgba(0,0,0,.12)); }
-.pa-returns__tab { border-bottom: 2px solid transparent; color: var(--ozi-text-secondary-transparent); margin-bottom: -1px; padding: 8px 12px; text-decoration: none; }
-.pa-returns__tab.is-active { border-bottom-color: var(--action-400); color: var(--ozi-text-primary-transparent); }
+.pa-returns__tabs { margin: 0 0 12px; }
+.pa-returns__tab-count { color: var(--ozi-text-secondary-transparent); margin-left: 6px; }
 .pa-returns__mark { width: 1%; white-space: nowrap; }
 .pa-returns__mark-box { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
 .pa-badge-button { appearance: none; background: none; border: 0; border-radius: 8px; cursor: pointer; display: inline-flex; padding: 0; }

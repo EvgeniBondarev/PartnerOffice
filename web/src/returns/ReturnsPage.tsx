@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { request } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -71,6 +71,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [counts, setCounts] = useState<{ waiting: number | null; received: number | null }>({ waiting: null, received: null });
   const quietRefresh = useRef(false);
   const savingNow = useRef(false);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
@@ -137,6 +138,18 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       .finally(() => { if (!controller.signal.aborted && !quiet) setLoading(false); });
     return () => controller.abort();
   }, [allowed, section, filters, page, retry]);
+
+  // Количество в подписях вкладок — все возвраты раздела без фильтров; недоступное число просто не показываем.
+  useEffect(() => {
+    if (!allowed) return;
+    const controller = new AbortController();
+    (['waiting', 'received'] as const).forEach(name => {
+      request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: name, page: '1', pageSize: '1' })}`, { signal: controller.signal })
+        .then(result => setCounts(previous => ({ ...previous, [name]: result.total })))
+        .catch(() => undefined);
+    });
+    return () => controller.abort();
+  }, [allowed, retry]);
 
   // Выгрузка из Ozon и отметки из ozon-returns приходят без участия страницы: подтягиваем их раз в минуту
   // и при возврате на вкладку, пока открыта вкладка и нет несохранённой отметки.
@@ -236,9 +249,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
   return <div className="pa-orders">
     <h1 className="po-page__title">Возвраты</h1>
-    <nav className="pa-returns__tabs" aria-label="Разделы возвратов">
-      <NavLink to="/returns/waiting" className={({ isActive }) => `pa-returns__tab ozi-body-500-true${isActive ? ' is-active' : ''}`}>Ждёт получения</NavLink>
-      <NavLink to="/returns/received" className={({ isActive }) => `pa-returns__tab ozi-body-500-true${isActive ? ' is-active' : ''}`}>Получено</NavLink>
+    <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
+      <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
+      <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
     </nav>
     <p className="pa-returns__description">{section === 'waiting'
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
@@ -300,6 +313,17 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       <span>Страница {page}</span><Button variant="secondary" size={400} disabled={loading || page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Далее</Button></div>}
     {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
   </div>;
+}
+
+/** Вкладка раздела по брендбуку (tabs.css); количество серым, чтобы не спорить с названием и активным цветом. */
+function ReturnsTab({ to, label, count }: { to: string; label: string; count: number | null }) {
+  return <NavLink to={to} className="po-tab__tab">
+    {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
+      <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500">
+        <div className="po-data-content__label po-data-content__label-size-500 ozi-table-500">{label}{count !== null && <span className="pa-returns__tab-count">{count.toLocaleString('ru-RU')}</span>}</div>
+      </div></div>
+    </div>}
+  </NavLink>;
 }
 
 /** Статус приёмки: бейдж открывает список. Статус выбирается один, брак и пересорт включаются и снимаются отдельно. */

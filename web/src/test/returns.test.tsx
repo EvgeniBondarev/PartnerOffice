@@ -105,6 +105,21 @@ describe('Возвраты', () => {
     expect(calls.some(c => c.method === 'POST' || c.url.includes('exact=true'))).toBe(false);
   });
 
+  it('в подписях вкладок серым показано количество возвратов раздела без фильтров', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': (_init, url) => json({ ...received(), total: url?.includes('section=waiting') ? 28 : 603 })
+    });
+    renderApp('/returns/received');
+    const waiting = await screen.findByRole('link', { name: /Ждёт получения/ });
+    await waitFor(() => expect(waiting).toHaveTextContent('Ждёт получения28'));
+    const done = screen.getByRole('link', { name: /Получено/ });
+    await waitFor(() => expect(done).toHaveTextContent('Получено603'));
+    expect(within(done).getByText('603')).toHaveClass('pa-returns__tab-count');
+    expect(done).toHaveAttribute('aria-current', 'page');
+    expect(calls.some(c => c.url.includes('section=waiting') && c.url.includes('pageSize=1') && !c.url.includes('search='))).toBe(true);
+  });
+
   it('FBO-коробка «Получена» видна в «Получено», скан по коду коробки принимает её', async () => {
     const box = { key: 'fbo:abc:1', return_type: 'fbo', id: null, client_id: '1', box_id: 10230649418, box_barcode: 'ii14471039742', name: 'Подушка двигателя 11483 FEBI', offer_id: '11483=FEB', status: 'ReceivedBySeller', status_name: 'Получена', qty: 1, mark: 'pending' };
     const calls = mockApi({
