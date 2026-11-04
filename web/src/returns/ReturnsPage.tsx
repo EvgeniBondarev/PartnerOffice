@@ -25,11 +25,18 @@ interface ReturnRow {
   status: string | null; status_name: string | null; target_place: string | null; target_place_addr: string | null; return_date: string | null;
   image_url?: string | null; batch_id?: string | null; ii_code?: string | null;
   mark?: string; defect?: boolean; missort?: boolean; comment?: string; marked_by?: string;
+  /** Штуки одного отправления, показанные одной строкой; у каждой свой key и отметки. */
+  units?: ReturnRow[];
+  /** Ключ свёрнутой строки, если это штука, показанная отдельно при разборе. */
+  unitOf?: string;
 }
 type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
 type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean };
 type Section = 'waiting' | 'received';
 interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; cabinets?: { id: number; name: string; ozonClientId: string }[] }
+/** Разобранная строка заменяется своими штуками; картинка есть только у строки верхнего уровня. */
+const displayedRows = (items: ReturnRow[], expanded: Set<string>): ReturnRow[] => items.flatMap(row =>
+  row.units?.length && row.key && expanded.has(row.key) ? row.units.map(unit => ({ ...unit, image_url: row.image_url, unitOf: row.key })) : [row]);
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
 const TD = 'po-table-cell-base__cell po-table-cell-base__td ozi-table-500 po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
 const STATUS_OPTIONS = [
@@ -80,6 +87,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
   const [saving, setSaving] = useState<string[]>([]);
   const [markError, setMarkError] = useState('');
+  const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
+  const toggleUnits = (key: string) => setExpandedUnits(previous => {
+    const next = new Set(previous);
+    if (!next.delete(key)) next.add(key);
+    return next;
+  });
   const [scanResult, setScanResult] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const scanQueue = useRef<Promise<void>>(Promise.resolve());
@@ -176,13 +189,21 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   /** Отметка приёмки: сервер возвращает итоговое состояние, им и заменяем строку (без угадывания на клиенте). */
   const mark = async (row: ReturnRow, patch: MarkPatch) => {
     if (!row.key || saving.includes(row.key)) return;
+    // свёрнутая строка — это несколько записей: отметка пишется на каждую штуку
+    const keys = row.units?.length ? row.units.map(unit => unit.key!) : [row.key];
     savingNow.current = true;
     setMarkError(''); setSaving(keys => [...keys, row.key!]);
     try {
-      const result = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, ...patch }) });
-      setData(previous => previous && { ...previous, items: previous.items.map(item => item.key === row.key ? { ...item, ...result } : item) });
+      let result: ReturnMark = {};
+      for (const key of keys) result = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key, ...patch }) });
+      setData(previous => previous && { ...previous, items: previous.items.map(item =>
+        row.unitOf ? (item.key === row.unitOf ? { ...item, units: item.units?.map(unit => unit.key === row.key ? { ...unit, ...result } : unit) } : item)
+          : item.key === row.key ? { ...item, ...result, units: item.units?.map(unit => ({ ...unit, ...result })) } : item) });
+      // отметка одной штуки могла разделить строку: как их показывать, решает сервер
+      if (row.unitOf) setRetry(n => n + 1);
     } catch (err) {
       setMarkError(err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
+      if (keys.length > 1) setRetry(n => n + 1);   // часть штук могла сохраниться
     } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
   };
   useEffect(() => { if (highlighted) highlightedRow.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, data]);
@@ -316,10 +337,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     {loading && <p role="status" className="pa-muted">Загружаем возвраты…</p>}
     {!loading && !error && data && (data.items.length === 0 ? <EmptyState illustration={emptyIllustration} title={Object.values(filters).some(Boolean) ? 'Ничего не найдено' : 'Возвратов пока нет'}>{Object.values(filters).some(Boolean) ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState> :
       <div className="pa-scroll" tabIndex={0} role="region" aria-label="Возвраты, ожидающие получения"><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Кабинет', 'Дата возврата', 'Количество', ...(canWork || section === 'received' ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
-        <tbody>{data.items.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={row.key || `${row.client_id}:${row.id}`}>
+        <tbody>{displayedRows(data.items, expandedUnits).map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={row.key || `${row.client_id}:${row.id}`}>
           <td className={`${TD} pa-col-product`}><div className="pa-returns__product">
             <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
-            <div>{row.name || '—'}<div className="pa-sub">{row.offer_id || '—'}</div></div></div></td>
+            <div>{row.name || '—'}<div className="pa-sub">{row.offer_id || '—'}</div>
+              {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div></td>
           <td className={TD}>{row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—')}<div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : (row.barcode || 'Возврат')}</div></td>
           <td className={TD}><Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge></td>
           <td className={TD}>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></td>

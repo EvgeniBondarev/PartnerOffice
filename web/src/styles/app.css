@@ -421,6 +421,7 @@ button.po-day:disabled { cursor: default; }
 .pa-returns__section { padding-bottom: 6px; }
 .pa-returns__tabs { margin: 0 0 12px; }
 .pa-returns__tab-count { color: var(--ozi-text-secondary-transparent); margin-left: 6px; }
+.pa-returns__units-toggle { background: none; border: 0; cursor: pointer; display: block; font-size: 13px; font-weight: 400; line-height: 16px; margin-top: 2px; padding: 0; text-align: left; }
 .pa-returns__mark { width: 1%; white-space: nowrap; }
 .pa-returns__mark-box { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
 .pa-badge-button { appearance: none; background: none; border: 0; border-radius: 8px; cursor: pointer; display: inline-flex; padding: 0; }

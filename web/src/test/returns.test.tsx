@@ -275,6 +275,32 @@ describe('Возвраты', () => {
     await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'rejected' }));
   });
 
+  it('штуки одного отправления показаны одной строкой: отметка на все, разбор показывает каждую', async () => {
+    const unit = { client_id: '1', return_type: 'fbs', posting_number: 'P-1', name: 'Втулка', offer_id: 'AS200988', status_name: 'Получен', qty: 1, mark: 'pending' };
+    const row = { ...unit, id: 1, key: 'fbs:1', qty: 2, image_url: 'https://cdn1.ozone.ru/s3/folder/pic.jpg', units: [{ ...unit, id: 1, key: 'fbs:1' }, { ...unit, id: 2, key: 'fbs:2' }] };
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: false, missort: false, comment: '', marked_by: 'partner:1' }),
+      '/partner-api/returns?*': () => json({ items: [row], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    expect(await screen.findAllByText('Втулка')).toHaveLength(1);
+    const toggle = screen.getByRole('button', { name: '2 шт. · Разобрать по штукам' });
+
+    await user.click(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([{ key: 'fbs:1', status: 'accepted' }, { key: 'fbs:2', status: 'accepted' }]);
+
+    await user.click(toggle);
+    expect(await screen.findAllByText('Втулка')).toHaveLength(2);
+    expect(screen.getAllByRole('img', { name: 'Втулка' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Свернуть' })).toHaveLength(2);
+    await user.click(screen.getAllByRole('button', { name: 'Свернуть' })[1]);
+    expect(await screen.findAllByText('Втулка')).toHaveLength(1);
+  });
+
   it('показывает ошибку, если отметка не сохранилась', async () => {
     mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
