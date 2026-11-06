@@ -32,6 +32,7 @@ interface ReturnRow {
   box_id?: number | null; box_barcode?: string | null; sku?: number | null; name: string | null; offer_id: string | null; qty: number | null;
   status: string | null; status_name: string | null; target_place: string | null; target_place_addr: string | null; return_date: string | null;
   image_url?: string | null; batch_id?: string | null; ii_code?: string | null;
+  onec?: { status: 'accepted' | 'processing' | 'none'; number?: string | null; at?: string | null };
   mark?: string; defect?: boolean; missort?: boolean; comment?: string; marked_by?: string;
   /** Штуки одного отправления, показанные одной строкой; у каждой свой key и отметки. */
   units?: ReturnRow[];
@@ -65,6 +66,7 @@ const MARK_OPTIONS = [
   { value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' },
   { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
 ];
+const ONEC_OPTIONS = [{ value: 'accepted', label: 'Принято в 1С' }, { value: 'pending', label: 'Ещё не принято' }];
 
 /** Строки-заглушки по форме настоящих: таблица не прыгает, когда приходят данные. */
 const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
@@ -100,7 +102,7 @@ const looksLikeCode = (value: string) => /^(?:(?:ii|bx)\d{6,}|\d{10,}|\d{6,}-\d{
 
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
 function suggestionLabel(row: ReturnRow, query: string): string {
-  const fields = [row.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.offer_id, row.sku?.toString(), row.name];
+  const fields = [row.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.onec?.number, row.offer_id, row.sku?.toString(), row.name];
   const search = query.toLocaleLowerCase();
   return fields.find(value => value?.toLocaleLowerCase().includes(search)) || row.name || 'Возврат';
 }
@@ -359,10 +361,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...valueChips('mark', 'Приёмка', value => label(MARK_OPTIONS, value)),
+    ...valueChips('onec', 'Учёт в 1С', value => label(ONEC_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
     ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
@@ -370,7 +373,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   ];
   const renderPanel = (hideTitle: boolean) => <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clear}>
     {received
-      ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /></FilterSection>
+      ? <><FilterSection title="Приёмка" active={!!panelFilters.mark}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /></FilterSection><FilterSection title="Учёт в 1С" active={!!panelFilters.onec}><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection></>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
@@ -394,6 +397,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
   const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
+  const onecCell = (row: ReturnRow) => <>{row.onec?.status === 'accepted' ? <Badge kind="primary success">Принято в 1С</Badge> : row.onec?.status === 'processing' ? <Badge kind="secondary warning">Оформляется в 1С</Badge> : '—'}{row.onec?.number && <div className="pa-sub">№{row.onec.number}</div>}{row.onec?.at && <div className="pa-sub">{formatUtcDateTime(row.onec.at)}</div>}</>;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
@@ -421,7 +425,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       search={
     <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
       <div className="pa-list__search-field">
-        <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка или код со сканера' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
+        <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка, документ 1С или код со сканера' : received ? 'Товар, артикул, коробка или документ 1С' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
           onValueChange={value => { if (value !== autoTried.current) autoTried.current = ''; noteInput(value); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = value.trim(); setSearchDraft(value); }}
           onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === searchDraft.trim() && suggestions.length) setSuggestionsOpen(true); }}
           onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
@@ -470,8 +474,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
                 </dl>
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
+                {received && <><dt>1С</dt><dd>{onecCell(row)}</dd></>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : []), ...(received ? ['1С'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
@@ -479,6 +484,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                 <td className={TD}>{placeCell(row)}</td>
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
+                {received && <td className={TD}>{onecCell(row)}</td>}
               </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
         {phone && !loading && items.length > 0 && listEnd}
     </FilterLayout>
