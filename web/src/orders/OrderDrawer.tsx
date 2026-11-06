@@ -5,6 +5,7 @@ import { getOrder, type OrderDetails, type OrderListItem } from '../api/orders';
 import { formatDateTime, formatMoney, formatQuantity, isOverdue, ozonStatusBadgeKind } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge } from '../ui/Badge';
+import { CopyValue } from '../ui/CopyValue';
 import { Informer } from '../ui/Informer';
 import { Overlay } from '../ui/Overlay';
 import { Skeleton } from '../ui/Skeleton';
@@ -81,7 +82,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
         <div className="pa-drawer__product">
           <div className="pa-product">{current.productName ?? '—'}</div>
           <div className="pa-tags">
-            {current.article && <Badge kind="secondary neutral" size={400}>{current.article}</Badge>}
+            {current.article && <CopyValue value={current.article} label="артикул"><Badge kind="secondary neutral" size={400}>{current.article}</Badge></CopyValue>}
             {current.brand && <span className="pa-sub pa-sub--inline">{current.brand}</span>}
           </div>
           <div className="pa-drawer__status">
@@ -101,10 +102,10 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
         </div>
       ) : (
         <dl className="pa-details">
-          <Row label="Номер отправления">{dash(current.shipmentNumber)}</Row>
-          <Row label="ScanIt">{details?.scanit ? <span className="pa-mono">{details.scanit}</span> : <span className="pa-muted">Ozon ещё не отдал</span>}</Row>
-          <Row label="Трек-номер">{dash(current.trackingNumber)}</Row>
-          <Row label="Штрихкод товара">{details?.barcode ? <span className="pa-mono">{details.barcode}</span> : '—'}</Row>
+          <Row label="Номер отправления"><CopyValue value={current.shipmentNumber} label="номер отправления">{dash(current.shipmentNumber)}</CopyValue></Row>
+          <Row label="ScanIt">{details?.scanit ? <CopyValue value={details.scanit} label="код этикетки ScanIt"><span className="pa-mono">{details.scanit}</span></CopyValue> : <span className="pa-muted">Ozon ещё не отдал</span>}</Row>
+          <Row label="Трек-номер"><CopyValue value={current.trackingNumber} label="трек-номер">{dash(current.trackingNumber)}</CopyValue></Row>
+          <Row label="Штрихкод товара">{details?.barcode ? <CopyValue value={details.barcode} label="штрихкод товара"><span className="pa-mono">{details.barcode}</span></CopyValue> : '—'}</Row>
           <Row label="Количество">{formatQuantity(current.quantity)}</Row>
           <Row label="Цена">{formatMoney(current.price)}</Row>
           <Row label="Склад">{dash(current.warehouse)}</Row>

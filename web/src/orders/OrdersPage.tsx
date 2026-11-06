@@ -46,7 +46,6 @@ export function OrdersPage() {
 
   const [searchDraft, setSearchDraft] = useState(applied.search);
   const [notice, setNotice] = useState<Notice | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
   const [openedId, setOpenedId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
@@ -132,7 +131,6 @@ export function OrdersPage() {
 
   return (
     <div className="pa-orders pa-list">
-      {copied && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> Скопировано {copied}</div>}
       <FilterLayout
         heading={<h1 className="po-page__title">Заказы</h1>}
         search={<OrdersSearch value={searchDraft} onValueChange={setSearchDraft} applied={applied.search} onApply={applySearch} />}
@@ -203,10 +201,6 @@ export function OrdersPage() {
               onImage={setImage}
               onShip={actions.requestShip}
               onPrint={actions.requestPrint}
-              onCopied={(value) => {
-                setCopied(value);
-                window.setTimeout(() => setCopied(null), 2600);
-              }}
             />
             <div ref={sentinelRef} className="pa-scroll__end" aria-hidden="true" />
             {orders.moreError && (

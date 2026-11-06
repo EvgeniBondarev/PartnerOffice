@@ -7,6 +7,7 @@ import { formatDate, formatQuantity, formatRange, formatUtcDateTime } from '../l
 import { hasPermission } from '../lib/permissions';
 import { Badge, type BadgeKind } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { CopyValue } from '../ui/CopyValue';
 import { EmptyState } from '../ui/EmptyState';
 import { Icon } from '../ui/Icon';
 import { type FilterChip } from '../ui/FilterChips';
@@ -319,9 +320,14 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const searching = activeCount > 0 || !!search;
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
-    <div>{row.name || '—'}<div className="pa-sub">{[row.offer_id || '—', cabinets.length > 1 && cabinetName(row) !== '—' ? cabinetName(row) : ''].filter(Boolean).join(' · ')}</div>
+    <div>{row.name || '—'}<div className="pa-sub">{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}</div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
-  const postingCell = (row: ReturnRow) => <>{row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—')}<div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : (row.barcode || 'Возврат')}</div></>;
+  const postingCell = (row: ReturnRow) => {
+    const main = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—');
+    const copyable = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? String(row.box_id) : null)) : row.posting_number;
+    return <><CopyValue value={copyable} label={row.return_type === 'fbo' ? 'код коробки' : 'номер отправления'}>{main}</CopyValue>
+      <div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : row.barcode ? <CopyValue value={row.barcode} label="код этикетки" /> : 'Возврат'}</div></>;
+  };
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
   const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;

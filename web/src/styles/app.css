@@ -247,6 +247,8 @@ button.po-day:disabled { cursor: default; }
 .pa-copy-value { align-items: center; display: inline-flex; gap: 4px; max-width: 100%; }
 .pa-copy-value__button { align-items: center; background: none; border: 0; color: var(--ozi-graphic-tertiary-transparent); cursor: pointer; display: inline-flex; opacity: 0; padding: 2px; }
 .pa-copy-value:hover .pa-copy-value__button, .pa-copy-value__button:focus-visible { opacity: 1; }
+.pa-copy-value:focus-within .pa-copy-value__button { opacity: 1; }
+@media (hover: none) { .pa-copy-value__button { opacity: .7; } }
 .pa-copy-value__button:hover { color: var(--ozi-graphic-primary-transparent); }
 .pa-copy-toast { align-items: center; background: #2e3135; border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 20%); color: #fff; display: flex; font-size: 16px; gap: 10px; padding: 16px 20px; position: fixed; right: 24px; top: 18px; z-index: 1900; }
 .pa-copy-toast span { align-items: center; background: #20c968; border-radius: 50%; color: #093e21; display: inline-flex; font-weight: 800; height: 24px; justify-content: center; width: 24px; }

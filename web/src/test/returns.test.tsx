@@ -421,6 +421,23 @@ describe('Возвраты', () => {
     expect(screen.getByRole('button', { name: '7 дней' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('рядом с номером отправления, кодом этикетки и артикулом есть кнопки копирования', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json(received({ posting_number: '0123-0001-1', barcode: 'ii5001', offer_id: 'ART-7' }))
+    });
+    renderApp('/returns/received');
+    await screen.findByText('Товар А');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Скопировать номер отправления 0123-0001-1' }));
+    expect(await screen.findByText('Скопировано 0123-0001-1')).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe('0123-0001-1');
+    await user.click(screen.getByRole('button', { name: 'Скопировать код этикетки ii5001' }));
+    expect(await navigator.clipboard.readText()).toBe('ii5001');
+    await user.click(screen.getByRole('button', { name: 'Скопировать артикул ART-7' }));
+    expect(await navigator.clipboard.readText()).toBe('ART-7');
+  });
+
   it('сканер: щелчок мышью по фильтру не забирает фокус у поиска', async () => {
     setup('/returns/received', [4, 5]);
     await screen.findByText('Товар А');

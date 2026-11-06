@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Outlet, matchPath, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { CopyProvider } from '../ui/CopyValue';
 import { Icon } from '../ui/Icon';
 import { usePopover } from '../ui/usePopover';
 import { hasPermission } from '../lib/permissions';
@@ -168,7 +169,9 @@ export function AppShell() {
       </nav>
 
       <main className="po-page">
-        <Outlet />
+        <CopyProvider>
+          <Outlet />
+        </CopyProvider>
       </main>
     </div>
   );
