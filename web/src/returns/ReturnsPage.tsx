@@ -81,6 +81,14 @@ const skeletonCards = (count: number) => Array.from({ length: count }, (_, i) =>
   <div className="pa-skeleton-stack"><Skeleton width="90%" height={14} /><Skeleton width="60%" height={14} /><Skeleton width="75%" height={14} /></div>
 </li>);
 
+/** Сколько возвратов подгружается за раз, и за сколько пикселей до конца списка начинаем подгрузку следующей порции. */
+const PAGE_SIZE = 50, LOAD_AHEAD_PX = 400;
+/** Добавляет порцию к списку без повторов: за время прокрутки выгрузка могла сдвинуться, и запись попала бы в две порции. */
+const mergeRows = (current: ReturnRow[], incoming: ReturnRow[]): ReturnRow[] => {
+  const seen = new Set(current.map(row => row.key).filter(Boolean));
+  return [...current, ...incoming.filter(row => !row.key || !seen.has(row.key) && seen.add(row.key))];
+};
+
 /** «1 возврат, 2 возврата, 5 возвратов». */
 const plural = (n: number, one: string, few: string, many: string) => {
   const tail = n % 100, last = n % 10;
@@ -106,12 +114,16 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ search, ...panelFilters }), [search, panelFilters]);
-  // Страница сбрасывается на первую сама при любом изменении поиска или фильтров: номер страницы привязан к набору условий.
-  const filterKey = JSON.stringify(filters);
-  const [pageAt, setPageAt] = useState({ key: filterKey, page: 1 });
-  const page = pageAt.key === filterKey ? pageAt.page : 1;
-  const setPage = (value: number) => setPageAt({ key: filterKey, page: value });
   const [data, setData] = useState<ReturnPage | null>(null);
+  // Список подгружается при прокрутке: items копится порциями, pagesLoaded — сколько порций уже в нём.
+  const [items, setItems] = useState<ReturnRow[]>([]);
+  const [pagesLoaded, setPagesLoaded] = useState(1);
+  const pagesRef = useRef(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState('');
+  const moreController = useRef<AbortController | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
   // Первый кадр уже со скелетоном: иначе список мигнул бы пустотой до начала загрузки.
   const [loading, setLoading] = useState(true);
@@ -162,18 +174,24 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
 
   useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
+  const listUrl = (page: number) => `/partner-api/returns?${new URLSearchParams({ section, page: String(page), pageSize: String(PAGE_SIZE), ...filters })}`;
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
-    const query = new URLSearchParams({ section, page: String(page), pageSize: '50', ...filters });
-    // Фоновое обновление не прячет таблицу, не трогает подсказки и не показывает ошибку: остаётся прежний список.
+    moreController.current?.abort();
+    // Фоновое обновление не прячет таблицу, не трогает подсказки и не показывает ошибку: остаётся прежний список;
+    // уже подгруженные порции обновляются все, чтобы список не «откатывался» к первой.
     const quiet = quietRefresh.current;
     quietRefresh.current = false;
-    if (!quiet) { setLoading(true); setError(''); }
-    request<ReturnPage>(`/partner-api/returns?${query}`, { signal: controller.signal })
-      .then(result => {
+    const upto = quiet ? pagesRef.current : 1;
+    if (!quiet) { setLoading(true); setError(''); setMoreError(''); setLoadingMore(false); }
+    Promise.all(Array.from({ length: upto }, (_, index) => request<ReturnPage>(listUrl(index + 1), { signal: controller.signal })))
+      .then(results => {
         if (filters.search !== currentSearch.current) return;
+        const result = results[0];
         setData(result);
+        setItems(mergeRows([], results.flatMap(item => item.items)));
+        pagesRef.current = upto; setPagesLoaded(upto);
         if (!quiet && filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
           suggestionSearch.current = filters.search;
           setSuggestions(result.items.slice(0, 10));
@@ -184,7 +202,32 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       .catch((err: unknown) => { if (!controller.signal.aborted && !quiet) setError(err instanceof Error ? err.message : 'Не удалось загрузить возвраты.'); })
       .finally(() => { if (!controller.signal.aborted && !quiet) setLoading(false); });
     return () => controller.abort();
-  }, [allowed, section, filters, page, retry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed, section, filters, retry]);
+
+  const hasMore = !!data && pagesLoaded * data.page_size < data.total;
+  const loadMore = () => {
+    if (loading || loadingMore || !hasMore) return;
+    const next = pagesLoaded + 1;
+    const controller = new AbortController();
+    moreController.current = controller;
+    setLoadingMore(true); setMoreError('');
+    request<ReturnPage>(listUrl(next), { signal: controller.signal })
+      .then(result => { setItems(previous => mergeRows(previous, result.items)); pagesRef.current = next; setPagesLoaded(next); })
+      .catch((err: unknown) => { if (!controller.signal.aborted) setMoreError(err instanceof Error ? err.message : 'Не удалось подгрузить возвраты.'); })
+      .finally(() => { if (!controller.signal.aborted) setLoadingMore(false); });
+  };
+  // Подгрузка при прокрутке: следим за меткой в конце списка (в таблице — внутри её прокрутки, на телефоне — в окне).
+  const observable = typeof IntersectionObserver !== 'undefined';
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!observable || !sentinel || !hasMore || loading || loadingMore || moreError) return;
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) loadMore(); },
+      { root: phone ? null : scrollRef.current, rootMargin: `0px 0px ${LOAD_AHEAD_PX}px 0px` });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observable, hasMore, loading, loadingMore, moreError, pagesLoaded, phone]);
 
   // Количество в подписях вкладок — все возвраты раздела без фильтров; недоступное число просто не показываем.
   useEffect(() => {
@@ -213,6 +256,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh); };
   }, [allowed]);
 
+  /** Перечитать уже показанные порции, не прячась за скелетон: после отметки и скана список остаётся на месте. */
+  const refreshQuietly = () => { quietRefresh.current = true; setRetry(n => n + 1); };
+
   /** Отметка приёмки: сервер возвращает итоговое состояние, им и заменяем строку (без угадывания на клиенте). */
   const mark = async (row: ReturnRow, patch: MarkPatch) => {
     if (!row.key || saving.includes(row.key)) return;
@@ -223,17 +269,17 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     try {
       let result: ReturnMark = {};
       for (const key of keys) result = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key, ...patch }) });
-      setData(previous => previous && { ...previous, items: previous.items.map(item =>
+      setItems(previous => previous.map(item =>
         row.unitOf ? (item.key === row.unitOf ? { ...item, units: item.units?.map(unit => unit.key === row.key ? { ...unit, ...result } : unit) } : item)
-          : item.key === row.key ? { ...item, ...result, units: item.units?.map(unit => ({ ...unit, ...result })) } : item) });
+          : item.key === row.key ? { ...item, ...result, units: item.units?.map(unit => ({ ...unit, ...result })) } : item));
       // отметка одной штуки могла разделить строку: как их показывать, решает сервер
-      if (row.unitOf) setRetry(n => n + 1);
+      if (row.unitOf) refreshQuietly();
     } catch (err) {
       setMarkError(err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
-      if (keys.length > 1) setRetry(n => n + 1);   // часть штук могла сохраниться
+      if (keys.length > 1) refreshQuietly();   // часть штук могла сохраниться
     } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
   };
-  useEffect(() => { if (highlighted) (highlightedRow.current ?? highlightedCard.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, data]);
+  useEffect(() => { if (highlighted) (highlightedRow.current ?? highlightedCard.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, items]);
 
   /** Сканер вводит код как очень быстрый набор и завершает его Enter: так отличаем скан от ручного ввода. */
   const noteInput = (value: string) => {
@@ -261,7 +307,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       if (row.mark === 'accepted') { setScanResult({ kind: 'success', text: `Уже принят: ${title}` }); return true; }
       await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, status: 'accepted' }) });
       setScanResult({ kind: 'success', text: `Принят: ${title}` });
-      setRetry(n => n + 1);
+      refreshQuietly();
       return true;
     } catch (err) {
       setScanResult({ kind: 'error', text: err instanceof Error ? err.message : 'Не удалось обработать сканирование.' });
@@ -332,7 +378,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     <FilterSection title="Пункт выдачи" active={!!panelFilters.pvz}><TextField label="Название пункта" value={pvzDraft} onValueChange={setPvzDraft} size={500} maxLength={100} /></FilterSection>
     <DateFilterSection title={received ? 'Дата получения' : 'Дата возврата'} from={panelFilters.dateFrom} to={panelFilters.dateTo} onChange={(dateFrom, dateTo) => change({ dateFrom, dateTo })} />
   </FilterPanel>;
-  const rows = data ? displayedRows(data.items, expandedUnits) : [];
+  const rows = displayedRows(items, expandedUnits);
   const hasMark = canWork || received;
   const searching = activeCount > 0 || !!search;
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
@@ -353,6 +399,13 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
   } : undefined;
   const rowKey = (row: ReturnRow) => row.key || `${row.client_id}:${row.id}`;
+  const listEnd = <>
+    <div ref={sentinelRef} className="pa-scroll__end" aria-hidden="true" />
+    {moreError && <div className="pa-scroll__footer"><Informer kind="error" action={<Button variant="action-secondary" size={400} onClick={loadMore}>Повторить</Button>}>{moreError}</Informer></div>}
+    {/* Запасной путь без автоподгрузки: клавиатура, старые браузеры. Обычно до этой кнопки не доходят. */}
+    {hasMore && !loadingMore && !moreError && !loading && !observable && <div className="pa-scroll__footer"><Button variant="secondary" size={400} onClick={loadMore}>Показать ещё</Button></div>}
+    {!hasMore && !loading && !error && items.length > 0 && data && data.total > data.page_size && <div className="pa-scroll__footer pa-muted" role="status">Показаны все возвраты: {data.total.toLocaleString('ru-RU')}</div>}
+  </>;
   return <div className="pa-orders pa-list">
     <FilterLayout
       heading={<>
@@ -403,10 +456,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
         {loading && !data && !error && <div className="pa-list__summary" role="status" aria-label="Загружаем возвраты"><Skeleton width={110} height={24} /><Skeleton width={190} height={16} /></div>}
         {data && !error && <div className="pa-list__summary"><div className="po-page__count" role="status" aria-live="polite">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки: {formatUtcDateTime(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatUtcDateTime(data.fbo_snapshot_at)}` : ''}</span></div>}
-        {!loading && !error && data && data.items.length === 0 && <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState>}
-        {!error && (loading || (data && data.items.length > 0)) && (
+        {!loading && !error && data && items.length === 0 && <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState>}
+        {!error && (loading || items.length > 0) && (
           phone
-            ? <ul className="pa-returns-cards" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+            ? <ul className="pa-returns-cards" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : [...rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 {productCell(row)}
                 <dl className="pa-returns-card__details">
                   <dt>Отправление / коробка</dt><dd>{postingCell(row)}</dd>
@@ -417,18 +470,17 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
                 </dl>
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
-              </li>)}</ul>
-            : <div className="pa-scroll" tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
-              <tbody>{loading ? skeletonRows(8, hasMark) : rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+              </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+              <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
                 <td className={TD}>{statusBadge(row)}</td>
                 <td className={TD}>{placeCell(row)}</td>
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
-              </tr>)}</tbody></table></div></div>)}
-        {data && data.total > data.page_size && !error && <div className="pa-returns-pagination"><Button variant="secondary" size={400} disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Назад</Button>
-          <span>Страница {page}</span><Button variant="secondary" size={400} disabled={loading || page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Далее</Button></div>}
+              </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
+        {phone && !loading && items.length > 0 && listEnd}
     </FilterLayout>
     {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
   </div>;

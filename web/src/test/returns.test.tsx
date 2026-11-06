@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { toIsoDate } from '../lib/format';
@@ -436,6 +436,39 @@ describe('Возвраты', () => {
     expect(await navigator.clipboard.readText()).toBe('ii5001');
     await user.click(screen.getByRole('button', { name: 'Скопировать артикул ART-7' }));
     expect(await navigator.clipboard.readText()).toBe('ART-7');
+  });
+
+  it('список подгружается при прокрутке: следующая порция с заглушками, без повторов; в конце — «Показаны все»', async () => {
+    const watchers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+    vi.stubGlobal('IntersectionObserver', class { constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) { watchers.push(callback); } observe() {} disconnect() {} });
+    const row = (id: number) => ({ key: `fbs:1:${id}`, return_type: 'fbs', id, client_id: '1', name: `Товар ${id}`, status: 'ReceivedBySeller', status_name: 'Получен', qty: 1, mark: 'pending' });
+    let releaseSecond: () => void = () => undefined;
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': async (_init, url) => {
+        const page = Number(new URLSearchParams(url?.split('?')[1]).get('page'));
+        if (url?.includes('pageSize=1') && !url.includes('pageSize=50')) return json({ items: [], total: 51, page: 1, page_size: 1, snapshot_at: null, partial: false });
+        if (page === 2) await new Promise<void>(resolve => { releaseSecond = resolve; });
+        // вторая порция содержит и уже показанную запись: она не должна задвоиться
+        const items = page === 1 ? Array.from({ length: 50 }, (_, i) => row(i + 1)) : [row(50), row(51)];
+        return json({ items, total: 51, page, page_size: 50, snapshot_at: null, partial: false });
+      }
+    });
+    renderApp('/returns/waiting');
+    await screen.findByText('Товар 1');
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(51);
+    expect(screen.queryByRole('button', { name: 'Назад' })).not.toBeInTheDocument();
+    act(() => watchers.at(-1)!([{ isIntersecting: true }]));
+    await waitFor(() => expect(calls.some(c => c.url.includes('page=2'))).toBe(true));
+    // пока порция грузится, под списком заглушки, а прежние строки на месте
+    expect(document.querySelectorAll('tbody tr[aria-hidden="true"]')).toHaveLength(3);
+    expect(screen.getByText('Товар 1')).toBeInTheDocument();
+    await act(async () => releaseSecond());
+    expect(await screen.findByText('Товар 51')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(52);
+    expect(document.querySelectorAll('tbody tr[aria-hidden="true"]')).toHaveLength(0);
+    expect(screen.getByText('Показаны все возвраты: 51')).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it('сканер: щелчок мышью по фильтру не забирает фокус у поиска', async () => {
