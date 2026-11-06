@@ -16,6 +16,7 @@ import { FilterLayout } from '../ui/FilterLayout';
 import { FilterSection } from '../ui/FilterSection';
 import { CheckboxGroup } from '../ui/CheckboxGroup';
 import { splitList, toggleValue } from '../lib/multi';
+import { Skeleton } from '../ui/Skeleton';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { TextField } from '../ui/TextField';
 import { Informer } from '../ui/Informer';
@@ -65,6 +66,21 @@ const MARK_OPTIONS = [
   { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
 ];
 
+/** Строки-заглушки по форме настоящих: таблица не прыгает, когда приходят данные. */
+const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
+  <td className={`${TD} pa-col-product`}><div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="75%" height={16} /><Skeleton width="45%" height={12} /></div></div></td>
+  <td className={TD}><div className="pa-skeleton-stack"><Skeleton width={130} height={16} /><Skeleton width={80} height={12} /></div></td>
+  <td className={TD}><Skeleton width={110} height={22} radius={11} /></td>
+  <td className={TD}><div className="pa-skeleton-stack"><Skeleton width={110} height={16} /><Skeleton width={90} height={12} /></div></td>
+  <td className={TD}><Skeleton width={80} height={16} /></td>
+  <td className={TD}><Skeleton width={36} height={16} /></td>
+  {hasMark && <td className={TD}><Skeleton width={84} height={22} radius={11} /></td>}
+</tr>);
+const skeletonCards = (count: number) => Array.from({ length: count }, (_, i) => <li key={`sk-${i}`} className="pa-returns-card" aria-hidden="true">
+  <div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="70%" height={16} /><Skeleton width="40%" height={12} /></div></div>
+  <div className="pa-skeleton-stack"><Skeleton width="90%" height={14} /><Skeleton width="60%" height={14} /><Skeleton width="75%" height={14} /></div>
+</li>);
+
 /** «1 возврат, 2 возврата, 5 возвратов». */
 const plural = (n: number, one: string, few: string, many: string) => {
   const tail = n % 100, last = n % 10;
@@ -97,7 +113,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const setPage = (value: number) => setPageAt({ key: filterKey, page: value });
   const [data, setData] = useState<ReturnPage | null>(null);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  // Первый кадр уже со скелетоном: иначе список мигнул бы пустотой до начала загрузки.
+  const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [counts, setCounts] = useState<{ waiting: number | null; received: number | null }>({ waiting: null, received: null });
   const quietRefresh = useRef(false);
@@ -384,11 +401,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
         {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
         {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
+        {loading && !data && !error && <div className="pa-list__summary" role="status" aria-label="Загружаем возвраты"><Skeleton width={110} height={24} /><Skeleton width={190} height={16} /></div>}
         {data && !error && <div className="pa-list__summary"><div className="po-page__count" role="status" aria-live="polite">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки: {formatUtcDateTime(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatUtcDateTime(data.fbo_snapshot_at)}` : ''}</span></div>}
-        {loading && <p role="status" className="pa-muted">Загружаем возвраты…</p>}
-        {!loading && !error && data && (data.items.length === 0 ? <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState> :
+        {!loading && !error && data && data.items.length === 0 && <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState>}
+        {!error && (loading || (data && data.items.length > 0)) && (
           phone
-            ? <ul className="pa-returns-cards" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}>{rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+            ? <ul className="pa-returns-cards" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 {productCell(row)}
                 <dl className="pa-returns-card__details">
                   <dt>Отправление / коробка</dt><dd>{postingCell(row)}</dd>
@@ -401,7 +419,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>)}</ul>
             : <div className="pa-scroll" tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
-              <tbody>{rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+              <tbody>{loading ? skeletonRows(8, hasMark) : rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
                 <td className={TD}>{statusBadge(row)}</td>

@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
 import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
+import { Skeleton } from '../ui/Skeleton';
 import { ozonImage } from '../lib/images';
 import emptyOrdersIllustration from '../assets/illustrations/orders-empty.webp';
 import labelUnavailableIllustration from '../assets/illustrations/label-unavailable.webp';
@@ -178,6 +179,11 @@ export function OrdersPage() {
         </div>
       )}
 
+      {orders.loading && !orders.error && (
+        <div className="po-page__count" role="status" aria-label="Загружаем заказы">
+          <Skeleton width={110} height={24} />
+        </div>
+      )}
       {!orders.loading && !orders.error && (
         <div className="po-page__count" aria-live="polite">
           Найдено: {orders.total.toLocaleString('ru-RU')}

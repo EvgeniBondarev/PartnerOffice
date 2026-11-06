@@ -557,3 +557,10 @@ button.po-day:disabled { cursor: default; }
 .pa-list__summary { font-size: 13px; line-height: 20px; }
 .pa-list__filters-button { font-size: 14px; }
 .pa-list .pa-returns__tabs { margin-bottom: 16px; }
+
+/* ---------- Лёгкий скелетон: мягкая пульсация светлых заглушек вместо резкого мигания ---------- */
+.po-skeleton-common__skeleton { animation: pa-skeleton-soft 1.6s ease-in-out infinite; background: var(--ozi-bg-secondary-transparent); }
+@keyframes pa-skeleton-soft { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .po-skeleton-common__skeleton { animation: none; } }
+.pa-skeleton-stack { display: flex; flex: 1 1 auto; flex-direction: column; gap: 6px; min-width: 0; }
+.pa-list__summary:has(.po-skeleton-common__skeleton) { align-items: center; }
