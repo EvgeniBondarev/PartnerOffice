@@ -18,7 +18,7 @@ python3 design/build/build_brandbook.py
 |---|---|
 | `brandbook/` | Брендбук: цвет, типографика, сетка, иконки, каркас, 14 групп компонентов, шаблоны страниц, правила |
 | `tokens/` | `ozon-tokens.css` и `.json`: 316 переменных `:root`, 173 светлой и 173 тёмной темы (`.theme-dark`) |
-| `components/` | `base.css` (шрифт, сброс), `layout.css` (шапка, меню, страница, плитки, карточки), `dropdown.css`, `checkbox.css`, `calendar.css`, `demo.html` |
+| `components/` | `base.css` (шрифт, сброс), `layout.css` (шапка, меню, страница, плитки, карточки), `dropdown.css`, `checkbox.css`, `radio.css`, `calendar.css`, `demo.html` |
 | `components/ozon/` | 25 файлов компонентов, автоматически выгруженных из оригинала (классы `ozi__X__y__HASH` → `po-X__y`) |
 | `components/ozon/_full-reference/` | Полные выгрузки списка, календаря и чекбокса из оригинала для сверки |
 | `fonts/` | Onest 2.0 (вариативный, OFL) |

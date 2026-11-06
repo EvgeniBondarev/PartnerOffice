@@ -10,8 +10,8 @@
 :root {
   --global-font: "Onest", "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
   --header-height: 56px;
-  --menu-width: 260px;
-  --menu-width-collapsed: 88px;
+  --menu-width: 232px;
+  --menu-width-collapsed: 72px;
   --page-padding-x: 32px;
   --page-padding-y: 24px;
 }

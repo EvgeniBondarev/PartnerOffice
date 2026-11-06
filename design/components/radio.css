@@ -1,0 +1,41 @@
+/* Радио-кнопка. Родственна чекбоксу (checkbox.css): 20×20, рамка 2px; выбранная — синяя, внутри белая точка. */
+.po-radio {
+  --radio-size: 20px;
+  --dot-color: var(--ozi-static-graphic-primary-on-dark-transparent);
+  appearance: none;
+  background-color: var(--ozi-bg-primary-transparent);
+  border: 2px solid var(--ozi-graphic-quaternary-transparent);
+  border-radius: 50%;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  flex: none;
+  height: var(--radio-size);
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  position: relative;
+  width: var(--radio-size);
+}
+.po-radio:checked,
+.po-radio--checked {
+  background-color: var(--ozi-bg-action-primary);
+  border-color: transparent;
+}
+.po-radio:checked::after,
+.po-radio--checked::after {
+  background-color: var(--dot-color);
+  border-radius: 50%;
+  content: "";
+  height: 8px;
+  position: absolute;
+  width: 8px;
+}
+.po-radio:disabled {
+  --dot-color: var(--ozi-graphic-primary-transparent);
+  background-color: var(--ozi-graphic-quaternary-transparent);
+  border: none;
+  cursor: default;
+  opacity: var(--opacity-300);
+}
+.po-radio:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }

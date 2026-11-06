@@ -40,9 +40,10 @@ export function writeParams(filters: OrderFilterState): URLSearchParams {
   return params;
 }
 
-const toId = (value: string): number | undefined => {
-  const id = Number.parseInt(value, 10);
-  return Number.isFinite(id) && id > 0 ? id : undefined;
+/** Один идентификатор уходит числом, несколько («1,2») — строкой через запятую; всё, что не число, отбрасывается. */
+const toId = (value: string): number | string | undefined => {
+  const ids = [...new Set(value.split(',').map((item) => Number.parseInt(item, 10)).filter((id) => Number.isFinite(id) && id > 0))];
+  return ids.length === 0 ? undefined : ids.length === 1 ? ids[0] : ids.join(',');
 };
 
 export function toQuery(filters: OrderFilterState): Omit<OrderQuery, 'page' | 'pageSize'> {

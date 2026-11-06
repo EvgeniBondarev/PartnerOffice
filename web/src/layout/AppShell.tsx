@@ -114,6 +114,7 @@ export function AppShell() {
       </header>
 
       <nav className="po-menu" aria-label="Разделы кабинета">
+        <div className="po-menu__sticky">
         <ul>
           {menu.map((group, index) => (
             <div className="po-menu__group" key={index}>
@@ -162,6 +163,7 @@ export function AppShell() {
             <span className="pa-menu__collapseText">Свернуть</span>
           </button>
           <div className="po-menu__copyright pa-menu__copyright">© PartnerOffice</div>
+        </div>
         </div>
       </nav>
 

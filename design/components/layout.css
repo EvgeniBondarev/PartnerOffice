@@ -1,6 +1,6 @@
 /*
  * Каркас приложения и страничные блоки (замерено на turbo-pvz.ozon.ru 3.11.59, 1470×802).
- * Шапка 56px, левое меню 260px (свёрнутое 88px), контент padding 24px 32px.
+ * Шапка 56px, левое меню 232px (свёрнутое 72px), контент padding 24px 32px.
  * Классы po-shell, po-header, po-menu, po-page — собственные; остальные стили берутся из components/ozon/*.css.
  */
 
@@ -34,16 +34,22 @@
 
 /* ===== Левое меню ===== */
 .po-menu {
+  align-self: stretch;                                                        /* на всю высоту страницы: тёмная колонка не обрывается при прокрутке */
   background: var(--neutral-600);                                             /* #203148 */
   box-sizing: border-box;
   color: var(--text-500-inverted);                                            /* #fffffff2 */
+  width: var(--menu-width);
+}
+/* Содержимое меню закреплено под шапкой и занимает высоту окна: «Свернуть» всегда внизу экрана. */
+.po-menu__sticky {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
   padding: 16px 16px 0;
   position: sticky;
   top: var(--header-height);
-  width: var(--menu-width);
 }
 .po-shell--collapsed .po-menu { width: var(--menu-width-collapsed); }
 .po-menu div { color: var(--text-500-inverted); }
@@ -139,7 +145,8 @@
 /* Узкий экран: навигация остаётся доступной, а рабочая область получает максимум ширины. */
 @media screen and (max-width: 640px) {
   .po-shell, .po-shell--collapsed { grid-template-columns: 64px minmax(0, 1fr); }
-  .po-menu, .po-shell--collapsed .po-menu { padding: 12px 8px 0; width: 64px; }
+  .po-menu, .po-shell--collapsed .po-menu { width: 64px; }
+  .po-menu__sticky { padding: 12px 8px 0; }
   .po-header { gap: 8px; padding: 0 16px; }
   .po-header__title { display: none; }
   .po-header__logo { margin-right: 0; }
@@ -152,8 +159,15 @@
 
 @media screen and (max-width: 420px) {
   .po-shell, .po-shell--collapsed { grid-template-columns: 56px minmax(0, 1fr); }
-  .po-menu, .po-shell--collapsed .po-menu { padding-inline: 4px; width: 56px; }
+  .po-menu, .po-shell--collapsed .po-menu { width: 56px; }
+  .po-menu__sticky { padding-inline: 4px; }
   .po-header { padding-inline: 12px; }
   .po-header__user > :first-child { display: none; }
   .po-page { padding: 12px; }
 }
+
+/* Свёрнутое меню (72px): иконки по центру колонки. */
+.po-shell--collapsed .po-menu__sticky { padding-inline: 8px; }
+.po-shell--collapsed .po-menu .po-menu-item__button { justify-content: center; padding-inline: 0; }
+.po-shell--collapsed .po-menu .po-data-cell__dataCell { display: flex; justify-content: center; }
+.po-shell--collapsed .pa-menu__footer { align-items: center; display: flex; flex-direction: column; }

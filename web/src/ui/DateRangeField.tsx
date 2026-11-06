@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState, type CSSProperties, type ReactElement } from 'react';
 import { formatRange, fromIsoDate, toIsoDate } from '../lib/format';
 import { Icon } from './Icon';
 import { usePopover } from './usePopover';
@@ -8,6 +8,8 @@ interface DateRangeFieldProps {
   from: string;
   to: string;
   onChange: (from: string, to: string) => void;
+  /** Календарь поверх всего (position: fixed): нужен внутри прокручиваемых панелей, которые иначе его обрежут. */
+  floating?: boolean;
   /** Сегодняшняя дата: позже неё выбрать нельзя. Параметром, чтобы поведение можно было проверить. */
   today?: Date;
 }
@@ -25,7 +27,7 @@ const SHORTCUTS: Array<{ label: string; build: (today: Date) => [Date, Date] }> 
 ];
 
 /** Поле периода с календарём дизайн-системы (calendar.css): две панели месяцев, пресеты справа, выбор двумя кликами. */
-export function DateRangeField({ label, from, to, onChange, today: todayProp }: DateRangeFieldProps) {
+export function DateRangeField({ label, from, to, onChange, floating = false, today: todayProp }: DateRangeFieldProps) {
   const today = useMemo(() => startOfDay(todayProp ?? new Date()), [todayProp]);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
   const [view, setView] = useState(() => addMonths(fromIsoDate(to) ?? today, 0));
@@ -43,6 +45,20 @@ export function DateRangeField({ label, from, to, onChange, today: todayProp }: 
     setView(addMonths(end ?? start ?? today, 0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const [floatStyle, setFloatStyle] = useState<CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    if (!floating || !open || !buttonRef.current) { setFloatStyle(null); return; }
+    const rect = buttonRef.current.getBoundingClientRect();
+    const gap = 8, width = Math.min(680, window.innerWidth - gap * 2);
+    const left = Math.min(Math.max(gap, rect.left), window.innerWidth - width - gap);
+    const below = window.innerHeight - rect.bottom - gap, above = rect.top - gap;
+    setFloatStyle({ position: 'fixed', left, right: 'auto', width, ...(below < 420 && above > below ? { bottom: window.innerHeight - rect.top + 4, top: 'auto', maxHeight: above } : { top: rect.bottom + 4, maxHeight: below }), overflowY: 'auto' });
+    // Прокрутка панели или окна сдвинула бы поле, а календарь остался бы на месте: закрываем.
+    const hide = () => setOpen(false);
+    window.addEventListener('scroll', hide, true); window.addEventListener('resize', hide);
+    return () => { window.removeEventListener('scroll', hide, true); window.removeEventListener('resize', hide); };
+  }, [floating, open, buttonRef, setOpen]);
 
   const apply = (a: Date, b: Date) => {
     const [x, y] = a <= b ? [a, b] : [b, a];
@@ -109,7 +125,7 @@ export function DateRangeField({ label, from, to, onChange, today: todayProp }: 
       </button>
 
       {open && (
-        <div className="po-calendar pa-popover pa-popover--calendar" role="dialog" aria-label="Выбор периода">
+        <div className="po-calendar pa-popover pa-popover--calendar" role="dialog" aria-label="Выбор периода" style={floating ? floatStyle ?? { visibility: 'hidden' } : undefined}>
           {months.map((month, index) => (
             <Month
               key={month.getTime()}

@@ -70,8 +70,9 @@ export interface OrderDetails {
 export interface OrderQuery {
   search?: string;
   ozonStatus?: string;
-  warehouseId?: number;
-  clientId?: number;
+  /** Несколько значений — строка через запятую: «1,2». */
+  warehouseId?: number | string;
+  clientId?: number | string;
   from?: string;
   to?: string;
   page: number;

@@ -13,10 +13,23 @@ import labelReadyIllustration from '../assets/illustrations/label-ready.webp';
 import labelPrintErrorIllustration from '../assets/illustrations/label-print-error.webp';
 import { OrderDrawer } from './OrderDrawer';
 import { OrdersTable } from './OrdersTable';
-import { OrdersToolbar } from './OrdersToolbar';
+import { OrdersSearch } from './OrdersSearch';
 import { EMPTY_FILTERS, hasActiveFilters, PAGE_SIZE, readFilters, toQuery, writeParams, type OrderFilterState } from './params';
+import { DateFilterSection, FilterPanel } from '../ui/FilterPanel';
+import { FilterLayout } from '../ui/FilterLayout';
+import { FilterSection } from '../ui/FilterSection';
+import { CheckboxGroup } from '../ui/CheckboxGroup';
+import { splitList, toggleValue } from '../lib/multi';
+import type { FilterChip } from '../ui/FilterChips';
+import { formatRange } from '../lib/format';
 import { useOrderFilters, useOrders } from './useOrdersData';
 import { useOrderActions, type Notice } from './useOrderActions';
+
+/** «1 заказ, 2 заказа, 5 заказов». */
+const plural = (n: number) => {
+  const tail = n % 100, last = n % 10;
+  return tail >= 11 && tail <= 14 ? 'заказов' : last === 1 ? 'заказ' : last >= 2 && last <= 4 ? 'заказа' : 'заказов';
+};
 
 /** За сколько пикселей до конца списка начинаем подгружать следующую порцию. */
 const LOAD_AHEAD_PX = 400;
@@ -31,7 +44,7 @@ export function OrdersPage() {
   const paramsKey = params.toString();
   const applied = useMemo(() => readFilters(new URLSearchParams(paramsKey)), [paramsKey]);
 
-  const [draft, setDraft] = useState<OrderFilterState>(applied);
+  const [searchDraft, setSearchDraft] = useState(applied.search);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [openedId, setOpenedId] = useState<number | null>(null);
@@ -39,7 +52,7 @@ export function OrdersPage() {
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
 
   // «Назад» и «Вперёд» в браузере меняют адрес: поля фильтров подстраиваются под него.
-  useEffect(() => setDraft(applied), [applied]);
+  useEffect(() => setSearchDraft(applied.search), [applied.search]);
 
   const filterOptions = useOrderFilters();
   const orders = useOrders(toQuery(applied), PAGE_SIZE);
@@ -52,11 +65,39 @@ export function OrdersPage() {
     }
   });
 
-  const apply = useCallback(() => setParams(writeParams(draft)), [draft, setParams]);
-  const reset = useCallback(() => {
-    setDraft(EMPTY_FILTERS);
-    setParams(writeParams(EMPTY_FILTERS));
-  }, [setParams]);
+  // Поиск и фильтры панели применяются сразу, без «Найти»; «Очистить всё» поиск не трогает.
+  const applySearch = useCallback((search: string) => setParams(writeParams({ ...applied, search })), [applied, setParams]);
+  const pick = (patch: Partial<OrderFilterState>) => setParams(writeParams({ ...applied, ...patch }));
+  const clearFilters = () => setParams(writeParams({ ...EMPTY_FILTERS, search: applied.search }));
+  const activeCount = [applied.ozonStatus, applied.warehouseId, applied.clientId, applied.from || applied.to].filter(Boolean).length;
+  const nameOf = (items: Array<{ id: number; name: string }> | undefined, id: string) => items?.find((item) => String(item.id) === id)?.name ?? id;
+  const valueChips = (id: 'ozonStatus' | 'warehouseId' | 'clientId', title: string, name: (value: string) => string): FilterChip[] =>
+    splitList(applied[id]).map((value) => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => pick({ [id]: toggleValue(applied[id], value) }) }));
+  const chips: FilterChip[] = [
+    ...valueChips('ozonStatus', 'Статус Ozon', (value) => value),
+    ...valueChips('warehouseId', 'Склад', (value) => nameOf(filterOptions?.warehouses, value)),
+    ...valueChips('clientId', 'Клиент', (value) => nameOf(filterOptions?.clients, value)),
+    ...(applied.from || applied.to ? [{ id: 'date', label: `Дата заказа: ${formatRange(applied.from, applied.to)}`, onRemove: () => pick({ from: '', to: '' }) }] : [])
+  ];
+  const toRadio = (items: Array<{ id: number; name: string }> = []) => items.map((item) => ({ value: String(item.id), label: item.name }));
+  const renderPanel = (hideTitle: boolean) => (
+    <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clearFilters}>
+      <FilterSection title="Статус Ozon" active={!!applied.ozonStatus}>
+        <CheckboxGroup value={applied.ozonStatus} options={(filterOptions?.ozonStatuses ?? []).map((name) => ({ value: name, label: name }))} onChange={(ozonStatus) => pick({ ozonStatus })} />
+      </FilterSection>
+      {(filterOptions?.warehouses.length ?? 0) > 0 && (
+        <FilterSection title="Склад" active={!!applied.warehouseId}>
+          <CheckboxGroup value={applied.warehouseId} options={toRadio(filterOptions?.warehouses)} onChange={(warehouseId) => pick({ warehouseId })} />
+        </FilterSection>
+      )}
+      {(filterOptions?.clients.length ?? 0) > 0 && (
+        <FilterSection title="Клиент" active={!!applied.clientId}>
+          <CheckboxGroup value={applied.clientId} options={toRadio(filterOptions?.clients)} onChange={(clientId) => pick({ clientId })} />
+        </FilterSection>
+      )}
+      <DateFilterSection title="Дата заказа" from={applied.from} to={applied.to} onChange={(from, to) => pick({ from, to })} />
+    </FilterPanel>
+  );
 
   // Подгрузка при прокрутке: следим за меткой в конце списка внутри прокручиваемой области.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -90,11 +131,17 @@ export function OrdersPage() {
   };
 
   return (
-    <div className="pa-orders">
+    <div className="pa-orders pa-list">
       {copied && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> Скопировано {copied}</div>}
-      <h1 className="po-page__title">Заказы</h1>
-
-      <OrdersToolbar draft={draft} filters={filterOptions} onChange={setDraft} onApply={apply} onReset={reset} busy={false} />
+      <FilterLayout
+        heading={<h1 className="po-page__title">Заказы</h1>}
+        search={<OrdersSearch value={searchDraft} onValueChange={setSearchDraft} applied={applied.search} onApply={applySearch} />}
+        panel={renderPanel}
+        chips={chips}
+        activeCount={activeCount}
+        onClear={clearFilters}
+        resultLabel={`Показать ${orders.total.toLocaleString('ru-RU')} ${plural(orders.total)}`}
+      >
 
       {notice && (
         <div className="pa-notice">
@@ -192,6 +239,8 @@ export function OrdersPage() {
           </div>
         )
       )}
+
+      </FilterLayout>
 
       {opened && (
         <OrderDrawer

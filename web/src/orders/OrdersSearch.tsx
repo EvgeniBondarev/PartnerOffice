@@ -1,48 +1,40 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { getOrderSuggestions, type OrderFilters, type OrderSuggestion } from '../api/orders';
+import { useEffect, useState, type FormEvent } from 'react';
+import { getOrderSuggestions, type OrderSuggestion } from '../api/orders';
 import { Button } from '../ui/Button';
-import { DateRangeField } from '../ui/DateRangeField';
 import { SearchField } from '../ui/SearchField';
-import { SelectField } from '../ui/SelectField';
-import { hasActiveFilters, type OrderFilterState } from './params';
 
-interface OrdersToolbarProps {
-  draft: OrderFilterState;
-  filters: OrderFilters | null;
-  onChange: (next: OrderFilterState) => void;
-  onApply: () => void;
-  onReset: () => void;
-  busy: boolean;
+interface OrdersSearchProps {
+  /** Текст в поле: он может опережать применённый поиск на время паузы. */
+  value: string;
+  onValueChange: (value: string) => void;
+  /** Поиск, уже применённый к списку (из адреса). */
+  applied: string;
+  onApply: (value: string) => void;
 }
-
-const toOptions = (items: Array<{ id: number; name: string }> = []) => items.map((item) => ({ value: String(item.id), label: item.name }));
-const ozonStatusOptions = (items: string[] = []) => items.map((name) => ({ value: name, label: name }));
 
 const suggestionLabel = (item: OrderSuggestion) => item.shipmentNumber ?? item.article ?? item.productName ?? 'Заказ';
 const suggestionDetails = (item: OrderSuggestion) => [item.productName, item.article, item.scanit ?? item.trackingNumber].filter(Boolean).join(' · ');
 
-/** Строка фильтров по брендбуку: поля в один ряд, «Найти» справа, сброс иконкой. */
-export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy }: OrdersToolbarProps) {
+/** Поиск по заказам сверху на всю ширину (капсула по брендбуку): применяется при вводе с паузой, по Enter и «Найти»; подсказки по номеру, товару, артикулу. */
+export function OrdersSearch({ value, onValueChange, applied, onApply }: OrdersSearchProps) {
   const [suggestions, setSuggestions] = useState<OrderSuggestion[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
-  const appliedSearch = useRef(draft.search.trim());
-  const set = (patch: Partial<OrderFilterState>) => onChange({ ...draft, ...patch });
+  const set = (patch: { search: string }) => onValueChange(patch.search);
+  const draft = { search: value };
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    onApply();
+    setSuggestionsOpen(false);
+    onApply(value.trim());
   };
 
   // Поиск применяем без кнопки после короткой паузы: ввод не создаёт поток запросов.
   useEffect(() => {
-    const search = draft.search.trim();
-    if (search === appliedSearch.current) return;
-    const timer = window.setTimeout(() => {
-      appliedSearch.current = search;
-      onApply();
-    }, 350);
+    const search = value.trim();
+    if (search === applied) return;
+    const timer = window.setTimeout(() => onApply(search), 350);
     return () => window.clearTimeout(timer);
-  }, [draft.search, onApply]);
+  }, [value, applied, onApply]);
 
   useEffect(() => {
     const search = draft.search.trim();
@@ -67,8 +59,8 @@ export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy
   }, [draft.search]);
 
   return (
-    <form className="po-page__toolbar pa-toolbar" role="search" aria-label="Фильтры заказов" onSubmit={onSubmit}>
-      <div className="pa-toolbar__search">
+    <form className="pa-list__search" role="search" aria-label="Поиск заказов" onSubmit={onSubmit}>
+      <div className="pa-list__search-field">
         <SearchField
           label="Поиск по заказам"
           placeholder="Номер, товар, артикул или трек-номер"
@@ -118,23 +110,8 @@ export function OrdersToolbar({ draft, filters, onChange, onApply, onReset, busy
           </div>
         )}
       </div>
-      <div className="pa-toolbar__field">
-        <SelectField label="Статус Ozon" value={draft.ozonStatus} options={ozonStatusOptions(filters?.ozonStatuses)} onChange={(ozonStatus) => set({ ozonStatus })} />
-      </div>
-      <div className="pa-toolbar__field">
-        <SelectField label="Склад" value={draft.warehouseId} options={toOptions(filters?.warehouses)} onChange={(warehouseId) => set({ warehouseId })} />
-      </div>
-      <div className="pa-toolbar__field">
-        <SelectField label="Клиент" value={draft.clientId} options={toOptions(filters?.clients)} onChange={(clientId) => set({ clientId })} />
-      </div>
-      <div className="pa-toolbar__field pa-toolbar__field--period">
-        <DateRangeField label="Дата заказа" from={draft.from} to={draft.to} onChange={(from, to) => set({ from, to })} />
-      </div>
-      <Button type="submit" variant="primary" size={500} loading={busy}>
+      <Button type="submit" variant="primary" size={500}>
         Найти
-      </Button>
-      <Button type="button" variant="secondary" size={500} icon="ui-clear-filters" iconOnly disabled={!hasActiveFilters(draft)} onClick={onReset}>
-        Сбросить фильтры
       </Button>
     </form>
   );

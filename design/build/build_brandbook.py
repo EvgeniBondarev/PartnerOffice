@@ -93,6 +93,11 @@ def checkbox(checked=False, disabled=False, label=''):
     t = f'<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" class="{cls}"{" checked" if checked else ""}{" disabled" if disabled else ""}>'
     return t + (f'<span>{esc(label)}</span>' if label else '') + '</label>'
 
+def radio(checked=False, disabled=False, label=''):
+    cls = 'po-radio' + (' po-radio--checked' if checked else '')
+    t = f'<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" class="{cls}"{" checked" if checked else ""}{" disabled" if disabled else ""}>'
+    return t + (f'<span>{esc(label)}</span>' if label else '') + '</label>'
+
 def toggle(label, checked=True):
     return (f'<label class="po-data-cell__dataCell po-toggle__container ozi-table-500 po-toggle__size-500 po-toggle__block{" po-toggle__checked" if checked else ""}" style="--columns: max-content 1fr;">'
             f'<div class="po-toggle__leftContent po-toggle__minHeight"><div class="po-toggle__wrapper"><input class="po-toggle__toggle" type="checkbox"{" checked" if checked else ""}><div class="po-toggle__togglePoint"></div></div></div>'
@@ -271,7 +276,7 @@ def section_foundation():
   <h3 class="bb-h3">Каркас страницы (1470 × 802)</h3>
   <div class="bb-wire">
     <div class="bb-wire__header">Шапка · высота 56px · padding 0 24px · линия снизу 2px #d9dde1</div>
-    <div class="bb-wire__body"><div class="bb-wire__menu">Меню<br>260px<br>(88px свёрнуто)</div><div class="bb-wire__page">Контент · padding 24px 32px<br>Заголовок 26/30 → табы (отступ 20) → фильтры → таблица<br><small>Сетка с боковой колонкой: 1fr + 348px, зазор 32px (≤1279px — 300px, ≤900px — одна колонка)</small></div></div>
+    <div class="bb-wire__body"><div class="bb-wire__menu">Меню<br>232px<br>(72px свёрнуто)</div><div class="bb-wire__page">Контент · padding 24px 32px<br>Заголовок 26/30 → табы (отступ 20) → фильтры → таблица<br><small>Сетка с боковой колонкой: 1fr + 348px, зазор 32px (≤1279px — 300px, ≤900px — одна колонка)</small></div></div>
   </div>
   <h3 class="bb-h3">Шаг отступов</h3><div class="bb-spaces">{sp}</div>
   <p class="bb-note">Базовый шаг 4px. Типичные значения: зазор в строке фильтров 8px, зазор плиток 24px, отступ блоков внутри страницы 24–32px, внутренний отступ карточек 24px.</p>
@@ -319,7 +324,7 @@ def section_shell():
   <h3 class="bb-h3">Параметры</h3>
   <table class="bb-table"><thead><tr><th>Элемент</th><th>Значение</th></tr></thead><tbody>
   <tr><td>Шапка</td><td>56px, белая, <code>box-shadow: inset 0 -2px 0 #d9dde1</code>, padding 0 24px, элементы выровнены по центру с зазором 16px; слева логотип + название, затем селект 320×32, версия 13px серым, справа два иконки-колокольчика со счётчиками, разделитель 1px, имя пользователя 15/600 синим и аватар</td></tr>
-  <tr><td>Меню</td><td>260px, <code>--neutral-600</code> (#203148), padding 16px 16px 0; группы разделены линией <code>1px --neutral-100</code>, отступ 8px; пункт 44px, радиус 8px, активный <code>--action-100</code>, hover <code>--action-50</code>, фокус outline 2px <code>--action-400</code></td></tr>
+  <tr><td>Меню</td><td>232px, <code>--neutral-600</code> (#203148), padding 16px 16px 0; группы разделены линией <code>1px --neutral-100</code>, отступ 8px; пункт 44px, радиус 8px, активный <code>--action-100</code>, hover <code>--action-50</code>, фокус outline 2px <code>--action-400</code></td></tr>
   <tr><td>Подменю</td><td>Открывается флайаутом справа: белый дропдаун радиус 8px, пункты по 44px</td></tr>
   <tr><td>Страница</td><td>padding 24px 32px, заголовок heading-400, табы, ряд фильтров с зазором 8px, счётчик «Найдено: N»</td></tr>
   <tr><td>Подвал меню</td><td>Копирайт 11px серым, кнопка сворачивания в нижнем левом углу</td></tr></tbody></table>
@@ -390,7 +395,9 @@ def section_components():
   <h3 class="bb-h3" id="c-dropdown">Выпадающий список <small>dropdown.css</small></h3>
   <div class="bb-demo"><div class="bb-row" style="align-items:flex-start;gap:32px">{dd}<div style="width:260px">{field("Статус", "Выбрано: 1", 500, "select", active=True)}</div></div></div>
 
-  <h3 class="bb-h3" id="c-checks">Чекбокс и переключатель <small>checkbox.css, toggle.css</small></h3>
+  <h3 class="bb-h3" id="c-checks">Чекбокс, радио и переключатель <small>checkbox.css, radio.css, toggle.css</small></h3>
+  <p class="bb-note">Радио — выбор одного значения (20×20, рамка 2px, выбранное синее с белой точкой). Чекбокс — выбор нескольких.</p>
+  <div class="bb-demo"><div class="bb-row">{radio(False, label="Пусто")}{radio(True, label="Выбрано")}{radio(False, True, "Недоступно")}</div></div>
   <div class="bb-demo"><div class="bb-row">{checkbox(False, label="Пусто")}{checkbox(True, label="Выбрано")}{checkbox(False, True, "Недоступно")}<div style="width:240px">{toggle("С рекомендацией")}</div><div style="width:240px">{toggle("Выключено", False)}</div></div></div>
 
   <h3 class="bb-h3" id="c-tabs">Табы и переключатель-чипы <small>tabs.css, filter-chip.css</small></h3>
@@ -446,6 +453,8 @@ def section_patterns():
   <h3 class="bb-h3">Плитки-хаб</h3><p class="bb-note">300×100, радиус 16px, фон #f5f7fa, заголовок 17/22 с отступом 24px сверху, справа иллюстрация, в углу счётчик; зазор плиток 24px.</p><div class="bb-demo">{hub}</div>
   <h3 class="bb-h3">Поиск по штрихкоду</h3><div class="bb-demo">{search}</div>
   <h3 class="bb-h3">Страница с таблицей</h3><p class="bb-note">Заголовок → табы → строка фильтров (поля 44px, «Найти», сброс) → «Найдено: N» → таблица. Показан в разделе 5 и 6.</p>
+  <h3 class="bb-h3">Список с панелью фильтров</h3><p class="bb-note">Две колонки. Слева (280px): заголовок, табы, панель фильтров. Справа: поиск на всю ширину (капсула, справа «Найти», у сканера метка «Сканер готов») на уровне заголовка, под ним теги выбранного, «Найдено: N» и таблица, которая занимает всю оставшуюся высоту. Описание раздела в этом виде не показывается. Панель — разделы-<code>fieldset</code> с <code>legend</code> (сворачиваются, у свёрнутого с выбором точка), радио для одного значения, чекбоксы для нескольких, поле с задержкой для текста, период с быстрыми «Сегодня, 7 дней, 30 дней»; ссылка «Сбросить» сверху. Фильтры применяются сразу, без «Найти», и лежат в адресной строке. Теги: крестик убирает один, «Очистить всё» — все, кроме поиска. От 1200px панель открыта (меню свёрнуто), 768–1199px — по кнопке «Фильтры (N)» справа поверх списка, меньше 768px — шторка снизу и карточки вместо таблицы; кнопка шторки «Показать N» только закрывает её. Число результатов — <code>aria-live</code>, шторка закрывается по Esc, фокус возвращается на «Фильтры». Значения без записей гасятся, но не прячутся. Эталон: раздел «Возвраты».</p>
+  <div class="bb-demo"><div style="display:grid;grid-template-columns:240px 1fr;gap:24px;align-items:start"><div style="display:flex;flex-direction:column;gap:12px"><b>Приёмка</b>{radio(True, label="Все")}{radio(False, label="Ожидает")}{radio(False, label="Принят")}<b>Отметки</b>{checkbox(False, label="Брак")}{checkbox(True, label="Пересорт")}</div><div style="display:flex;flex-direction:column;gap:12px"><div class="bb-row" style="gap:8px"><div class="po-badge__badge po-badge__size-500 ozi-body-400-true po-badge__secondary po-badge__info"><div class="po-badge__overlay"></div><div class="po-truncate__truncate po-badge__label">Приёмка: Принят ×</div></div><a href="#patterns">Очистить всё</a></div><div class="bb-muted">Найдено: 962</div></div></div></div>
   <h3 class="bb-h3">Дашборд</h3><p class="bb-note">Карточка-остров <code>--ozi-layer-surface-transparent</code>, радиус 16px, padding 24px, число 28/36 жирное, единицы 17/22; рядом виджет-ссылка (padding 24px, #f5f7fa).</p><div class="bb-demo">{kpi}</div>
   <h3 class="bb-h3">Новость / статья</h3><div class="bb-demo">{article}</div>
   <h3 class="bb-h3">Список-карточки</h3><div class="bb-demo bb-stack" style="gap:12px">{rows}</div>
@@ -625,7 +634,7 @@ def build():
             nav_html += '<div class="bb-nav__sub">' + ''.join(f'<a href="#{i}">{n}</a>' for i, n in comp_sub) + '</div>'
     css_files = ['base', 'ozon/typography', 'ozon/truncate', 'ozon/data-cell', 'ozon/button', 'ozon/input', 'ozon/menu-item', 'ozon/tabs', 'ozon/filter-chip', 'ozon/badge', 'ozon/counter',
                  'ozon/toggle', 'ozon/informer', 'ozon/tooltip', 'ozon/drawer', 'ozon/window', 'ozon/dialog', 'ozon/skeleton', 'ozon/link', 'ozon/separator', 'ozon/table', 'ozon/scroller',
-                 'ozon/icon-button', 'ozon/avatar', 'ozon/popover', 'checkbox', 'dropdown', 'calendar', 'layout']
+                 'ozon/icon-button', 'ozon/avatar', 'ozon/popover', 'checkbox', 'radio', 'dropdown', 'calendar', 'layout']
     links = '\n'.join(f'<link rel="stylesheet" href="../components/{f}.css">' for f in css_files)
     doc = f'''<!doctype html>
 <html lang="ru">

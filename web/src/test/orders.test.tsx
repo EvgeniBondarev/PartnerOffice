@@ -128,30 +128,43 @@ describe('Фильтры и подгрузка', () => {
     expect(calls.some((c) => c.url.includes('/suggestions?q=11'))).toBe(true);
   });
 
-  it('«Найти» отправляет фильтры в API и кладёт их в адрес; сброс очищает', async () => {
+  it('фильтры панели и поиск применяются сразу, лежат в адресе; теги и «Очистить всё» их снимают, поиск остаётся', async () => {
     const user = userEvent.setup();
     const calls = ordersApi(PARTNER_FULL, [order(1)]);
     renderApp('/orders');
     await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    const last = () => new URLSearchParams(calls.filter((c) => c.url.startsWith('/partner-api/orders?')).at(-1)!.url.split('?')[1]);
 
     await user.type(screen.getByRole('searchbox', { name: 'Поиск по заказам' }), 'BX1=HSH');
-    await user.click(screen.getByRole('combobox', { name: /Статус Ozon/ }));
-    await user.click(await screen.findByRole('option', { name: 'Доставляется' }));
+    await waitFor(() => expect(last().get('search')).toBe('BX1=HSH'));
+    await user.click(within(screen.getByRole('group', { name: 'Статус Ozon' })).getByRole('checkbox', { name: 'Доставляется' }));
+    await user.click(within(screen.getByRole('group', { name: 'Склад' })).getByRole('checkbox', { name: 'Москва' }));
+    await waitFor(() => {
+      expect(last().get('ozonStatus')).toBe('Доставляется');
+      expect(last().get('warehouseId')).toBe('1');
+      expect(last().get('search')).toBe('BX1=HSH');
+      expect(last().get('page')).toBe('1');
+    });
+
+    const chips = screen.getByRole('list', { name: 'Выбранные фильтры' });
+    expect(within(chips).getByText('Склад: Москва')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Склад: Москва' }));
+    await waitFor(() => expect(last().get('warehouseId')).toBeNull());
+    expect(last().get('ozonStatus')).toBe('Доставляется');
+
+    await user.click(within(chips).getByRole('button', { name: 'Очистить всё' }));
+    await waitFor(() => expect(last().get('ozonStatus')).toBeNull());
+    expect(last().get('search')).toBe('BX1=HSH');
+  });
+
+  it('«Найти» и Enter применяют поиск сразу, без паузы', async () => {
+    const user = userEvent.setup();
+    const calls = ordersApi(PARTNER_FULL, [order(1)]);
+    renderApp('/orders');
+    await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск по заказам' }), 'A');
     await user.click(screen.getByRole('button', { name: 'Найти' }));
-
-    await waitFor(() => {
-      const last = calls.filter((c) => c.url.startsWith('/partner-api/orders?')).at(-1)!;
-      const query = new URLSearchParams(last.url.split('?')[1]);
-      expect(query.get('search')).toBe('BX1=HSH');
-      expect(query.get('ozonStatus')).toBe('Доставляется');
-      expect(query.get('page')).toBe('1');
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Сбросить фильтры' }));
-    await waitFor(() => {
-      const last = calls.filter((c) => c.url.startsWith('/partner-api/orders?')).at(-1)!;
-      expect(new URLSearchParams(last.url.split('?')[1]).get('search')).toBeNull();
-    });
+    expect(new URLSearchParams(calls.filter((c) => c.url.startsWith('/partner-api/orders?')).at(-1)!.url.split('?')[1]).get('search')).toBe('A');
   });
 
   it('подгружает следующую порцию, не дублирует строки и в конце сообщает, что показаны все', async () => {

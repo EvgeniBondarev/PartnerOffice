@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { toIsoDate } from '../lib/format';
 import { json, mockApi, renderApp } from './helpers';
 
 describe('Возвраты', () => {
@@ -13,9 +14,8 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Товар А')).toBeInTheDocument();
     expect(screen.getByText(/Не все кабинеты обновились/)).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText('Пункт выдачи'), 'Минск');
-    await user.click(screen.getByRole('button', { name: 'Найти' }));
-    expect(calls.some(c => c.url.includes('pvz=%D0%9C'))).toBe(true);
+    await user.type(screen.getByLabelText('Название пункта'), 'Минск');
+    await waitFor(() => expect(calls.some(c => c.url.includes('pvz=%D0%9C%D0%B8%D0%BD%D1%81%D0%BA'))).toBe(true));
   });
 
   it('показывает миниатюру товара из Studio2', async () => {
@@ -219,7 +219,7 @@ describe('Возвраты', () => {
     renderApp('/returns/received');
     expect(await screen.findByText('Товар А')).toBeInTheDocument();
     expect(calls.some(c => c.url.includes('section=received'))).toBe(true);
-    expect(screen.getByText('Ожидает')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Ожидает')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Статус приёмки/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
   });
@@ -237,7 +237,7 @@ describe('Возвраты', () => {
     await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
-    expect(screen.getByText('Брак')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Брак')).toBeInTheDocument();
     expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
   });
 
@@ -315,20 +315,167 @@ describe('Возвраты', () => {
     expect(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' })).toBeInTheDocument();
   });
 
-  it('в разделе «Получено» фильтры по статусу приёмки и пункту выдачи применяются сразу, без кнопки «Найти»', async () => {
+  const listing = (calls: ReturnType<typeof mockApi>) => calls.filter(c => c.url.startsWith('/partner-api/returns?') && !c.url.endsWith('pageSize=1')).at(-1)!;
+  const param = (url: string, name: string) => new URLSearchParams(url.split('?')[1]).get(name);
+  const cabinets = [{ id: 3, name: 'Interparts', ozonClientId: '1' }, { id: 4, name: 'Второй', ozonClientId: '2' }];
+  const withFilters = (extra = {}) => ({ ...received(extra), cabinets });
+  const setup = (path: string, permissions = [4]) => {
     const calls = mockApi({
-      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
-      '/partner-api/returns?*': () => json(received())
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions }),
+      '/partner-api/returns?*': () => json(withFilters())
     });
-    renderApp('/returns/received');
+    renderApp(path);
+    return calls;
+  };
+
+  it('«Получено»: фильтры панели применяются сразу, без кнопки «Найти»', async () => {
+    const calls = setup('/returns/received');
     await screen.findByText('Товар А');
-    expect(screen.queryByRole('combobox', { name: /Статус Ozon/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Статус Ozon' })).not.toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('combobox', { name: /Статус приёмки/ }));
-    await user.click(await screen.findByRole('option', { name: 'Принят' }));
-    await waitFor(() => expect(calls.some(c => c.url.includes('section=received') && c.url.includes('mark=accepted'))).toBe(true));
-    await user.type(screen.getByLabelText('Пункт выдачи'), 'Истра');
-    await waitFor(() => expect(calls.some(c => c.url.includes('pvz=%D0%98%D1%81%D1%82%D1%80%D0%B0'))).toBe(true));
+    await user.click(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Принят' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('accepted'));
+    expect(param(listing(calls).url, 'section')).toBe('received');
+    await user.click(within(screen.getByRole('group', { name: 'Кабинет' })).getByRole('checkbox', { name: 'Второй' }));
+    await waitFor(() => expect(param(listing(calls).url, 'clientId')).toBe('4'));
+    await user.type(screen.getByLabelText('Название пункта'), 'Истра');
+    await waitFor(() => expect(param(listing(calls).url, 'pvz')).toBe('Истра'));
+  });
+
+  it('в группе можно отметить несколько значений: уходят списком через запятую, у каждого свой тег', async () => {
+    const calls = setup('/returns/received');
+    await screen.findByText('Товар А');
+    const user = userEvent.setup();
+    const group = screen.getByRole('group', { name: 'Приёмка' });
+    await user.click(within(group).getByRole('checkbox', { name: 'Принят' }));
+    await user.click(within(group).getByRole('checkbox', { name: 'Брак' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('accepted,defect'));
+    const chips = screen.getByRole('list', { name: 'Выбранные фильтры' });
+    expect(within(chips).getByText('Приёмка: Принят')).toBeInTheDocument();
+    expect(within(chips).getByText('Приёмка: Брак')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Приёмка: Принят' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('defect'));
+    expect(within(group).getByRole('checkbox', { name: 'Брак' })).toBeChecked();
+    expect(within(group).getByRole('checkbox', { name: 'Принят' })).not.toBeChecked();
+  });
+
+  it('«Ждёт получения»: свои фильтры — статус Ozon, а не приёмка', async () => {
+    const calls = setup('/returns/waiting');
+    await screen.findByText('Товар А');
+    expect(screen.queryByRole('group', { name: 'Приёмка' })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole('group', { name: 'Статус Ozon' })).getByRole('checkbox', { name: 'Ожидает отправки' }));
+    await waitFor(() => expect(param(listing(calls).url, 'status')).toBe('WaitingShipment'));
+  });
+
+  it('выбранные фильтры видны тегами: крестик убирает один, «Очистить всё» — все, кроме поиска', async () => {
+    const calls = setup('/returns/received?mark=accepted&client=4&pvz=Истра');
+    await screen.findByText('Товар А');
+    const chips = screen.getByRole('list', { name: 'Выбранные фильтры' });
+    expect(within(chips).getAllByRole('listitem')).toHaveLength(4);
+    expect(within(chips).getByText('Приёмка: Принят')).toBeInTheDocument();
+    expect(within(chips).getByText('Кабинет: Второй')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Фильтры/ })).not.toBeInTheDocument();
+    expect(param(listing(calls).url, 'mark')).toBe('accepted');
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('searchbox', { name: 'Поиск возвратов' }), 'фильтр');
+    await waitFor(() => expect(param(listing(calls).url, 'search')).toBe('фильтр'));
+    await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Приёмка: Принят' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe(''));
+    expect(param(listing(calls).url, 'clientId')).toBe('4');
+    expect(screen.getByRole('checkbox', { name: 'Принят' })).not.toBeChecked();
+    await user.click(within(chips).getByRole('button', { name: 'Очистить всё' }));
+    await waitFor(() => expect(param(listing(calls).url, 'clientId')).toBe(''));
+    expect(param(listing(calls).url, 'pvz')).toBe('');
+    expect(param(listing(calls).url, 'search')).toBe('фильтр');
+    expect(screen.queryByRole('list', { name: 'Выбранные фильтры' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Название пункта')).toHaveValue('');
+  });
+
+  it('состояние фильтров лежит в адресной строке: из ссылки читается, неизвестное отбрасывается', async () => {
+    const calls = setup('/returns/received?mark=hacked&client=abc&from=2026-10-01&to=2026-10-31&pvz=Минск');
+    await screen.findByText('Товар А');
+    const url = listing(calls).url;
+    expect([param(url, 'mark'), param(url, 'clientId'), param(url, 'dateFrom'), param(url, 'dateTo'), param(url, 'pvz')]).toEqual(['', '', '2026-10-01', '2026-10-31', 'Минск']);
+    expect(screen.getByLabelText('Название пункта')).toHaveValue('Минск');
+  });
+
+  it('выбранное значение фильтра отмечено в панели', async () => {
+    const calls = setup('/returns/received');
+    await screen.findByText('Товар А');
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Брак' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('defect'));
+    expect(screen.getByRole('checkbox', { name: 'Брак' })).toBeChecked();
+  });
+
+  it('быстрые даты задают период, включая сегодняшний день', async () => {
+    const calls = setup('/returns/received');
+    await screen.findByText('Товар А');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '7 дней' }));
+    await waitFor(() => expect(param(listing(calls).url, 'dateTo')).toBe(toIsoDate(new Date())));
+    const from = new Date(); from.setDate(from.getDate() - 6);
+    expect(param(listing(calls).url, 'dateFrom')).toBe(toIsoDate(from));
+    expect(screen.getByRole('button', { name: '7 дней' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('сканер: щелчок мышью по фильтру не забирает фокус у поиска', async () => {
+    setup('/returns/received', [4, 5]);
+    await screen.findByText('Товар А');
+    const search = screen.getByRole('searchbox', { name: 'Поиск возвратов' });
+    expect(search).toHaveFocus();
+    expect(screen.getByText('Сканер готов')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Принят' }));
+    expect(screen.getByRole('checkbox', { name: 'Принят' })).toBeChecked();
+    expect(search).toHaveFocus();
+  });
+
+  it('раздел показывает общее число и объявляет его скринридеру', async () => {
+    setup('/returns/received');
+    const count = await screen.findByText('Найдено: 1');
+    expect(count).toHaveAttribute('aria-live', 'polite');
+  });
+
+  describe('узкие экраны', () => {
+    const media = (matches: (query: string) => boolean) => vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: matches(query), media: query, addEventListener: () => undefined, removeEventListener: () => undefined
+    }));
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('планшет: панель скрыта, кнопка «Фильтры» открывает боковую панель, Esc закрывает и возвращает фокус', async () => {
+      const calls = setup('/returns/received');
+      media(query => query.includes('max-width: 767px') ? false : !query.includes('min-width: 1200px'));
+      cleanup(); renderApp('/returns/received');
+      await screen.findByText('Товар А');
+      expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Название пункта')).not.toBeInTheDocument();
+      const user = userEvent.setup();
+      const button = screen.getByRole('button', { name: /^Фильтры/ });
+      await user.click(button);
+      const drawer = await screen.findByRole('complementary', { name: 'Фильтры' });
+      await user.click(within(drawer).getByRole('checkbox', { name: 'Принят' }));
+      await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('accepted'));
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('complementary', { name: 'Фильтры' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^Фильтры/ })).toHaveFocus();
+    });
+
+    it('телефон: вместо таблицы карточки, фильтры в шторке с кнопкой «Показать N»', async () => {
+      media(query => query.includes('max-width: 767px'));
+      const calls = setup('/returns/received');
+      await screen.findByText('Товар А');
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('list', { name: 'Полученные возвраты' })).getByText('Товар А')).toBeInTheDocument();
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /^Фильтры/ }));
+      const sheet = await screen.findByRole('complementary', { name: 'Фильтры' });
+      await user.click(within(sheet).getByRole('checkbox', { name: 'Брак' }));
+      await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('defect'));
+      await user.click(within(sheet).getByRole('button', { name: 'Показать 1 возврат' }));
+      expect(screen.queryByRole('complementary', { name: 'Фильтры' })).not.toBeInTheDocument();
+    });
   });
 });
-

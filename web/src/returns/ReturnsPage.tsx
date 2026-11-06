@@ -1,22 +1,28 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { request } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ozonImage } from '../lib/images';
-import { formatDate, formatQuantity, formatUtcDateTime } from '../lib/format';
+import { formatDate, formatQuantity, formatRange, formatUtcDateTime } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge, type BadgeKind } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { DateRangeField } from '../ui/DateRangeField';
 import { EmptyState } from '../ui/EmptyState';
 import { Icon } from '../ui/Icon';
+import { type FilterChip } from '../ui/FilterChips';
+import { DateFilterSection, FilterPanel } from '../ui/FilterPanel';
+import { FilterLayout } from '../ui/FilterLayout';
+import { FilterSection } from '../ui/FilterSection';
+import { CheckboxGroup } from '../ui/CheckboxGroup';
+import { splitList, toggleValue } from '../lib/multi';
+import { useMediaQuery } from '../ui/useMediaQuery';
+import { TextField } from '../ui/TextField';
 import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
 import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
-import { SelectField } from '../ui/SelectField';
-import { TextField } from '../ui/TextField';
 import { usePopover } from '../ui/usePopover';
+import { useReturnsQuery, type ReturnsSection } from './useReturnsQuery';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 interface ReturnRow {
@@ -32,21 +38,12 @@ interface ReturnRow {
 }
 type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
 type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean };
-type Section = 'waiting' | 'received';
 interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; cabinets?: { id: number; name: string; ozonClientId: string }[] }
 /** Разобранная строка заменяется своими штуками; картинка есть только у строки верхнего уровня. */
 const displayedRows = (items: ReturnRow[], expanded: Set<string>): ReturnRow[] => items.flatMap(row =>
   row.units?.length && row.key && expanded.has(row.key) ? row.units.map(unit => ({ ...unit, image_url: row.image_url, unitOf: row.key })) : [row]);
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
 const TD = 'po-table-cell-base__cell po-table-cell-base__td ozi-table-500 po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
-const STATUS_OPTIONS = [
-  { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' },
-  { value: 'MovingToSeller', label: 'В пути к продавцу' }, { value: 'WaitingShipment', label: 'Ожидает отправки' }
-];
-const MARK_OPTIONS = [
-  { value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' },
-  { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
-];
 /** У каждого состояния приёмки свой цвет бейджа брендбука; брак и пересорт — флаги, их можно сочетать со статусом. */
 const MARK_STATUSES: { value: 'pending' | 'accepted' | 'rejected'; label: string; kind: BadgeKind }[] = [
   { value: 'pending', label: 'Ожидает', kind: 'secondary warning' },
@@ -58,7 +55,20 @@ const MARK_FLAGS: { field: 'defect' | 'missort'; label: string; kind: BadgeKind 
   { field: 'missort', label: 'Пересорт', kind: 'secondary info' }
 ];
 const MENU_WIDTH = 220, MENU_HEIGHT = 260;
-const EMPTY = { search: '', pvz: '', status: '', clientId: '', mark: '', dateFrom: '', dateTo: '' };
+const STATUS_OPTIONS = [
+  { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' },
+  { value: 'MovingToSeller', label: 'В пути к продавцу' }, { value: 'WaitingShipment', label: 'Ожидает отправки' }
+];
+const MARK_OPTIONS = [
+  { value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' },
+  { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
+];
+
+/** «1 возврат, 2 возврата, 5 возвратов». */
+const plural = (n: number, one: string, few: string, many: string) => {
+  const tail = n % 100, last = n % 10;
+  return tail >= 11 && tail <= 14 ? many : last === 1 ? one : last >= 2 && last <= 4 ? few : many;
+};
 
 /** Похоже на код этикетки или отправление: ii…/bx… с цифрами, длинное число (в том числе искажённое сканером) или номер отправления. */
 const looksLikeCode = (value: string) => /^(?:(?:ii|bx)\d{6,}|\d{10,}|\d{6,}-\d{3,}(?:-\d+)?)$/i.test(value);
@@ -70,13 +80,20 @@ function suggestionLabel(row: ReturnRow, query: string): string {
   return fields.find(value => value?.toLocaleLowerCase().includes(search)) || row.name || 'Возврат';
 }
 
-export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
+export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection }) {
   const { partner } = useAuth();
   const allowed = hasPermission(partner, 'ViewReturns');
   const canWork = hasPermission(partner, 'ReturnsWork');
-  const [draft, setDraft] = useState(EMPTY);
-  const [filters, setFilters] = useState(EMPTY);
-  const [page, setPage] = useState(1);
+  const phone = useMediaQuery('(max-width: 767px)', false);
+  const { filters: panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount } = useReturnsQuery(section);
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const filters = useMemo(() => ({ search, ...panelFilters }), [search, panelFilters]);
+  // Страница сбрасывается на первую сама при любом изменении поиска или фильтров: номер страницы привязан к набору условий.
+  const filterKey = JSON.stringify(filters);
+  const [pageAt, setPageAt] = useState({ key: filterKey, page: 1 });
+  const page = pageAt.key === filterKey ? pageAt.page : 1;
+  const setPage = (value: number) => setPageAt({ key: filterKey, page: value });
   const [data, setData] = useState<ReturnPage | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -100,6 +117,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const autoTried = useRef('');
   const formRef = useRef<HTMLFormElement>(null);
   const highlightedRow = useRef<HTMLTableRowElement>(null);
+  const highlightedCard = useRef<HTMLLIElement>(null);
   const [suggestions, setSuggestions] = useState<ReturnRow[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -110,28 +128,19 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   const blurTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    const search = draft.search.trim();
-    currentSearch.current = search;
+    const typed = searchDraft.trim();
+    currentSearch.current = typed;
     setSuggestions([]);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
-    if (search === filters.search) return;
+    if (typed === search) return;
     const timer = window.setTimeout(() => {
       // Сканер без Enter: код набран машинной скоростью и похож на код этикетки — принимаем, не дожидаясь Enter.
-      if (section === 'received' && canWork && looksLikeCode(search) && search !== autoTried.current && looksScanned(search)) { scan(search); return; }
-      setPage(1);
-      setFilters(previous => ({ ...previous, search }));
+      if (section === 'received' && canWork && looksLikeCode(typed) && typed !== autoTried.current && looksScanned(typed)) { scan(typed); return; }
+      setSearch(typed);
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [draft.search, filters.search]);
-
-  // Пункт выдачи набирают текстом: применяем после паузы, как поиск. Списки и даты применяются сразу (pick).
-  useEffect(() => {
-    const pvz = draft.pvz.trim();
-    if (pvz === filters.pvz) return;
-    const timer = window.setTimeout(() => { setPage(1); setFilters(previous => ({ ...previous, pvz })); }, 350);
-    return () => window.clearTimeout(timer);
-  }, [draft.pvz, filters.pvz]);
+  }, [searchDraft, search]);
 
   useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
@@ -206,7 +215,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
       if (keys.length > 1) setRetry(n => n + 1);   // часть штук могла сохраниться
     } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
   };
-  useEffect(() => { if (highlighted) highlightedRow.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, data]);
+  useEffect(() => { if (highlighted) (highlightedRow.current ?? highlightedCard.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, data]);
 
   /** Сканер вводит код как очень быстрый набор и завершает его Enter: так отличаем скан от ручного ввода. */
   const noteInput = (value: string) => {
@@ -244,8 +253,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
   /** Код не принят: возвращаем его в поиск, чтобы список показал совпадения, и выделяем, чтобы следующий скан заменил его, а не дописался. */
   const keepSearch = (code: string) => {
     autoTried.current = code; currentSearch.current = code; suppressedSearch.current = code;
-    setDraft(previous => ({ ...previous, search: code })); setPage(1);
-    setFilters(previous => ({ ...previous, search: code }));
+    setSearchDraft(code); setSearch(code);
     window.setTimeout(() => formRef.current?.querySelector<HTMLInputElement>('input[type="search"]')?.select(), 0);
   };
   /** Скан сразу принимает найденную позицию; коды обрабатываются по очереди, чтобы быстрые сканы не терялись. */
@@ -255,23 +263,19 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     autoTried.current = '';
     currentSearch.current = ''; suppressedSearch.current = null;
     setSuggestions([]); setSuggestionsOpen(false); setActiveSuggestion(-1);
-    setDraft(previous => ({ ...previous, search: '' })); setPage(1);
-    setFilters(previous => previous.search ? { ...previous, search: '' } : previous);
+    setSearchDraft(''); setSearch('');
     typing.current = { at: 0, fast: 0, length: 0 };
     scanQueue.current = scanQueue.current.then(async () => { if (!await processScan(code)) keepSearch(code); });
   };
-  const set = (values: Partial<typeof EMPTY>) => setDraft(previous => ({ ...previous, ...values }));
-  const pick = (values: Partial<typeof EMPTY>) => { setDraft(previous => ({ ...previous, ...values })); setPage(1); setFilters(previous => ({ ...previous, ...values })); };
-  const apply = (event: FormEvent) => { event.preventDefault(); setSuggestionsOpen(false); setPage(1); setFilters({ ...draft, search: draft.search.trim() }); };
-  const reset = () => { currentSearch.current = ''; setSuggestions([]); setSuggestionsOpen(false); setDraft(EMPTY); setPage(1); setFilters(EMPTY); };
+  // «Найти» и Enter применяют поиск сразу, не дожидаясь паузы; фильтры панели уже применены.
+  const apply = (event: FormEvent) => { event.preventDefault(); setSuggestionsOpen(false); setSearch(searchDraft.trim()); };
   const chooseSuggestion = (row: ReturnRow) => {
-    const search = suggestionLabel(row, draft.search.trim());
-    currentSearch.current = search;
-    suppressedSearch.current = search;
-    setDraft(previous => ({ ...previous, search }));
+    const chosen = suggestionLabel(row, searchDraft.trim());
+    currentSearch.current = chosen;
+    suppressedSearch.current = chosen;
+    setSearchDraft(chosen);
     setSuggestionsOpen(false);
-    setPage(1);
-    setFilters(previous => ({ ...previous, search }));
+    setSearch(chosen);
   };
   const searchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') { setSuggestionsOpen(false); setActiveSuggestion(-1); }
@@ -286,7 +290,49 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     }
   };
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
-  return <div className="pa-orders">
+  const received = section === 'received';
+  const cabinets = data?.cabinets ?? [];
+  const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
+  const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
+  // Тег на каждое выбранное значение: крестик снимает только его.
+  const valueChips = (id: 'mark' | 'status' | 'clientId', title: string, name: (value: string) => string): FilterChip[] =>
+    splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
+  const chips: FilterChip[] = [
+    ...valueChips('mark', 'Приёмка', value => label(MARK_OPTIONS, value)),
+    ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
+    ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
+    ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
+    ...(panelFilters.dateFrom || panelFilters.dateTo ? [{ id: 'date', label: `${received ? 'Получено' : 'Возврат'}: ${formatRange(panelFilters.dateFrom, panelFilters.dateTo)}`, onRemove: () => change({ dateFrom: '', dateTo: '' }) }] : [])
+  ];
+  const renderPanel = (hideTitle: boolean) => <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clear}>
+    {received
+      ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /></FilterSection>
+      : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
+    {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
+      <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
+    </FilterSection>}
+    <FilterSection title="Пункт выдачи" active={!!panelFilters.pvz}><TextField label="Название пункта" value={pvzDraft} onValueChange={setPvzDraft} size={500} maxLength={100} /></FilterSection>
+    <DateFilterSection title={received ? 'Дата получения' : 'Дата возврата'} from={panelFilters.dateFrom} to={panelFilters.dateTo} onChange={(dateFrom, dateTo) => change({ dateFrom, dateTo })} />
+  </FilterPanel>;
+  const rows = data ? displayedRows(data.items, expandedUnits) : [];
+  const hasMark = canWork || received;
+  const searching = activeCount > 0 || !!search;
+  const productCell = (row: ReturnRow) => <div className="pa-returns__product">
+    <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
+    <div>{row.name || '—'}<div className="pa-sub">{[row.offer_id || '—', cabinets.length > 1 && cabinetName(row) !== '—' ? cabinetName(row) : ''].filter(Boolean).join(' · ')}</div>
+      {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
+  const postingCell = (row: ReturnRow) => <>{row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—')}<div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : (row.barcode || 'Возврат')}</div></>;
+  const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
+  const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
+  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
+  /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
+  const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
+    if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
+  } : undefined;
+  const rowKey = (row: ReturnRow) => row.key || `${row.client_id}:${row.id}`;
+  return <div className="pa-orders pa-list">
+    <FilterLayout
+      heading={<>
     <h1 className="po-page__title">Возвраты</h1>
     <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
       <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
@@ -295,24 +341,25 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
     <p className="pa-returns__description">{section === 'waiting'
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
       : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
-    {section === 'received' && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
-    <form ref={formRef} className="po-page__toolbar pa-toolbar pa-returns__toolbar" role="search" aria-label="Фильтры возвратов" onSubmit={apply}>
-      <div className="pa-toolbar__search">
-        <SearchField label="Поиск возвратов" placeholder={section === 'received' && canWork ? 'Товар, артикул, коробка или код со сканера' : 'Товар, артикул, отправление или коробка'} value={draft.search}
-          onValueChange={search => { if (search !== autoTried.current) autoTried.current = ''; noteInput(search); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = search.trim(); set({ search }); }}
-          onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === draft.search.trim() && suggestions.length) setSuggestionsOpen(true); }}
+      </>}
+      search={
+    <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
+      <div className="pa-list__search-field">
+        <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка или код со сканера' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
+          onValueChange={value => { if (value !== autoTried.current) autoTried.current = ''; noteInput(value); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = value.trim(); setSearchDraft(value); }}
+          onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === searchDraft.trim() && suggestions.length) setSuggestionsOpen(true); }}
           onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
           onKeyDown={searchKeyDown} aria-autocomplete="list" aria-controls={suggestionsOpen && suggestions.length ? 'return-suggestions' : undefined}
           aria-activedescendant={suggestionsOpen && activeSuggestion >= 0 ? `return-suggestion-${activeSuggestion}` : undefined} maxLength={100}
-          autoFocus={section === 'received' && canWork} />
+          autoFocus={received && canWork} />
         {suggestionsOpen && suggestions.length > 0 && (
           <div className="po-dropdown po-dropdown--500 pa-popover pa-order-suggestions">
             <div className="po-dropdown__scroll"><div id="return-suggestions" className="po-dropdown__list" role="listbox" aria-label="Подсказки по возвратам">
-              {suggestions.map((row, index) => <div id={`return-suggestion-${index}`} key={row.key || `${row.client_id}:${row.id}`} role="option"
+              {suggestions.map((row, index) => <div id={`return-suggestion-${index}`} key={rowKey(row)} role="option"
                 aria-selected={activeSuggestion === index} className={`po-dropdown-item${activeSuggestion === index ? ' po-dropdown-item--focused' : ''}`}
                 onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActiveSuggestion(index)} onClick={() => chooseSuggestion(row)}>
                 <div className="po-dropdown-item__block pa-order-suggestions__block">
-                  <span className="po-dropdown-item__text pa-order-suggestions__title">{suggestionLabel(row, filters.search)}</span>
+                  <span className="po-dropdown-item__text pa-order-suggestions__title">{suggestionLabel(row, search)}</span>
                   <span className="pa-order-suggestions__detail">{[row.name, row.offer_id, row.return_type === 'fbo' ? 'Коробка FBO' : row.posting_number].filter(Boolean).join(' · ')}</span>
                 </div>
               </div>)}
@@ -320,37 +367,45 @@ export function ReturnsPage({ section = 'waiting' }: { section?: Section }) {
           </div>
         )}
       </div>
-      <div className="pa-toolbar__field"><TextField label="Пункт выдачи" value={draft.pvz} onValueChange={pvz => set({ pvz })} size={500} /></div>
-      <div className="pa-toolbar__field"><SelectField label="Кабинет" value={draft.clientId} onChange={clientId => pick({ clientId })} options={(data?.cabinets ?? []).map(c => ({ value: String(c.id), label: c.name }))} /></div>
-      {section === 'received'
-        ? <div className="pa-toolbar__field"><SelectField label="Статус приёмки" value={draft.mark} onChange={mark => pick({ mark })} options={MARK_OPTIONS} /></div>
-        : <div className="pa-toolbar__field"><SelectField label="Статус Ozon" value={draft.status} onChange={status => pick({ status })} options={STATUS_OPTIONS} /></div>}
-      <div className="pa-toolbar__field pa-toolbar__field--period"><DateRangeField label={section === 'received' ? 'Дата получения' : 'Дата возврата'} from={draft.dateFrom} to={draft.dateTo} onChange={(dateFrom, dateTo) => pick({ dateFrom, dateTo })} /></div>
+      {received && canWork && <span className="pa-returns__scanner ozi-body-400-true">Сканер готов</span>}
       <Button type="submit" size={500}>Найти</Button>
-      <Button variant="secondary" size={500} icon="ui-clear-filters" iconOnly onClick={reset} disabled={!Object.values(draft).some(Boolean)}>Сбросить фильтры</Button>
     </form>
-    {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
-    {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
-    {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
-    {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
-    {data && !error && <div className="pa-returns__summary"><div className="po-page__count">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки: {formatUtcDateTime(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatUtcDateTime(data.fbo_snapshot_at)}` : ''}</span></div>}
-    {loading && <p role="status" className="pa-muted">Загружаем возвраты…</p>}
-    {!loading && !error && data && (data.items.length === 0 ? <EmptyState illustration={emptyIllustration} title={Object.values(filters).some(Boolean) ? 'Ничего не найдено' : 'Возвратов пока нет'}>{Object.values(filters).some(Boolean) ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState> :
-      <div className="pa-scroll" tabIndex={0} role="region" aria-label="Возвраты, ожидающие получения"><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Кабинет', 'Дата возврата', 'Количество', ...(canWork || section === 'received' ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
-        <tbody>{displayedRows(data.items, expandedUnits).map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={row.key || `${row.client_id}:${row.id}`}>
-          <td className={`${TD} pa-col-product`}><div className="pa-returns__product">
-            <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
-            <div>{row.name || '—'}<div className="pa-sub">{row.offer_id || '—'}</div>
-              {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div></td>
-          <td className={TD}>{row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—')}<div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : (row.barcode || 'Возврат')}</div></td>
-          <td className={TD}><Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge></td>
-          <td className={TD}>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></td>
-          <td className={TD}>{data.cabinets?.find(c => c.ozonClientId === row.client_id)?.name || '—'}</td>
-          <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
-          {(canWork || section === 'received') && <td className={`${TD} pa-returns__mark`}><MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} /></td>}
-        </tr>)}</tbody></table></div></div>)}
-    {data && data.total > data.page_size && !error && <div className="pa-returns-pagination"><Button variant="secondary" size={400} disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Назад</Button>
-      <span>Страница {page}</span><Button variant="secondary" size={400} disabled={loading || page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Далее</Button></div>}
+      }
+      panel={renderPanel} chips={chips} activeCount={activeCount} onClear={clear} onMouseDown={keepSearchFocus}
+      resultLabel={data ? `Показать ${data.total.toLocaleString('ru-RU')} ${plural(data.total, 'возврат', 'возврата', 'возвратов')}` : 'Показать'}>
+    {received && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
+        {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
+        {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
+        {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
+        {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
+        {data && !error && <div className="pa-list__summary"><div className="po-page__count" role="status" aria-live="polite">Найдено: {data.total.toLocaleString('ru-RU')}</div><span>Время выгрузки: {formatUtcDateTime(data.snapshot_at)}{data.fbo_snapshot_at ? ` · FBO: ${formatUtcDateTime(data.fbo_snapshot_at)}` : ''}</span></div>}
+        {loading && <p role="status" className="pa-muted">Загружаем возвраты…</p>}
+        {!loading && !error && data && (data.items.length === 0 ? <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState> :
+          phone
+            ? <ul className="pa-returns-cards" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}>{rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+                {productCell(row)}
+                <dl className="pa-returns-card__details">
+                  <dt>Отправление / коробка</dt><dd>{postingCell(row)}</dd>
+                  <dt>Статус Ozon</dt><dd>{statusBadge(row)}</dd>
+                  <dt>Пункт выдачи</dt><dd>{placeCell(row)}</dd>
+                  <dt>Кабинет</dt><dd>{cabinetName(row)}</dd>
+                  <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
+                  <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
+                </dl>
+                {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
+              </li>)}</ul>
+            : <div className="pa-scroll" tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+              <tbody>{rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+                <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
+                <td className={TD}>{postingCell(row)}</td>
+                <td className={TD}>{statusBadge(row)}</td>
+                <td className={TD}>{placeCell(row)}</td>
+                <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
+                {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
+              </tr>)}</tbody></table></div></div>)}
+        {data && data.total > data.page_size && !error && <div className="pa-returns-pagination"><Button variant="secondary" size={400} disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Назад</Button>
+          <span>Страница {page}</span><Button variant="secondary" size={400} disabled={loading || page * data.page_size >= data.total} onClick={() => setPage(page + 1)}>Далее</Button></div>}
+    </FilterLayout>
     {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
   </div>;
 }

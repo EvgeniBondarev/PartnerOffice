@@ -9,6 +9,8 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 
 interface OverlayProps {
   kind: 'dialog' | 'drawer';
+  /** Только для панели: справа (по умолчанию) или шторкой снизу, как на телефоне. */
+  placement?: 'right' | 'bottom';
   title: string;
   onClose: () => void;
   /** Пока идёт действие, закрыть нельзя: иначе человек не увидит результат отгрузки. */
@@ -82,14 +84,16 @@ export function useModal(onClose: () => void, busy = false) {
 /**
  * Диалог и боковая панель дизайн-системы (dialog.css, drawer.css, window.css): затемнение, Esc и клик по затемнению закрывают.
  */
-export function Overlay({ kind, title, onClose, busy = false, width, children, footer }: OverlayProps) {
+export function Overlay({ kind, placement = 'right', title, onClose, busy = false, width, children, footer }: OverlayProps) {
   const titleId = useId();
   const windowRef = useModal(onClose, busy);
 
   const windowClass =
     kind === 'dialog'
       ? 'po-window__window po-dialog__dialog po-dialog__size-500 pa-overlay__window pa-overlay__window--dialog'
-      : 'po-window__window po-drawer__drawer po-drawer__size-500 po-drawer__right po-drawer__verticalLayoutFill pa-overlay__window pa-overlay__window--drawer';
+      : placement === 'bottom'
+        ? 'po-window__window po-drawer__drawer po-drawer__size-500 po-drawer__bottom po-drawer__horizontalLayoutFill pa-overlay__window pa-overlay__window--sheet'
+        : 'po-window__window po-drawer__drawer po-drawer__size-500 po-drawer__right po-drawer__verticalLayoutFill pa-overlay__window pa-overlay__window--drawer';
 
   return createPortal(
     <>
