@@ -543,9 +543,14 @@ button.po-day:disabled { cursor: default; }
 .pa-list__summary { align-items: baseline; margin: 4px 0 12px; }
 .pa-list__summary .po-page__count { font-size: 17px; font-weight: 700; }
 .pa-list .pa-scroll { background: var(--ozi-bg-primary); border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 16px; }
-.pa-list .pa-table .po-table__table { min-width: 860px; }
+.pa-list .pa-table .po-table__table { min-width: 0; table-layout: fixed; width: 100%; }
+.pa-list .pa-table .po-table-cell-base__cell { min-width: 0; overflow-wrap: anywhere; }
+.pa-list .pa-table .pa-col-product { max-width: none; min-width: 0; width: 27%; }
+.pa-list .pa-table .pa-returns__mark { width: 15%; white-space: normal; }
+.pa-list .pa-table .pa-returns__mark-box { min-width: 0; }
+.pa-list .pa-table .pa-returns__mark-box .po-badge__badge { max-width: 100%; }
+.pa-list .pa-table .pa-returns__mark-box .po-badge__label { overflow: hidden; text-overflow: ellipsis; }
 .pa-list .pa-table thead th { background: var(--ozi-bg-primary); color: var(--ozi-text-secondary-transparent); font-size: 13px; }
-.pa-list .pa-col-product { max-width: 320px; min-width: 200px; width: 320px; }
 
 /* Масштаб по макету: в списке возвратов текст 14px, подписи 12–13px, строки плотнее. */
 .pa-list .po-table-cell-base__td, .pa-list .pa-filter-option, .pa-list .pa-returns__description, .pa-list .po-input__input { font-size: 14px; line-height: 20px; }
