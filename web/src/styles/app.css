@@ -545,7 +545,13 @@ button.po-day:disabled { cursor: default; }
 .pa-list .pa-scroll { background: var(--ozi-bg-primary); border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 16px; }
 .pa-list .pa-table .po-table__table { min-width: 0; table-layout: fixed; width: 100%; }
 .pa-list .pa-table .po-table-cell-base__cell { min-width: 0; overflow-wrap: normal; word-break: normal; }
-.pa-list .pa-table .pa-col-product { max-width: none; min-width: 0; width: 27%; }
+.pa-list .pa-table .pa-col-product { max-width: none; min-width: 0; width: 31%; }
+.pa-list .pa-table th:nth-child(2), .pa-list .pa-table td:nth-child(2) { width: 18%; }
+.pa-list .pa-table th:nth-child(3), .pa-list .pa-table td:nth-child(3) { width: 10%; }
+.pa-list .pa-table th:nth-child(4), .pa-list .pa-table td:nth-child(4) { width: 15%; }
+.pa-list .pa-table th:nth-child(5), .pa-list .pa-table td:nth-child(5) { width: 9%; }
+.pa-list .pa-table th:nth-child(6), .pa-list .pa-table td:nth-child(6) { width: 5%; }
+.pa-list .pa-table th:nth-child(7), .pa-list .pa-table td:nth-child(7) { width: 12%; }
 .pa-list .pa-returns__product > div:last-child { min-width: 0; }
 .pa-list .pa-table td:nth-child(2) .pa-copy-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pa-list .pa-table .pa-returns__mark { width: 15%; white-space: normal; }
