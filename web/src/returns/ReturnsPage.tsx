@@ -192,6 +192,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         if (filters.search !== currentSearch.current) return;
         const result = results[0];
         setData(result);
+        setCounts(previous => ({ ...previous, [section]: result.total }));
         setItems(mergeRows([], results.flatMap(item => item.items)));
         pagesRef.current = upto; setPagesLoaded(upto);
         if (!quiet && filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
@@ -235,13 +236,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
-    (['waiting', 'received'] as const).forEach(name => {
-      request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: name, page: '1', pageSize: '1' })}`, { signal: controller.signal })
-        .then(result => setCounts(previous => ({ ...previous, [name]: result.total })))
-        .catch(() => undefined);
-    });
+    const other = section === 'waiting' ? 'received' : 'waiting';
+    request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: other, page: '1', pageSize: '1' })}`, { signal: controller.signal })
+      .then(result => setCounts(previous => ({ ...previous, [other]: result.total })))
+      .catch(() => undefined);
     return () => controller.abort();
-  }, [allowed, retry]);
+  }, [allowed, section, retry]);
 
   // Выгрузка из Ozon и отметки из ozon-returns приходят без участия страницы: подтягиваем их раз в минуту
   // и при возврате на вкладку, пока открыта вкладка и нет несохранённой отметки.
