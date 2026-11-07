@@ -23,6 +23,7 @@ import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
 import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
+import { Tooltip } from '../ui/Tooltip';
 import { usePopover } from '../ui/usePopover';
 import { useReturnsQuery, type ReturnsSection } from './useReturnsQuery';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
@@ -396,8 +397,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
-  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
-  const onecCell = (row: ReturnRow) => <>{row.onec?.status === 'accepted' ? <Badge kind="primary success">Принято в 1С</Badge> : row.onec?.status === 'processing' ? <Badge kind="secondary warning">Оформляется в 1С</Badge> : '—'}{row.onec?.number && <div className="pa-sub">№{row.onec.number}</div>}{row.onec?.at && <div className="pa-sub">{formatUtcDateTime(row.onec.at)}</div>}</>;
+  const markCell = (row: ReturnRow) => <MarkCell row={row} onec={row.onec} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
@@ -474,9 +474,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
                 </dl>
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
-                {received && <><dt>1С</dt><dd>{onecCell(row)}</dd></>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : []), ...(received ? ['1С'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
@@ -484,7 +483,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                 <td className={TD}>{placeCell(row)}</td>
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
-                {received && <td className={TD}>{onecCell(row)}</td>}
               </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
         {phone && !loading && items.length > 0 && listEnd}
     </FilterLayout>
@@ -504,7 +502,7 @@ function ReturnsTab({ to, label, count }: { to: string; label: string; count: nu
 }
 
 /** Статус приёмки: бейдж открывает список. Статус выбирается один, брак и пересорт включаются и снимаются отдельно. */
-function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
+function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec?: ReturnRow['onec']; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
   const flags = MARK_FLAGS.filter(flag => row[flag.field]);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
@@ -550,6 +548,7 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
         </button>
       : <Badge kind={status.kind}>{status.label}</Badge>}
     {flags.map(flag => <Badge key={flag.field} kind={flag.kind}>{flag.label}</Badge>)}
+    {onec && onec.status !== 'none' && <OneCStatus onec={onec} />}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
       <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
         {items.map((item, index) => <div key={item.id}>
@@ -565,4 +564,10 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
       </div></div>
     </div>}
   </div>;
+}
+
+function OneCStatus({ onec }: { onec: NonNullable<ReturnRow['onec']> }) {
+  const details = [onec.number ? `№${onec.number}` : '', onec.at ? formatUtcDateTime(onec.at) : ''].filter(Boolean).join('\n');
+  const badge = <Badge kind={onec.status === 'accepted' ? 'primary success' : 'secondary warning'}>{onec.status === 'accepted' ? 'Принято в 1С' : 'Оформляется в 1С'}</Badge>;
+  return details ? <Tooltip text={details}>{badge}</Tooltip> : badge;
 }

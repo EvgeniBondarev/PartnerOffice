@@ -273,6 +273,7 @@ button.po-day:disabled { cursor: default; }
 .pa-floating-tooltip { pointer-events: none; position: fixed; z-index: 1700; }
 .pa-floating-tooltip--top { transform: translateY(-100%); }
 .pa-floating-tooltip .tippy-box { color: var(--ozi-static-text-primary-on-dark-transparent); width: 100%; }
+.pa-floating-tooltip .tippy-content { white-space: pre-line; }
 .pa-skeleton-gap { height: 8px; }
 .pa-pager { align-items: center; display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
 .pa-pager__info { color: var(--ozi-text-secondary-transparent); }

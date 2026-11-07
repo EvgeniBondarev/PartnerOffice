@@ -72,6 +72,21 @@ describe('Возвраты', () => {
 
   const received = (extra = {}) => ({ items: [{ key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Товар А', status: 'ReceivedBySeller', status_name: 'Получен', qty: 1, mark: 'pending', ...extra }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false });
 
+  it('показывает статус 1С внутри приёмки без ручного действия и раскрывает номер с датой в подсказке', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json(received({ onec: { status: 'accepted', number: 'НФY1-005057', at: '2026-11-04T06:16:00' } }))
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByText('Принято в 1С')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: '1С' })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    const status = screen.getAllByText('Принято в 1С').at(-1)!;
+    await user.hover(status.closest('.pa-action-hint') ?? status);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/№НФY1-005057\s+04\.11\.2026, 09:16/);
+    expect(screen.queryByRole('button', { name: /Принято в 1С/ })).not.toBeInTheDocument();
+  });
+
   it('принимает однозначный результат сканирования и выделяет строку', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
