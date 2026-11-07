@@ -221,14 +221,13 @@ button.po-day:disabled { cursor: default; }
 .pa-scroll__footer { display: flex; justify-content: center; padding: 16px; }
 .pa-table .po-table__table { min-width: 980px; table-layout: auto; width: 100%; }
 .pa-orders-table { table-layout: fixed !important; }
-.pa-orders-table th:nth-child(1), .pa-orders-table td:nth-child(1) { width: 5%; }
-.pa-orders-table th:nth-child(2), .pa-orders-table td:nth-child(2) { width: 23%; }
-.pa-orders-table th:nth-child(3), .pa-orders-table td:nth-child(3) { width: 16%; }
-.pa-orders-table th:nth-child(4), .pa-orders-table td:nth-child(4) { width: 13%; }
-.pa-orders-table th:nth-child(5), .pa-orders-table td:nth-child(5) { width: 14%; }
-.pa-orders-table th:nth-child(6), .pa-orders-table td:nth-child(6) { width: 15%; }
-.pa-orders-table th:nth-child(7), .pa-orders-table td:nth-child(7) { width: 7%; }
-.pa-orders-table th:nth-child(8), .pa-orders-table td:nth-child(8) { width: 15%; }
+.pa-orders-table th:nth-child(1), .pa-orders-table td:nth-child(1) { width: 31%; }
+.pa-orders-table th:nth-child(2), .pa-orders-table td:nth-child(2) { width: 18%; }
+.pa-orders-table th:nth-child(3), .pa-orders-table td:nth-child(3) { width: 10%; }
+.pa-orders-table th:nth-child(4), .pa-orders-table td:nth-child(4) { width: 15%; }
+.pa-orders-table th:nth-child(5), .pa-orders-table td:nth-child(5) { width: 9%; }
+.pa-orders-table th:nth-child(6), .pa-orders-table td:nth-child(6) { width: 5%; }
+.pa-orders-table--actions th:nth-child(7), .pa-orders-table--actions td:nth-child(7) { width: 12%; }
 .pa-orders-table td { min-width: 0; overflow: hidden; }
 .pa-orders-table td:nth-child(3) .pa-copy-value { display: block; min-width: 0; overflow: hidden; }
 .pa-orders-table .pa-number { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -236,6 +235,7 @@ button.po-day:disabled { cursor: default; }
 .pa-nowrap { white-space: nowrap; }
 .pa-returns__product { display: flex; align-items: flex-start; gap: 12px; }
 .pa-returns__product > .pa-photo, .pa-returns__product > .pa-photo__button { flex: none; }
+.pa-orders__product .pa-returns__product-info { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .pa-col-product { max-width: 380px; min-width: 220px; width: 380px; }
 .pa-col-status { min-width: 150px; }
 /* Две даты и стрелки сортировки требуют своей ширины: не даём колонке сжимать дату до одного слова. */

@@ -107,8 +107,7 @@ function ShipBy({ order }: { order: OrderListItem }) {
 function skeletonRows(count: number, showActions: boolean) {
   return Array.from({ length: count }, (_, row) => (
     <tr key={`skeleton-${row}`} className="po-table-row__row" aria-hidden="true">
-      <td className={`${TD} ${align('left')}`}><Skeleton width={48} height={48} /></td>
-      <td className={`${TD} ${align('left')}`}><Skeleton width="80%" height={20} /><div className="pa-skeleton-gap" /><Skeleton width={90} height={20} /></td>
+      <td className={`${TD} ${align('left')} pa-col-product`}><div className="pa-returns__product pa-orders__product"><Skeleton width={48} height={48} /><div className="pa-returns__product-info"><Skeleton width="80%" height={20} /><div className="pa-skeleton-gap" /><Skeleton width={90} height={20} /></div></div></td>
       <td className={`${TD} ${align('left')}`}><Skeleton width={150} height={20} /></td>
       <td className={`${TD} ${align('left')}`}><Skeleton width={120} height={24} /></td>
       <td className={`${TD} ${align('left')}`}><Skeleton width={110} height={20} /></td>
@@ -143,10 +142,9 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
 
   return (
     <div className="pa-table" aria-busy={loading}>
-      <table className="po-table__table pa-orders-table">
+      <table className={`po-table__table pa-orders-table${showActions ? ' pa-orders-table--actions' : ''}`}>
         <thead>
           <tr className="po-table-row__row">
-            <th className={`${TH} ${align('left')}`} style={{ width: 72 }}>Фото</th>
             <th className={`${TH} ${align('left')} pa-col-product`}>
               Товар<div className="pa-sub">Артикул, бренд</div>
             </th>
@@ -185,14 +183,16 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                   onKeyDown={(event) => onRowKeyDown(event, order)}
                   aria-label={`Заказ ${order.shipmentNumber ?? order.id}: открыть карточку`}
                 >
-                  <td className={`${TD} ${align('left')}`}>
-                    <ProductImage url={order.imageUrl} alt={order.productName ?? 'Товар'} onOpen={onImage} />
-                  </td>
                   <td className={`${TD} ${align('left')} pa-col-product`}>
-                    <div className="pa-product" title={order.productName ?? undefined}>{order.productName ?? '—'}</div>
-                    <div className="pa-tags">
-                      {order.article && <CopyValue value={order.article} label="артикул"><Badge kind="secondary neutral" size={400}>{order.article}</Badge></CopyValue>}
-                      {order.brand && <span className="pa-sub pa-sub--inline">{order.brand}</span>}
+                    <div className="pa-returns__product pa-orders__product">
+                      <ProductImage url={order.imageUrl} alt={order.productName ?? 'Товар'} onOpen={onImage} />
+                      <div className="pa-returns__product-info">
+                        <div className="pa-product" title={order.productName ?? undefined}>{order.productName ?? '—'}</div>
+                        <div className="pa-tags">
+                          {order.article && <CopyValue value={order.article} label="артикул"><Badge kind="secondary neutral" size={400}>{order.article}</Badge></CopyValue>}
+                          {order.brand && <span className="pa-sub pa-sub--inline">{order.brand}</span>}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td className={`${TD} ${align('left')} pa-nowrap`}>
