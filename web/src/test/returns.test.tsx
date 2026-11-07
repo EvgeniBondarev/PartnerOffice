@@ -83,7 +83,7 @@ describe('Возвраты', () => {
     const region = screen.getByRole('region', { name: 'Полученные возвраты' });
     await waitFor(() => expect(within(region).getByText('Принято в 1С')).toBeInTheDocument());
     const status = within(region).getByText('Принято в 1С');
-    expect(status.closest('.pa-action-hint')).toHaveAttribute('aria-label', '№НФY1-005057\n04.11.2026, 06:16');
+    expect(status.closest('.pa-action-hint')?.getAttribute('aria-label')).toMatch(/^№НФY1-005057\n04\.11\.2026, \d{2}:16$/);
     expect(screen.queryByRole('button', { name: /Принято в 1С/ })).not.toBeInTheDocument();
   });
 

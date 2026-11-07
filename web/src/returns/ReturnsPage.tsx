@@ -541,14 +541,13 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
   };
 
   return <div className="pa-returns__mark-box" ref={rootRef}>
-    {canWork
+    {onec && onec.status !== 'none' ? <OneCStatus onec={onec} /> : canWork
       ? <button type="button" ref={buttonRef} className="pa-badge-button" aria-haspopup="menu" aria-expanded={open} aria-label={`Статус приёмки: ${status.label}`} disabled={busy}
           onClick={() => setOpen(!open)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); } }}>
           <Badge kind={status.kind} chevron>{status.label}</Badge>
         </button>
       : <Badge kind={status.kind}>{status.label}</Badge>}
     {flags.map(flag => <Badge key={flag.field} kind={flag.kind}>{flag.label}</Badge>)}
-    {onec && onec.status !== 'none' && <OneCStatus onec={onec} />}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
       <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
         {items.map((item, index) => <div key={item.id}>
