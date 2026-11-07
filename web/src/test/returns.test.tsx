@@ -80,10 +80,10 @@ describe('Возвраты', () => {
     renderApp('/returns/received');
     expect(await screen.findByText('Принято в 1С')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '1С' })).not.toBeInTheDocument();
-    const user = userEvent.setup();
-    const status = screen.getAllByText('Принято в 1С').at(-1)!;
-    await user.hover(status.closest('.pa-action-hint') ?? status);
-    expect(await screen.findByRole('tooltip')).toHaveTextContent(/№НФY1-005057\s+04\.11\.2026, 09:16/);
+    const region = screen.getByRole('region', { name: 'Полученные возвраты' });
+    await waitFor(() => expect(within(region).getByText('Принято в 1С')).toBeInTheDocument());
+    const status = within(region).getByText('Принято в 1С');
+    expect(status.closest('.pa-action-hint')).toHaveAttribute('aria-label', '№НФY1-005057\n04.11.2026, 06:16');
     expect(screen.queryByRole('button', { name: /Принято в 1С/ })).not.toBeInTheDocument();
   });
 
