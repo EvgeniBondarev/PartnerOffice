@@ -6,6 +6,16 @@ import { OrdersPage } from './orders/OrdersPage';
 import { ReturnsPage } from './returns/ReturnsPage';
 import { HomePage } from './pages/HomePage';
 
+const RETURNS_SECTION_KEY = 'partner-office.returns-section';
+
+function lastReturnsSection(): 'waiting' | 'received' {
+  try {
+    return window.localStorage.getItem(RETURNS_SECTION_KEY) === 'received' ? 'received' : 'waiting';
+  } catch {
+    return 'waiting';
+  }
+}
+
 export function App() {
   return (
     <Routes>
@@ -13,7 +23,7 @@ export function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/returns" element={<Navigate to="/returns/waiting" replace />} />
+          <Route path="/returns" element={<Navigate to={`/returns/${lastReturnsSection()}`} replace />} />
           <Route path="/returns/waiting" element={<ReturnsPage key="waiting" section="waiting" />} />
           <Route path="/returns/received" element={<ReturnsPage key="received" section="received" />} />
           <Route path="/" element={<HomePage />} />

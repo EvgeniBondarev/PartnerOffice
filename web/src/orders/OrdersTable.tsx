@@ -143,7 +143,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
 
   return (
     <div className="pa-table" aria-busy={loading}>
-      <table className="po-table__table">
+      <table className="po-table__table pa-orders-table">
         <thead>
           <tr className="po-table-row__row">
             <th className={`${TH} ${align('left')}`} style={{ width: 72 }}>Фото</th>

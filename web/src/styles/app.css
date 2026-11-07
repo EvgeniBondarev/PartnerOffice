@@ -220,6 +220,18 @@ button.po-day:disabled { cursor: default; }
 .pa-scroll__end { height: 1px; }
 .pa-scroll__footer { display: flex; justify-content: center; padding: 16px; }
 .pa-table .po-table__table { min-width: 980px; table-layout: auto; width: 100%; }
+.pa-orders-table { table-layout: fixed !important; }
+.pa-orders-table th:nth-child(1), .pa-orders-table td:nth-child(1) { width: 5%; }
+.pa-orders-table th:nth-child(2), .pa-orders-table td:nth-child(2) { width: 23%; }
+.pa-orders-table th:nth-child(3), .pa-orders-table td:nth-child(3) { width: 16%; }
+.pa-orders-table th:nth-child(4), .pa-orders-table td:nth-child(4) { width: 13%; }
+.pa-orders-table th:nth-child(5), .pa-orders-table td:nth-child(5) { width: 14%; }
+.pa-orders-table th:nth-child(6), .pa-orders-table td:nth-child(6) { width: 15%; }
+.pa-orders-table th:nth-child(7), .pa-orders-table td:nth-child(7) { width: 7%; }
+.pa-orders-table th:nth-child(8), .pa-orders-table td:nth-child(8) { width: 15%; }
+.pa-orders-table td { min-width: 0; overflow: hidden; }
+.pa-orders-table td:nth-child(3) .pa-copy-value { display: block; min-width: 0; overflow: hidden; }
+.pa-orders-table .pa-number { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pa-table th { white-space: nowrap; }
 .pa-nowrap { white-space: nowrap; }
 .pa-returns__product { display: flex; align-items: flex-start; gap: 12px; }
@@ -238,7 +250,7 @@ button.po-day:disabled { cursor: default; }
 /* Длинные названия обрезаем тремя строками, как в оригинале: колонка не раздувает таблицу, полное название в подсказке и в карточке. */
 .pa-product {
   -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--ozi-text-primary-transparent); display: -webkit-box;
-  max-width: 380px; overflow: hidden; overflow-wrap: anywhere;
+  max-width: 380px; min-width: 0; overflow: hidden; overflow-wrap: normal; word-break: normal;
 }
 .pa-number { font-weight: 600; overflow-wrap: anywhere; }
 .pa-sort { background: none; border: 0; color: inherit; cursor: pointer; font: inherit; font-weight: 600; padding: 0; text-align: left; }
@@ -553,6 +565,7 @@ button.po-day:disabled { cursor: default; }
 .pa-list .pa-table th:nth-child(6), .pa-list .pa-table td:nth-child(6) { width: 5%; }
 .pa-list .pa-table th:nth-child(7), .pa-list .pa-table td:nth-child(7) { width: 12%; }
 .pa-list .pa-returns__product > div:last-child { min-width: 0; }
+.pa-list .pa-returns__product-info { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .pa-list .pa-table td:nth-child(2) .pa-copy-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pa-list .pa-table .pa-returns__mark { width: 15%; white-space: normal; }
 .pa-list .pa-table .pa-returns__mark-box { min-width: 0; }

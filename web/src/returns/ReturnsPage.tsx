@@ -110,6 +110,9 @@ function suggestionLabel(row: ReturnRow, query: string): string {
 
 export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection }) {
   const { partner } = useAuth();
+  useEffect(() => {
+    try { window.localStorage.setItem('partner-office.returns-section', section); } catch { /* storage may be unavailable */ }
+  }, [section]);
   const allowed = hasPermission(partner, 'ViewReturns');
   const canWork = hasPermission(partner, 'ReturnsWork');
   const phone = useMediaQuery('(max-width: 767px)', false);
@@ -374,7 +377,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   ];
   const renderPanel = (hideTitle: boolean) => <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clear}>
     {received
-      ? <><FilterSection title="Приёмка" active={!!panelFilters.mark}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /></FilterSection><FilterSection title="Учёт в 1С" active={!!panelFilters.onec}><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection></>
+      ? <FilterSection title="Приёмка" active={!!panelFilters.mark || !!panelFilters.onec}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
@@ -387,7 +390,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const searching = activeCount > 0 || !!search;
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
-    <div>{row.name || '—'}<div className="pa-sub">{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}</div>
+    <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub">{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}</div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
   const postingCell = (row: ReturnRow) => {
     const main = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—');
@@ -492,7 +495,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
 
 /** Вкладка раздела по брендбуку (tabs.css); количество серым, чтобы не спорить с названием и активным цветом. */
 function ReturnsTab({ to, label, count }: { to: string; label: string; count: number | null }) {
-  return <NavLink to={to} className="po-tab__tab">
+  return <NavLink to={to} className="po-tab__tab" onClick={() => {
+    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/received') ? 'received' : 'waiting'); } catch { /* storage may be unavailable */ }
+  }}>
     {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
       <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500">
         <div className="po-data-content__label po-data-content__label-size-500 ozi-table-500">{label}{count !== null && <span className="pa-returns__tab-count">{count.toLocaleString('ru-RU')}</span>}</div>
