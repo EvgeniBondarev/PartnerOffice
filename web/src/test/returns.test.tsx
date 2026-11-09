@@ -582,6 +582,96 @@ describe('Возвраты', () => {
     });
   });
 
+  describe('«Полка»', () => {
+    const shelfRow = (extra = {}) => ({ key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Шрус NAKAYAMA', offer_id: 'NJ8042NY', posting_number: '0104848991-0347-1', qty: 2,
+      decision: { outcome: 'shelf', status: 'on_shelf', status_name: 'На полке', warehouse: 'ГОМЕЛЬ — партнёр', onec: { number: 'НФУ1-005072', at: '2026-11-10T10:45:12' }, partner_ack_at: null, ...extra } });
+    const shelfPage = (rows = [shelfRow()]) => ({ items: rows, total: rows.length, page: 1, page_size: 50, snapshot_at: null, partial: false, cabinets });
+
+    it('показывает позиции на полке: склад партнёра, документ 1С, статус и счётчик вкладки', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(shelfPage())
+      });
+      renderApp('/returns/shelf');
+      await screen.findByText('Шрус NAKAYAMA');
+      expect(param(listing(calls).url, 'section')).toBe('shelf');
+      const region = screen.getByRole('region', { name: 'Возвраты на полке' });
+      for (const text of ['ГОМЕЛЬ — партнёр', '№НФУ1-005072', 'На полке']) expect(within(region).getByText(text)).toBeInTheDocument();
+      for (const name of ['Склад партнёра', 'Перемещено', 'Статус', 'Отметка']) expect(within(region).getByRole('columnheader', { name })).toBeInTheDocument();
+      expect(within(region).queryByRole('columnheader', { name: 'Приёмка' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Полка/ })).toHaveAttribute('href', '/returns/shelf');
+    });
+
+    it('«Положил на полку» только с правом «Приём возвратов»; отметка не меняет статус и ставится один раз', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(shelfPage())
+      });
+      renderApp('/returns/shelf');
+      await screen.findByText('Шрус NAKAYAMA');
+      expect(screen.queryByRole('button', { name: 'Положил на полку' })).not.toBeInTheDocument();
+      expect(calls.some(c => c.url.includes('shelf-ack'))).toBe(false);
+    });
+
+    it('отметка «Положил на полку»: запрос, дата вместо кнопки, статус «На полке» остаётся', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(shelfPage()),
+        'POST /partner-api/returns/shelf-ack': () => json({ partner_ack_at: '2026-11-10T11:30:00' })
+      });
+      renderApp('/returns/shelf');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Положил на полку' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Положил на полку' })).not.toBeInTheDocument());
+      const post = calls.find(c => c.url.includes('shelf-ack'))!;
+      expect(post.body).toEqual({ key: 'fbs:1:12' });
+      const region = screen.getByRole('region', { name: 'Возвраты на полке' });
+      expect(within(region).getByText('Положил на полку')).toBeInTheDocument();
+      expect(within(region).getByText('На полке')).toBeInTheDocument();
+    });
+
+    it('отметка позиции, которой уже нет на полке: понятное сообщение и обновление списка', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(shelfPage()),
+        'POST /partner-api/returns/shelf-ack': () => json({ error: 'Позиция не найдена среди возвратов на полке.' }, 404)
+      });
+      renderApp('/returns/shelf');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Положил на полку' }));
+      expect(await screen.findByText('Позиции уже нет на полке. Список обновлён.')).toBeInTheDocument();
+    });
+
+    it('фильтр «Отметка» применяется сразу, не показывает пункт выдачи, обе отметки сразу — без фильтра', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(shelfPage())
+      });
+      renderApp('/returns/shelf');
+      await screen.findByText('Шрус NAKAYAMA');
+      expect(screen.queryByLabelText('Название пункта')).not.toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: 'Приёмка' })).not.toBeInTheDocument();
+      const user = userEvent.setup();
+      const group = screen.getByRole('group', { name: 'Отметка' });
+      await user.click(within(group).getByRole('checkbox', { name: 'Ещё не отмечено' }));
+      await waitFor(() => expect(param(listing(calls).url, 'ack')).toBe('no'));
+      expect(within(screen.getByRole('list', { name: 'Выбранные фильтры' })).getByText('Отметка: Ещё не отмечено')).toBeInTheDocument();
+      await user.click(within(group).getByRole('checkbox', { name: 'Положил на полку' }));
+      await waitFor(() => expect(param(listing(calls).url, 'ack')).toBe(''));
+    });
+
+    it('счётчики вкладок: у «Ждёт получения» и «Получено» запрашивается и число на полке', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(received())
+      });
+      renderApp('/returns/waiting');
+      await screen.findByText('Товар А');
+      await waitFor(() => expect(calls.some(c => c.url.includes('section=shelf') && c.url.includes('pageSize=1'))).toBe(true));
+      expect(calls.some(c => c.url.includes('section=received') && c.url.includes('pageSize=1'))).toBe(true);
+    });
+  });
+
   describe('узкие экраны', () => {
     const media = (matches: (query: string) => boolean) => vi.stubGlobal('matchMedia', (query: string) => ({
       matches: matches(query), media: query, addEventListener: () => undefined, removeEventListener: () => undefined
