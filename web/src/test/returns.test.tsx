@@ -504,6 +504,57 @@ describe('Возвраты', () => {
     expect(count).toHaveAttribute('aria-live', 'polite');
   });
 
+  describe('разбор после приёмки', () => {
+    it('«Получено»: у принятого возврата в колонке «Разбор» бейдж «На разборе», у остальных прочерк', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json({
+          items: [
+            { key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Товар А', qty: 1, mark: 'accepted', review: 'queue' },
+            { key: 'fbs:1:13', return_type: 'fbs', id: 13, client_id: '1', name: 'Товар Б', qty: 1, mark: 'pending', review: null }
+          ], total: 2, page: 1, page_size: 50, snapshot_at: null, partial: false
+        })
+      });
+      renderApp('/returns/received');
+      await screen.findByText('Товар А');
+      expect(screen.getByRole('columnheader', { name: 'Разбор' })).toBeInTheDocument();
+      const rows = within(screen.getByRole('region', { name: 'Полученные возвраты' })).getAllByRole('row');
+      expect(within(rows[1]).getByText('На разборе')).toBeInTheDocument();
+      expect(within(rows[2]).queryByText('На разборе')).not.toBeInTheDocument();
+      const lastCell = (row: HTMLElement) => within(row).getAllByRole('cell').at(-1)!;
+      expect(lastCell(rows[1])).toHaveTextContent('На разборе');
+      expect(lastCell(rows[2])).toHaveTextContent('—');
+    });
+
+    it('«Ждёт получения»: колонки и фильтра «Разбор» нет, параметр из адреса не уходит на сервер', async () => {
+      const calls = setup('/returns/waiting?review=queue');
+      await screen.findByText('Товар А');
+      expect(screen.queryByRole('columnheader', { name: 'Разбор' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: 'Разбор' })).not.toBeInTheDocument();
+      expect(param(listing(calls).url, 'review')).toBe('');
+    });
+
+    it('фильтр «Разбор» применяется сразу, без «Найти», и снимается тегом', async () => {
+      const calls = setup('/returns/received');
+      await screen.findByText('Товар А');
+      expect(param(listing(calls).url, 'review')).toBe('');
+      const user = userEvent.setup();
+      await user.click(within(screen.getByRole('group', { name: 'Разбор' })).getByRole('checkbox', { name: 'На разборе' }));
+      await waitFor(() => expect(param(listing(calls).url, 'review')).toBe('queue'));
+      const chips = screen.getByRole('list', { name: 'Выбранные фильтры' });
+      expect(within(chips).getByText('Разбор: На разборе')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Разбор: На разборе' }));
+      await waitFor(() => expect(param(listing(calls).url, 'review')).toBe(''));
+    });
+
+    it('из адреса принимается только известное значение фильтра «Разбор»', async () => {
+      const calls = setup('/returns/received?review=shelf');
+      await screen.findByText('Товар А');
+      expect(param(listing(calls).url, 'review')).toBe('');
+      expect(within(screen.getByRole('group', { name: 'Разбор' })).getByRole('checkbox', { name: 'На разборе' })).not.toBeChecked();
+    });
+  });
+
   describe('узкие экраны', () => {
     const media = (matches: (query: string) => boolean) => vi.stubGlobal('matchMedia', (query: string) => ({
       matches: matches(query), media: query, addEventListener: () => undefined, removeEventListener: () => undefined
