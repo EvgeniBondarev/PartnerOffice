@@ -458,12 +458,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   return <div className="pa-orders pa-list">
     <FilterLayout
       heading={<>
-    <h1 className="po-page__title">Возвраты</h1>
-    <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
-      <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
-      <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
-      <ReturnsTab to="/returns/shelf" label="Полка" count={counts.shelf} />
-    </nav>
+    <h1 className="pa-visually-hidden">Возвраты</h1>
     <p className="pa-returns__description">{section === 'waiting'
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
       : shelf
@@ -471,6 +466,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
       </>}
       search={
+    <div className="pa-list__topbar">
+    <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
+      <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
+      <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
+      <ReturnsTab to="/returns/shelf" label="Полка" count={counts.shelf} />
+    </nav>
     <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
       <div className="pa-list__search-field">
         <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка, документ 1С или код со сканера' : received || shelf ? 'Товар, артикул, коробка или документ 1С' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
@@ -498,6 +499,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       {received && canWork && <span className="pa-returns__scanner ozi-body-400-true">Сканер готов</span>}
       <Button type="submit" size={500}>Найти</Button>
     </form>
+    </div>
       }
       panel={renderPanel} chips={chips} activeCount={activeCount} onClear={clear} onMouseDown={keepSearchFocus}
       resultLabel={data ? `Показать ${data.total.toLocaleString('ru-RU')} ${plural(data.total, 'возврат', 'возврата', 'возвратов')}` : 'Показать'}>

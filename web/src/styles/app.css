@@ -592,3 +592,14 @@ button.po-day:disabled { cursor: default; }
 @media (prefers-reduced-motion: reduce) { .po-skeleton-common__skeleton { animation: none; } }
 .pa-skeleton-stack { display: flex; flex: 1 1 auto; flex-direction: column; gap: 6px; min-width: 0; }
 .pa-list__summary:has(.po-skeleton-common__skeleton) { align-items: center; }
+
+/* Возвраты: вкладки разделов стоят в одной строке с поиском (вместо заголовка страницы), поиск уже, чтобы вкладкам хватало места. */
+.pa-list__topbar { align-items: center; display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 16px; }
+.pa-list .pa-list__topbar .pa-returns__tabs { flex: 0 0 auto; margin: 0; max-width: 100%; }
+.pa-list__topbar .pa-returns__tabs .po-data-content__label { white-space: nowrap; }
+.pa-list .pa-list__topbar .pa-list__search { flex: 1 1 280px; margin-bottom: 0; max-width: 480px; min-width: 0; }
+@media (max-width: 767px) {
+  .pa-list__topbar { gap: 8px; }
+  .pa-list .pa-list__topbar .pa-returns__tabs { overflow-x: auto; }
+  .pa-list .pa-list__topbar .pa-list__search { flex: 1 1 100%; max-width: none; }
+}
