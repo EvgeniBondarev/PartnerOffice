@@ -34,6 +34,8 @@ interface ReturnRow {
   status: string | null; status_name: string | null; target_place: string | null; target_place_addr: string | null; return_date: string | null;
   image_url?: string | null; batch_id?: string | null; ii_code?: string | null;
   onec?: { status: 'accepted' | 'processing' | 'none'; number?: string | null; at?: string | null };
+  /** Разбор после приёмки: «queue» — партнёр принял, сотрудники ещё решают, что с возвратом делать. */
+  review?: 'queue' | null;
   mark?: string; defect?: boolean; missort?: boolean; comment?: string; marked_by?: string;
   /** Штуки одного отправления, показанные одной строкой; у каждой свой key и отметки. */
   units?: ReturnRow[];
@@ -68,9 +70,10 @@ const MARK_OPTIONS = [
   { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
 ];
 const ONEC_OPTIONS = [{ value: 'accepted', label: 'Принято в 1С' }, { value: 'pending', label: 'Ещё не принято' }];
+const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
 
 /** Строки-заглушки по форме настоящих: таблица не прыгает, когда приходят данные. */
-const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
+const skeletonRows = (count: number, hasMark: boolean, hasReview = false) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
   <td className={`${TD} pa-col-product`}><div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="75%" height={16} /><Skeleton width="45%" height={12} /></div></div></td>
   <td className={TD}><div className="pa-skeleton-stack"><Skeleton width={130} height={16} /><Skeleton width={80} height={12} /></div></td>
   <td className={TD}><Skeleton width={110} height={22} radius={11} /></td>
@@ -78,6 +81,7 @@ const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: c
   <td className={TD}><Skeleton width={80} height={16} /></td>
   <td className={TD}><Skeleton width={36} height={16} /></td>
   {hasMark && <td className={TD}><Skeleton width={84} height={22} radius={11} /></td>}
+  {hasReview && <td className={TD}><Skeleton width={84} height={22} radius={11} /></td>}
 </tr>);
 const skeletonCards = (count: number) => Array.from({ length: count }, (_, i) => <li key={`sk-${i}`} className="pa-returns-card" aria-hidden="true">
   <div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="70%" height={16} /><Skeleton width="40%" height={12} /></div></div>
@@ -365,11 +369,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec' | 'review', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...valueChips('mark', 'Приёмка', value => label(MARK_OPTIONS, value)),
     ...valueChips('onec', 'Учёт в 1С', value => label(ONEC_OPTIONS, value)),
+    ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
     ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
@@ -379,6 +384,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     {received
       ? <FilterSection title="Приёмка" active={!!panelFilters.mark || !!panelFilters.onec}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
+    {received && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={REVIEW_OPTIONS} onChange={value => change({ review: value })} /></FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
     </FilterSection>}
@@ -400,6 +406,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
+  const reviewCell = (row: ReturnRow) => row.review === 'queue'
+    ? <span title="Сотрудники решают, что делать с возвратом: оставить на полке, вернуть поставщику или нам"><Badge kind="secondary warning">На разборе</Badge></span>
+    : <span className="pa-sub">—</span>;
   const markCell = (row: ReturnRow) => <MarkCell row={row} onec={row.onec} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
@@ -476,17 +485,18 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
                 </dl>
-                {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
+                {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}{received && row.review === 'queue' && reviewCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
-              <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : []), ...(received ? ['Разбор'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+              <tbody>{loading ? skeletonRows(8, hasMark, received) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
                 <td className={TD}>{statusBadge(row)}</td>
                 <td className={TD}>{placeCell(row)}</td>
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
-              </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
+                {received && <td className={TD}>{reviewCell(row)}</td>}
+              </tr>), ...(loadingMore ? skeletonRows(3, hasMark, received) : [])]}</tbody></table></div>{listEnd}</div>)}
         {phone && !loading && items.length > 0 && listEnd}
     </FilterLayout>
     {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
