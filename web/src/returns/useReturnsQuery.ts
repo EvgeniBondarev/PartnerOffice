@@ -2,16 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { joinList, splitList } from '../lib/multi';
 
-export type ReturnsSection = 'waiting' | 'received' | 'shelf';
-export interface ReturnFilters { pvz: string; status: string; clientId: string; mark: string; onec: string; review: string; ack: string; dateFrom: string; dateTo: string }
+export type ReturnsSection = 'waiting' | 'received' | 'shelf' | 'outbound';
+export interface ReturnFilters { pvz: string; status: string; clientId: string; mark: string; onec: string; review: string; ack: string; to: string; dateFrom: string; dateTo: string }
 
-export const NO_FILTERS: ReturnFilters = { pvz: '', status: '', clientId: '', mark: '', onec: '', review: '', ack: '', dateFrom: '', dateTo: '' };
+export const NO_FILTERS: ReturnFilters = { pvz: '', status: '', clientId: '', mark: '', onec: '', review: '', ack: '', to: '', dateFrom: '', dateTo: '' };
 export const STATUS_VALUES = ['ArrivedAtReturnPlace', 'CheckAtPickupPoint', 'MovingToSeller', 'WaitingShipment'];
 export const MARK_VALUES = ['pending', 'accepted', 'rejected', 'defect', 'missort'];
 export const PVZ_DELAY_MS = 350;
 
 /** Имя параметра в адресной строке: ?mark=pending&client=3. Остальные имена совпадают с параметрами API. */
-const URL_KEYS: Record<keyof ReturnFilters, string> = { pvz: 'pvz', status: 'status', clientId: 'client', mark: 'mark', onec: 'onec', review: 'review', ack: 'ack', dateFrom: 'from', dateTo: 'to' };
+const URL_KEYS: Record<keyof ReturnFilters, string> = { pvz: 'pvz', status: 'status', clientId: 'client', mark: 'mark', onec: 'onec', review: 'review', ack: 'ack', to: 'dest', dateFrom: 'from', dateTo: 'to' };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Значения из адресной строки приходят от кого угодно (ссылка от коллеги, закладка): неизвестное отбрасываем, а не отправляем на сервер. */
@@ -29,6 +29,8 @@ export function parseFilters(params: URLSearchParams, section: ReturnsSection): 
     review: section === 'received' ? list('review', item => item === 'queue') : '',
     // «Полка»: одна отметка из двух; обе сразу — то же, что ни одной
     ack: section === 'shelf' ? (['yes', 'no'].includes(get('ack')) ? get('ack') : '') : '',
+    // «К отправке»: кому — поставщику или нам; оба сразу — то же, что ни одного
+    to: section === 'outbound' ? (['supplier', 'us'].includes(get('to')) ? get('to') : '') : '',
     dateFrom: date('dateFrom'),
     dateTo: date('dateTo')
   };

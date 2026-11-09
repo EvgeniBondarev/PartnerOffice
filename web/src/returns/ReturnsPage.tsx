@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ApiError, request } from '../api/client';
+import { API_BASE_URL, apiUrl } from '../config';
 import { useAuth } from '../auth/AuthContext';
 import { ozonImage } from '../lib/images';
 import { formatDate, formatQuantity, formatRange, formatUtcDateTime } from '../lib/format';
@@ -37,7 +38,7 @@ interface ReturnRow {
   /** Разбор после приёмки: «queue» — партнёр принял, сотрудники ещё решают, что с возвратом делать. */
   review?: 'queue' | null;
   /** «Полка»: решение сотрудников; перемещение в 1С на склад партнёра проведено. */
-  decision?: { outcome?: string; status?: string; status_name?: string | null; status_at?: string | null; warehouse?: string | null; onec?: { number?: string | null; at?: string | null }; partner_ack_at?: string | null };
+  decision?: { outcome?: string; status?: string; status_name?: string | null; status_at?: string | null; warehouse?: string | null; doc_number?: string | null; ttn?: { name: string; size: number } | null; onec?: { number?: string | null; at?: string | null }; partner_ack_at?: string | null };
   mark?: string; defect?: boolean; missort?: boolean; comment?: string; marked_by?: string;
   /** Штуки одного отправления, показанные одной строкой; у каждой свой key и отметки. */
   units?: ReturnRow[];
@@ -75,6 +76,10 @@ const ONEC_OPTIONS = [{ value: 'accepted', label: 'Принято в 1С' }, { v
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
 const ACK_OPTIONS = [{ value: 'yes', label: 'Положил на полку' }, { value: 'no', label: 'Ещё не отмечено' }];
 const SHELF_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад партнёра', 'Перемещено', 'Статус', 'Отметка'];
+const OUTBOUND_COLUMNS = ['Товар', 'Отправление / коробка', 'Кому', 'Склад и документ', 'ТТН', 'Статус'];
+const TO_OPTIONS = [{ value: 'supplier', label: 'Поставщику' }, { value: 'us', label: 'Нам' }];
+/** Статусы решений «К отправке»: «Оформлен» ждёт отправки, остальные — движение товара уже произошло. */
+const OUTBOUND_STATUS_KINDS: Record<string, BadgeKind> = { registered: 'secondary warning', sent: 'primary success', transfer_created: 'secondary info', received: 'primary success' };
 
 /** Строки-заглушки по форме настоящих: таблица не прыгает, когда приходят данные. */
 const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
@@ -141,7 +146,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   // Первый кадр уже со скелетоном: иначе список мигнул бы пустотой до начала загрузки.
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const [counts, setCounts] = useState<Record<ReturnsSection, number | null>>({ waiting: null, received: null, shelf: null });
+  const [counts, setCounts] = useState<Record<ReturnsSection, number | null>>({ waiting: null, received: null, shelf: null, outbound: null });
   const quietRefresh = useRef(false);
   const savingNow = useRef(false);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
@@ -247,7 +252,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
-    for (const other of (['waiting', 'received', 'shelf'] as ReturnsSection[]).filter(name => name !== section)) {
+    for (const other of (['waiting', 'received', 'shelf', 'outbound'] as ReturnsSection[]).filter(name => name !== section)) {
       request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: other, page: '1', pageSize: '1' })}`, { signal: controller.signal })
         .then(result => setCounts(previous => ({ ...previous, [other]: result.total })))
         .catch(() => undefined);
@@ -288,6 +293,28 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       setMarkError(stale ? 'Позиции уже нет на полке. Список обновлён.' : err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
       if (stale) refreshQuietly();
     } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
+  };
+  const [ttnError, setTtnError] = useState('');
+  const [ttnBusy, setTtnBusy] = useState<string[]>([]);
+  /** «Скачать ТТН»: файл отдаёт Studio2 потоком (прямой ссылки нет), поэтому качаем запросом с сессией и сохраняем сами,
+   *  чтобы показать понятную ошибку, если файл недоступен. */
+  const downloadTtn = async (row: ReturnRow) => {
+    if (!row.key || ttnBusy.includes(row.key)) return;
+    setTtnError(''); setTtnBusy(keys => [...keys, row.key!]);
+    try {
+      const response = await fetch(apiUrl(`/partner-api/returns/ttn?key=${encodeURIComponent(row.key)}`), { credentials: API_BASE_URL ? 'include' : 'same-origin' });
+      if (!response.ok) {
+        throw new Error(response.status === 404 ? 'ТТН не найдена: возможно, позиция уже изменилась. Обновите список.'
+          : response.status === 401 ? 'Сессия закончилась. Войдите заново.' : 'Файл ТТН сейчас недоступен. Попробуйте позже.');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url; link.download = row.decision?.ttn?.name || 'ТТН';
+      document.body.appendChild(link); link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setTtnError(err instanceof TypeError ? 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.' : err instanceof Error ? err.message : 'Не удалось скачать ТТН.');
+    } finally { setTtnBusy(keys => keys.filter(key => key !== row.key)); }
   };
   const mark = async (row: ReturnRow, patch: MarkPatch) => {
     if (!row.key || saving.includes(row.key)) return;
@@ -389,24 +416,28 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
   const received = section === 'received';
   const shelf = section === 'shelf';
+  const outbound = section === 'outbound';
   const cabinets = data?.cabinets ?? [];
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec' | 'review' | 'ack', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec' | 'review' | 'ack' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...valueChips('mark', 'Приёмка', value => label(MARK_OPTIONS, value)),
     ...valueChips('onec', 'Учёт в 1С', value => label(ONEC_OPTIONS, value)),
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
     ...valueChips('ack', 'Отметка', value => label(ACK_OPTIONS, value)),
+    ...valueChips('to', 'Кому', value => label(TO_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
     ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
     ...(panelFilters.dateFrom || panelFilters.dateTo ? [{ id: 'date', label: `${received ? 'Получено' : 'Возврат'}: ${formatRange(panelFilters.dateFrom, panelFilters.dateTo)}`, onRemove: () => change({ dateFrom: '', dateTo: '' }) }] : [])
   ];
   const renderPanel = (hideTitle: boolean) => <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clear}>
-    {shelf
+    {outbound
+      ? <FilterSection title="Кому" active={!!panelFilters.to}><CheckboxGroup value={panelFilters.to} options={TO_OPTIONS} onChange={value => change({ to: value.includes(',') ? '' : value })} /></FilterSection>
+      : shelf
       ? <FilterSection title="Отметка" active={!!panelFilters.ack}><CheckboxGroup value={panelFilters.ack} options={ACK_OPTIONS} onChange={value => change({ ack: value.includes(',') ? '' : value })} /></FilterSection>
       : received
       ? <FilterSection title="Приёмка" active={!!panelFilters.mark || !!panelFilters.onec}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection>
@@ -415,11 +446,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
     </FilterSection>}
-    {!shelf && <FilterSection title="Пункт выдачи" active={!!panelFilters.pvz}><TextField label="Название пункта" value={pvzDraft} onValueChange={setPvzDraft} size={500} maxLength={100} /></FilterSection>}
-    <DateFilterSection title={shelf ? 'Дата перемещения' : received ? 'Дата получения' : 'Дата возврата'} from={panelFilters.dateFrom} to={panelFilters.dateTo} onChange={(dateFrom, dateTo) => change({ dateFrom, dateTo })} />
+    {!shelf && !outbound && <FilterSection title="Пункт выдачи" active={!!panelFilters.pvz}><TextField label="Название пункта" value={pvzDraft} onValueChange={setPvzDraft} size={500} maxLength={100} /></FilterSection>}
+    <DateFilterSection title={outbound ? 'Дата решения' : shelf ? 'Дата перемещения' : received ? 'Дата получения' : 'Дата возврата'} from={panelFilters.dateFrom} to={panelFilters.dateTo} onChange={(dateFrom, dateTo) => change({ dateFrom, dateTo })} />
   </FilterPanel>;
   const rows = displayedRows(items, expandedUnits);
-  const hasMark = !shelf && (canWork || received);
+  const hasMark = !shelf && !outbound && (canWork || received);
   const searching = activeCount > 0 || !!search;
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
@@ -433,6 +464,15 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
+  const outboundTo = (row: ReturnRow) => row.decision?.outcome === 'us' ? 'Нам' : 'Поставщику';
+  const outboundDoc = (row: ReturnRow) => {
+    const doc = row.decision?.outcome === 'us' ? (row.decision?.onec?.number ? `№${row.decision.onec.number}` : '') : row.decision?.doc_number || '';
+    return <>{row.decision?.warehouse || '—'}<div className="pa-sub">{doc ? <CopyValue value={doc} label="номер документа">{doc}</CopyValue> : ''}</div></>;
+  };
+  const outboundTtn = (row: ReturnRow) => row.decision?.ttn
+    ? <Button variant="secondary" size={400} disabled={!!row.key && ttnBusy.includes(row.key)} onClick={() => downloadTtn(row)}>Скачать ТТН</Button>
+    : <span className="pa-sub">—</span>;
+  const outboundStatus = (row: ReturnRow) => <Badge kind={OUTBOUND_STATUS_KINDS[row.decision?.status ?? ''] ?? 'secondary neutral'}>{row.decision?.status_name || '—'}</Badge>;
   const shelfWarehouse = (row: ReturnRow) => row.decision?.warehouse || '—';
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
@@ -461,7 +501,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     <h1 className="pa-visually-hidden">Возвраты</h1>
     <p className="pa-returns__description">{section === 'waiting'
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
-      : shelf
+      : outbound
+        ? 'Возвраты, которые по решению сотрудников нужно отправить поставщику или вернуть нам. Скачайте ТТН и передайте товар вместе с ней.'
+        : shelf
         ? 'Возвраты, которые по решению сотрудников остаются у вас: перемещение на ваш склад в 1С проведено. Отметка «Положил на полку» необязательна.'
         : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
       </>}
@@ -471,10 +513,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
       <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
       <ReturnsTab to="/returns/shelf" label="Полка" count={counts.shelf} />
+      <ReturnsTab to="/returns/outbound" label="К отправке" count={counts.outbound} />
     </nav>
     <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
       <div className="pa-list__search-field">
-        <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка, документ 1С или код со сканера' : received || shelf ? 'Товар, артикул, коробка или документ 1С' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
+        <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка, документ 1С или код со сканера' : received || shelf || outbound ? 'Товар, артикул, коробка или документ' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
           onValueChange={value => { if (value !== autoTried.current) autoTried.current = ''; noteInput(value); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = value.trim(); setSearchDraft(value); }}
           onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === searchDraft.trim() && suggestions.length) setSuggestionsOpen(true); }}
           onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
@@ -506,6 +549,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     {received && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
         {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
         {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
+        {ttnError && <div className="pa-notice"><Informer kind="error" title="Не удалось скачать ТТН">{ttnError}</Informer></div>}
         {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
         {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}
         {loading && !data && !error && <div className="pa-list__summary" role="status" aria-label="Загружаем возвраты"><Skeleton width={110} height={24} /><Skeleton width={190} height={16} /></div>}
@@ -513,11 +557,17 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         {!loading && !error && data && items.length === 0 && <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState>}
         {!error && (loading || items.length > 0) && (
           phone
-            ? <ul className="pa-returns-cards" aria-label={shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : [...rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+            ? <ul className="pa-returns-cards" aria-label={outbound ? 'Возвраты к отправке' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : [...rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 {productCell(row)}
                 <dl className="pa-returns-card__details">
                   <dt>Отправление / коробка</dt><dd>{postingCell(row)}</dd>
-                  {shelf ? <>
+                  {outbound ? <>
+                    <dt>Кому</dt><dd>{outboundTo(row)}</dd>
+                    <dt>Склад и документ</dt><dd>{outboundDoc(row)}</dd>
+                    <dt>Статус</dt><dd>{outboundStatus(row)}</dd>
+                    <dt>Кабинет</dt><dd>{cabinetName(row)}</dd>
+                    <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
+                  </> : shelf ? <>
                     <dt>Склад партнёра</dt><dd>{shelfWarehouse(row)}</dd>
                     <dt>Перемещено</dt><dd>{shelfMoved(row)}</dd>
                     <dt>Статус</dt><dd>{shelfStatus(row)}</dd>
@@ -531,13 +581,19 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd></>}
                 </dl>
                 {shelf && <div className="pa-returns__mark-box pa-returns-card__mark">{ackCell(row)}</div>}
+                {outbound && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{(shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={outbound ? 'Возвраты к отправке' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ' pa-table--outbound' : shelf ? ' pa-table--shelf' : ''}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(outbound ? OUTBOUND_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
-                {shelf ? <>
+                {outbound ? <>
+                  <td className={TD}>{outboundTo(row)}</td>
+                  <td className={TD}>{outboundDoc(row)}</td>
+                  <td className={TD}>{outboundTtn(row)}</td>
+                  <td className={TD}>{outboundStatus(row)}</td>
+                </> : shelf ? <>
                   <td className={TD}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)} шт.</div></td>
                   <td className={TD}>{shelfMoved(row)}</td>
                   <td className={TD}>{shelfStatus(row)}</td>
@@ -558,7 +614,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
 /** Вкладка раздела по брендбуку (tabs.css); количество серым, чтобы не спорить с названием и активным цветом. */
 function ReturnsTab({ to, label, count }: { to: string; label: string; count: number | null }) {
   return <NavLink to={to} className="po-tab__tab" onClick={() => {
-    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/received') ? 'received' : to.endsWith('/shelf') ? 'shelf' : 'waiting'); } catch { /* storage may be unavailable */ }
+    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/received') ? 'received' : to.endsWith('/shelf') ? 'shelf' : to.endsWith('/outbound') ? 'outbound' : 'waiting'); } catch { /* storage may be unavailable */ }
   }}>
     {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
       <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500">
