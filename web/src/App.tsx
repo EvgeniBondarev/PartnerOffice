@@ -8,10 +8,10 @@ import { HomePage } from './pages/HomePage';
 
 const RETURNS_SECTION_KEY = 'partner-office.returns-section';
 
-function lastReturnsSection(): 'waiting' | 'received' | 'shelf' {
+function lastReturnsSection(): 'waiting' | 'received' | 'shelf' | 'outbound' {
   try {
     const saved = window.localStorage.getItem(RETURNS_SECTION_KEY);
-    return saved === 'received' || saved === 'shelf' ? saved : 'waiting';
+    return saved === 'received' || saved === 'shelf' || saved === 'outbound' ? saved : 'waiting';
   } catch {
     return 'waiting';
   }
@@ -28,6 +28,7 @@ export function App() {
           <Route path="/returns/waiting" element={<ReturnsPage key="waiting" section="waiting" />} />
           <Route path="/returns/received" element={<ReturnsPage key="received" section="received" />} />
           <Route path="/returns/shelf" element={<ReturnsPage key="shelf" section="shelf" />} />
+          <Route path="/returns/outbound" element={<ReturnsPage key="outbound" section="outbound" />} />
           <Route path="/" element={<HomePage />} />
         </Route>
       </Route>
