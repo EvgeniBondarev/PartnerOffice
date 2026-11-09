@@ -47,7 +47,9 @@ interface ReturnRow {
 }
 type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
 type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean };
-interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; cabinets?: { id: number; name: string; ozonClientId: string }[] }
+type BatchMarkResult = { key: string; ok: boolean; changes?: ReturnMark; error?: string };
+interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; revision?: string | null; cabinets?: { id: number; name: string; ozonClientId: string }[] }
+interface ReturnChanges { revision?: string | null; changed: boolean; reset: boolean; upsert: ReturnRow[]; remove: string[]; counts: Partial<Record<ReturnsSection, number>>; }
 /** Разобранная строка заменяется своими штуками; картинка есть только у строки верхнего уровня. */
 const displayedRows = (items: ReturnRow[], expanded: Set<string>): ReturnRow[] => items.flatMap(row =>
   row.units?.length && row.key && expanded.has(row.key) ? row.units.map(unit => ({ ...unit, image_url: row.image_url, unitOf: row.key })) : [row]);
@@ -135,6 +137,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [data, setData] = useState<ReturnPage | null>(null);
   // Список подгружается при прокрутке: items копится порциями, pagesLoaded — сколько порций уже в нём.
   const [items, setItems] = useState<ReturnRow[]>([]);
+  const itemsRef = useRef<ReturnRow[]>([]);
+  useEffect(() => { itemsRef.current = items; }, [items]);
   const [pagesLoaded, setPagesLoaded] = useState(1);
   const pagesRef = useRef(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -197,11 +201,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     if (!allowed) return;
     const controller = new AbortController();
     moreController.current?.abort();
-    // Фоновое обновление не прячет таблицу, не трогает подсказки и не показывает ошибку: остаётся прежний список;
-    // уже подгруженные порции обновляются все, чтобы список не «откатывался» к первой.
+    // Фоновое обновление не прячет таблицу, не трогает подсказки и не показывает ошибку.
+    // Оно не перечитывает все ранее загруженные страницы: это превращало обновление в N запросов.
     const quiet = quietRefresh.current;
     quietRefresh.current = false;
-    const upto = quiet ? pagesRef.current : 1;
+    const upto = 1;
     if (!quiet) { setLoading(true); setError(''); setMoreError(''); setLoadingMore(false); }
     Promise.all(Array.from({ length: upto }, (_, index) => request<ReturnPage>(listUrl(index + 1), { signal: controller.signal })))
       .then(results => {
@@ -248,15 +252,24 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observable, hasMore, loading, loadingMore, moreError, pagesLoaded, phone]);
 
-  // Количество в подписях вкладок — все возвраты раздела без фильтров; недоступное число просто не показываем.
+  // Счётчики всех разделов приходят одним агрегированным запросом, без трёх list-запросов.
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
-    for (const other of (['waiting', 'received', 'shelf', 'outbound'] as ReturnsSection[]).filter(name => name !== section)) {
-      request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: other, page: '1', pageSize: '1' })}`, { signal: controller.signal })
-        .then(result => setCounts(previous => ({ ...previous, [other]: result.total })))
-        .catch(() => undefined);
-    }
+    const loadLegacyCounts = () => {
+      for (const other of (['waiting', 'received', 'shelf', 'outbound'] as ReturnsSection[]).filter(name => name !== section)) {
+        request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: other, page: '1', pageSize: '1' })}`, { signal: controller.signal })
+          .then(result => setCounts(previous => ({ ...previous, [other]: result.total })))
+          .catch(() => undefined);
+      }
+    };
+    request<{ counts: Partial<Record<ReturnsSection, number>> }>('/partner-api/returns/counts', { signal: controller.signal })
+      .then(result => {
+        if (result?.counts) setCounts(previous => ({ ...previous, ...result.counts }));
+        else loadLegacyCounts();
+      })
+      // Compatible rollout: an already deployed Studio2 may not yet expose /counts.
+      .catch(() => loadLegacyCounts());
     return () => controller.abort();
   }, [allowed, section, retry]);
 
@@ -269,11 +282,38 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       quietRefresh.current = true;
       setRetry(n => n + 1);
     };
-    const timer = window.setInterval(refresh, 60_000);
+    const timer = window.setInterval(refresh, 15_000);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh); };
   }, [allowed]);
+
+  // Поток передаёт только revision. Сами строки берём защищённым delta endpoint;
+  // при потере потока остаётся 15-секундный опрос выше.
+  useEffect(() => {
+    if (!allowed || !data?.revision || typeof EventSource === 'undefined') return;
+    let closed = false;
+    let busy = false;
+    const source = new EventSource(apiUrl('/partner-api/returns/events'), { withCredentials: Boolean(API_BASE_URL) });
+    const update = async () => {
+      if (busy || closed) return;
+      busy = true;
+      try {
+        const query = new URLSearchParams({ since: data.revision! });
+        itemsRef.current.map(row => row.key).filter((key): key is string => Boolean(key)).forEach(key => query.append('loaded_key', key));
+        const delta = await request<ReturnChanges>(`/partner-api/returns/changes?${query}`);
+        if (closed || !delta.changed) return;
+        setCounts(previous => ({ ...previous, ...delta.counts }));
+        if (delta.reset) { refreshQuietly(); return; }
+        const removed = new Set(delta.remove);
+        const upsert = new Map(delta.upsert.filter(row => row.key).map(row => [row.key!, row]));
+        setItems(previous => previous.filter(row => !row.key || !removed.has(row.key)).map(row => upsert.get(row.key || '') || row));
+      } catch { /* fallback poll will retry; do not disrupt an open list */ }
+      finally { busy = false; }
+    };
+    source.addEventListener('revision', update);
+    return () => { closed = true; source.close(); };
+  }, [allowed, data?.revision]);
 
   /** Перечитать уже показанные порции, не прячась за скелетон: после отметки и скана список остаётся на месте. */
   const refreshQuietly = () => { quietRefresh.current = true; setRetry(n => n + 1); };
@@ -323,13 +363,29 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     savingNow.current = true;
     setMarkError(''); setSaving(keys => [...keys, row.key!]);
     try {
-      let result: ReturnMark = {};
-      for (const key of keys) result = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key, ...patch }) });
+      let results: BatchMarkResult[];
+      try {
+        const response = await request<{ results: BatchMarkResult[] }>('/partner-api/returns/marks', {
+          method: 'POST', body: JSON.stringify({ operationId: crypto.randomUUID(), keys, ...patch })
+        });
+        results = response.results;
+      } catch (error) {
+        // Совместимый rollout: до выката Studio2 batch endpoint ещё отсутствует.
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        results = await Promise.all(keys.map(async key => ({ key, ok: true, changes: await request<ReturnMark>(
+          '/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key, ...patch }) }) })));
+      }
+      const changes = new Map(results.filter(result => result.ok && result.changes).map(result => [result.key, result.changes!]));
+      const failures = results.filter(result => !result.ok);
       setItems(previous => previous.map(item =>
-        row.unitOf ? (item.key === row.unitOf ? { ...item, units: item.units?.map(unit => unit.key === row.key ? { ...unit, ...result } : unit) } : item)
-          : item.key === row.key ? { ...item, ...result, units: item.units?.map(unit => ({ ...unit, ...result })) } : item));
+        row.unitOf ? (item.key === row.unitOf ? { ...item, units: item.units?.map(unit => changes.get(unit.key || '') ? { ...unit, ...changes.get(unit.key || '') } : unit) } : item)
+          : item.key === row.key ? {
+            ...item, ...(changes.get(row.key || '') || {}),
+            units: item.units?.map(unit => changes.get(unit.key || '') ? { ...unit, ...changes.get(unit.key || '') } : unit)
+          } : item));
+      if (failures.length) setMarkError(`Не сохранено: ${failures.map(result => result.key).join(', ')}.`);
       // отметка одной штуки могла разделить строку: как их показывать, решает сервер
-      if (row.unitOf) refreshQuietly();
+      if (row.unitOf || failures.length) refreshQuietly();
     } catch (err) {
       // 404/409: возврат уже закрыт сотрудниками, изменился или по нему принято решение — список устарел
       const stale = err instanceof ApiError && (err.status === 404 || err.status === 409);
