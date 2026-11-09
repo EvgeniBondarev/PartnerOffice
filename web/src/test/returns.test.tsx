@@ -320,13 +320,13 @@ describe('Возвраты', () => {
     mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': () => json(received()),
-      'POST /partner-api/returns/mark': () => json({ error: 'Возврат не найден.' }, 404)
+      'POST /partner-api/returns/mark': () => json({ error: 'Сервис возвратов временно недоступен.' }, 503)
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
     await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Брак' }));
-    expect(await screen.findByText('Возврат не найден.')).toBeInTheDocument();
+    expect(await screen.findByText('Сервис возвратов временно недоступен.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' })).toBeInTheDocument();
   });
 
@@ -505,7 +505,7 @@ describe('Возвраты', () => {
   });
 
   describe('разбор после приёмки', () => {
-    it('«Получено»: у принятого возврата в колонке «Разбор» бейдж «На разборе», у остальных прочерк', async () => {
+    it('«Получено»: у принятого возврата серый бейдж «На разборе» под статусом, отдельной колонки нет', async () => {
       mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
         '/partner-api/returns?*': () => json({
@@ -517,19 +517,17 @@ describe('Возвраты', () => {
       });
       renderApp('/returns/received');
       await screen.findByText('Товар А');
-      expect(screen.getByRole('columnheader', { name: 'Разбор' })).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Разбор' })).not.toBeInTheDocument();
       const rows = within(screen.getByRole('region', { name: 'Полученные возвраты' })).getAllByRole('row');
-      expect(within(rows[1]).getByText('На разборе')).toBeInTheDocument();
+      const badge = within(rows[1]).getByText('На разборе');
+      expect(badge.closest('.po-badge__badge')).toHaveClass('po-badge__neutral');
+      expect(within(rows[1]).getByText('Принят')).toBeInTheDocument();
       expect(within(rows[2]).queryByText('На разборе')).not.toBeInTheDocument();
-      const lastCell = (row: HTMLElement) => within(row).getAllByRole('cell').at(-1)!;
-      expect(lastCell(rows[1])).toHaveTextContent('На разборе');
-      expect(lastCell(rows[2])).toHaveTextContent('—');
     });
 
     it('«Ждёт получения»: колонки и фильтра «Разбор» нет, параметр из адреса не уходит на сервер', async () => {
       const calls = setup('/returns/waiting?review=queue');
       await screen.findByText('Товар А');
-      expect(screen.queryByRole('columnheader', { name: 'Разбор' })).not.toBeInTheDocument();
       expect(screen.queryByRole('group', { name: 'Разбор' })).not.toBeInTheDocument();
       expect(param(listing(calls).url, 'review')).toBe('');
     });
@@ -545,6 +543,35 @@ describe('Возвраты', () => {
       expect(within(chips).getByText('Разбор: На разборе')).toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Разбор: На разборе' }));
       await waitFor(() => expect(param(listing(calls).url, 'review')).toBe(''));
+    });
+
+    it('отметка устаревшего возврата: понятное сообщение и обновление списка вместо «Возврат не найден»', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(received()),
+        'POST /partner-api/returns/mark': () => json({ error: 'Возврат не найден.' }, 404)
+      });
+      renderApp('/returns/received');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
+      await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+      expect(await screen.findByText(/Возврат уже изменился или закрыт сотрудниками/)).toBeInTheDocument();
+      expect(screen.queryByText('Возврат не найден.')).not.toBeInTheDocument();
+      const before = calls.filter(c => c.url.startsWith('/partner-api/returns?')).length;
+      await waitFor(() => expect(calls.filter(c => c.url.startsWith('/partner-api/returns?')).length).toBeGreaterThan(before - 1));
+    });
+
+    it('отметка возврата с решением: сообщение сервера и обновление списка', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(received({ mark: 'accepted', review: 'queue' })),
+        'POST /partner-api/returns/mark': () => json({ error: 'По возврату уже принято решение: отметку изменить нельзя.' }, 409)
+      });
+      renderApp('/returns/received');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
+      await user.click(await screen.findByRole('menuitemradio', { name: 'Не принят' }));
+      expect(await screen.findByText('По возврату уже принято решение: отметку изменить нельзя.')).toBeInTheDocument();
     });
 
     it('из адреса принимается только известное значение фильтра «Разбор»', async () => {
