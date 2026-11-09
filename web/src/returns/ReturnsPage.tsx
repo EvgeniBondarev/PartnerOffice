@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink } from 'react-router-dom';
-import { request } from '../api/client';
+import { ApiError, request } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ozonImage } from '../lib/images';
 import { formatDate, formatQuantity, formatRange, formatUtcDateTime } from '../lib/format';
@@ -73,7 +73,7 @@ const ONEC_OPTIONS = [{ value: 'accepted', label: 'Принято в 1С' }, { v
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
 
 /** Строки-заглушки по форме настоящих: таблица не прыгает, когда приходят данные. */
-const skeletonRows = (count: number, hasMark: boolean, hasReview = false) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
+const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
   <td className={`${TD} pa-col-product`}><div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="75%" height={16} /><Skeleton width="45%" height={12} /></div></div></td>
   <td className={TD}><div className="pa-skeleton-stack"><Skeleton width={130} height={16} /><Skeleton width={80} height={12} /></div></td>
   <td className={TD}><Skeleton width={110} height={22} radius={11} /></td>
@@ -81,7 +81,6 @@ const skeletonRows = (count: number, hasMark: boolean, hasReview = false) => Arr
   <td className={TD}><Skeleton width={80} height={16} /></td>
   <td className={TD}><Skeleton width={36} height={16} /></td>
   {hasMark && <td className={TD}><Skeleton width={84} height={22} radius={11} /></td>}
-  {hasReview && <td className={TD}><Skeleton width={84} height={22} radius={11} /></td>}
 </tr>);
 const skeletonCards = (count: number) => Array.from({ length: count }, (_, i) => <li key={`sk-${i}`} className="pa-returns-card" aria-hidden="true">
   <div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="70%" height={16} /><Skeleton width="40%" height={12} /></div></div>
@@ -285,8 +284,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       // отметка одной штуки могла разделить строку: как их показывать, решает сервер
       if (row.unitOf) refreshQuietly();
     } catch (err) {
-      setMarkError(err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
-      if (keys.length > 1) refreshQuietly();   // часть штук могла сохраниться
+      // 404/409: возврат уже закрыт сотрудниками, изменился или по нему принято решение — список устарел
+      const stale = err instanceof ApiError && (err.status === 404 || err.status === 409);
+      setMarkError(stale
+        ? (err.status === 409 ? err.message : 'Возврат уже изменился или закрыт сотрудниками. Список обновлён, проверьте статус.')
+        : err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
+      if (stale || keys.length > 1) refreshQuietly();   // часть штук могла сохраниться
     } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
   };
   useEffect(() => { if (highlighted) (highlightedRow.current ?? highlightedCard.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, items]);
@@ -406,9 +409,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
-  const reviewCell = (row: ReturnRow) => row.review === 'queue'
-    ? <span title="Сотрудники решают, что делать с возвратом: оставить на полке, вернуть поставщику или нам"><Badge kind="secondary warning">На разборе</Badge></span>
-    : <span className="pa-sub">—</span>;
   const markCell = (row: ReturnRow) => <MarkCell row={row} onec={row.onec} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
@@ -485,18 +485,17 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
                 </dl>
-                {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}{received && row.review === 'queue' && reviewCell(row)}</div>}
+                {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : []), ...(received ? ['Разбор'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
-              <tbody>{loading ? skeletonRows(8, hasMark, received) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className="pa-table"><table className="po-table__table"><thead><tr className="po-table-row__row">{['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])].map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+              <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
                 <td className={TD}>{statusBadge(row)}</td>
                 <td className={TD}>{placeCell(row)}</td>
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
-                {received && <td className={TD}>{reviewCell(row)}</td>}
-              </tr>), ...(loadingMore ? skeletonRows(3, hasMark, received) : [])]}</tbody></table></div>{listEnd}</div>)}
+              </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
         {phone && !loading && items.length > 0 && listEnd}
     </FilterLayout>
     {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
@@ -563,6 +562,8 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
         </button>
       : <Badge kind={status.kind}>{status.label}</Badge>}
     {flags.map(flag => <Badge key={flag.field} kind={flag.kind}>{flag.label}</Badge>)}
+    {/* Разбор после приёмки: серый бейдж под основным статусом, чтобы не расширять таблицу */}
+    {row.review === 'queue' && <div className="pa-returns__review"><Badge kind="secondary neutral" title="Сотрудники решают, что делать с возвратом: оставить на полке, вернуть поставщику или нам">На разборе</Badge></div>}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
       <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
         {items.map((item, index) => <div key={item.id}>
