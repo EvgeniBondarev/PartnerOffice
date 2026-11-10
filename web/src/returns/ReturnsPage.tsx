@@ -553,6 +553,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
       </>}
       top={
+    <div className="pa-list__topbar">
     <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
       <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
       <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
@@ -560,9 +561,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       <ReturnsTab to="/returns/supplier" label="Возврат поставщику" count={counts.supplier} />
       <ReturnsTab to="/returns/warehouse" label="Возврат на склад" count={counts.warehouse} />
     </nav>
-      }
-      search={
-    <div className="pa-list__topbar">
     <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
       <div className="pa-list__search-field">
         <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка, документ 1С или код со сканера' : received || shelf || outbound ? 'Товар, артикул, коробка или документ' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
