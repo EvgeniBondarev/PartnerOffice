@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ApiError, request } from '../api/client';
 import { API_BASE_URL, apiUrl } from '../config';
@@ -798,9 +798,13 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
       : <Badge kind={status.kind}>{status.label}</Badge>}
     {accepted && (canWork
       ? <div className="pa-subchips" role="radiogroup" aria-label="Результат приёмки">
-        {MARK_SUBS.map(option => <button key={option.value} type="button" role="radio" aria-checked={option.value === sub} disabled={busy}
-          className={`pa-subchip pa-subchip--${option.value}${option.value === sub ? ' pa-subchip--active' : ''}`}
-          onClick={() => { if (option.value !== sub) onChange(subPatch(option.value)); }}>{option.label}</button>)}
+        {MARK_SUBS.map(option => <Fragment key={option.value}>
+          {/* ОК стоит в верхней строке рядом со статусом, «Брак» и «Пересорт» переносятся на строку ниже */}
+          {option.value === 'defect' && <span className="pa-subchips__break" aria-hidden="true" />}
+          <button type="button" role="radio" aria-checked={option.value === sub} disabled={busy}
+            className={`pa-subchip pa-subchip--${option.value}${option.value === sub ? ' pa-subchip--active' : ''}`}
+            onClick={() => { if (option.value !== sub) onChange(subPatch(option.value)); }}>{option.label}</button>
+        </Fragment>)}
       </div>
       : sub !== 'ok' && <span className={`pa-subchip pa-subchip--${sub} pa-subchip--active`}>{MARK_SUBS.find(option => option.value === sub)?.label}</span>)}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
