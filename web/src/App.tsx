@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { RequireAuth } from './auth/RequireAuth';
 import { AppShell } from './layout/AppShell';
 import { LoginPage } from './pages/LoginPage';
@@ -8,13 +8,20 @@ import { HomePage } from './pages/HomePage';
 
 const RETURNS_SECTION_KEY = 'partner-office.returns-section';
 
-function lastReturnsSection(): 'waiting' | 'received' | 'shelf' | 'outbound' {
+function lastReturnsSection(): 'waiting' | 'received' | 'shelf' | 'supplier' | 'warehouse' {
   try {
     const saved = window.localStorage.getItem(RETURNS_SECTION_KEY);
-    return saved === 'received' || saved === 'shelf' || saved === 'outbound' ? saved : 'waiting';
+    if (saved === 'outbound') return 'supplier';   // прежняя вкладка «К отправке»
+    return saved === 'received' || saved === 'shelf' || saved === 'supplier' || saved === 'warehouse' ? saved : 'waiting';
   } catch {
     return 'waiting';
   }
+}
+
+/** Прежняя вкладка «К отправке» разделилась: ссылка с `dest=us` ведёт во «Возврат на склад», остальные — во «Возврат поставщику». */
+function OutboundRedirect() {
+  const { search } = useLocation();
+  return <Navigate to={new URLSearchParams(search).get('dest') === 'us' ? '/returns/warehouse' : '/returns/supplier'} replace />;
 }
 
 export function App() {
@@ -28,7 +35,9 @@ export function App() {
           <Route path="/returns/waiting" element={<ReturnsPage key="waiting" section="waiting" />} />
           <Route path="/returns/received" element={<ReturnsPage key="received" section="received" />} />
           <Route path="/returns/shelf" element={<ReturnsPage key="shelf" section="shelf" />} />
-          <Route path="/returns/outbound" element={<ReturnsPage key="outbound" section="outbound" />} />
+          <Route path="/returns/supplier" element={<ReturnsPage key="supplier" section="supplier" />} />
+          <Route path="/returns/warehouse" element={<ReturnsPage key="warehouse" section="warehouse" />} />
+          <Route path="/returns/outbound" element={<OutboundRedirect />} />
           <Route path="/" element={<HomePage />} />
         </Route>
       </Route>

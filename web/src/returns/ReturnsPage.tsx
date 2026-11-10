@@ -80,8 +80,11 @@ const MARK_SUB_OPTIONS = [{ value: 'ok', label: 'ОК (стандартно)' },
 const SUB_VALUES = MARK_SUB_OPTIONS.map(option => option.value);
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
 const SHELF_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад партнёра', 'Перемещено', 'Статус'];
-const OUTBOUND_COLUMNS = ['Товар', 'Отправление / коробка', 'Кому', 'Склад и документ', 'ТТН', 'Статус'];
-const TO_OPTIONS = [{ value: 'supplier', label: 'Поставщику' }, { value: 'us', label: 'Нам' }];
+const SUPPLIER_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад и документ', 'ТТН', 'Статус'];
+const WAREHOUSE_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад и документ', 'Статус'];
+/** «Возврат поставщику» и «Возврат на склад» — один раздел `outbound` в API, разделённый адресатом решения (`to`: supplier / us). */
+const listParams = (name: ReturnsSection): Record<string, string> =>
+  name === 'supplier' ? { section: 'outbound', to: 'supplier' } : name === 'warehouse' ? { section: 'outbound', to: 'us' } : { section: name };
 /** Статусы решений «К отправке»: «Оформлен» ждёт отправки, остальные — движение товара уже произошло. */
 const OUTBOUND_STATUS_KINDS: Record<string, BadgeKind> = { registered: 'secondary warning', sent: 'primary success', transfer_created: 'secondary info', received: 'primary success' };
 
@@ -152,7 +155,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   // Первый кадр уже со скелетоном: иначе список мигнул бы пустотой до начала загрузки.
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
-  const [counts, setCounts] = useState<Record<ReturnsSection, number | null>>({ waiting: null, received: null, shelf: null, outbound: null });
+  const [counts, setCounts] = useState<Record<ReturnsSection, number | null>>({ waiting: null, received: null, shelf: null, supplier: null, warehouse: null });
   const quietRefresh = useRef(false);
   const savingNow = useRef(false);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
@@ -198,7 +201,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
 
   useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
-  const listUrl = (page: number) => `/partner-api/returns?${new URLSearchParams({ section, page: String(page), pageSize: String(PAGE_SIZE), ...filters })}`;
+  const listUrl = (page: number) => `/partner-api/returns?${new URLSearchParams({ ...listParams(section), page: String(page), pageSize: String(PAGE_SIZE), ...filters })}`;
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
@@ -258,20 +261,22 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
-    const loadLegacyCounts = () => {
-      for (const other of (['waiting', 'received', 'shelf', 'outbound'] as ReturnsSection[]).filter(name => name !== section)) {
-        request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ section: other, page: '1', pageSize: '1' })}`, { signal: controller.signal })
+    const loadCounts = (names: ReturnsSection[]) => {
+      for (const other of names.filter(name => name !== section)) {
+        request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ ...listParams(other), page: '1', pageSize: '1' })}`, { signal: controller.signal })
           .then(result => setCounts(previous => ({ ...previous, [other]: result.total })))
           .catch(() => undefined);
       }
     };
-    request<{ counts: Partial<Record<ReturnsSection, number>> }>('/partner-api/returns/counts', { signal: controller.signal })
+    // «Возврат поставщику» и «Возврат на склад» агрегированный запрос не разделяет по адресату: их счётчики — отдельными запросами
+    loadCounts(['supplier', 'warehouse']);
+    request<{ counts: Partial<Record<string, number>> }>('/partner-api/returns/counts', { signal: controller.signal })
       .then(result => {
-        if (result?.counts) setCounts(previous => ({ ...previous, ...result.counts }));
-        else loadLegacyCounts();
+        if (result?.counts) setCounts(previous => ({ ...previous, ...Object.fromEntries((['waiting', 'received', 'shelf'] as const).filter(name => result.counts[name] !== undefined).map(name => [name, result.counts[name]])) }));
+        else loadCounts(['waiting', 'received', 'shelf']);
       })
       // Compatible rollout: an already deployed Studio2 may not yet expose /counts.
-      .catch(() => loadLegacyCounts());
+      .catch(() => loadCounts(['waiting', 'received', 'shelf']));
     return () => controller.abort();
   }, [allowed, section, retry]);
 
@@ -459,12 +464,14 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
   const received = section === 'received';
   const shelf = section === 'shelf';
-  const outbound = section === 'outbound';
+  const supplier = section === 'supplier';
+  const warehouse = section === 'warehouse';
+  const outbound = supplier || warehouse;
   const cabinets = data?.cabinets ?? [];
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...splitList(panelFilters.mark).map(value => ({
@@ -473,16 +480,13 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       onRemove: () => { const rest = splitList(panelFilters.mark).filter(item => item !== value); change({ mark: joinList(SUB_VALUES.includes(value) && !rest.some(item => SUB_VALUES.includes(item)) && !rest.includes('accepted') ? [...rest, 'accepted'] : rest) }); }
     })),
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
-    ...valueChips('to', 'Кому', value => label(TO_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
     ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
     ...(panelFilters.dateFrom || panelFilters.dateTo ? [{ id: 'date', label: `${received ? 'Получено' : 'Возврат'}: ${formatRange(panelFilters.dateFrom, panelFilters.dateTo)}`, onRemove: () => change({ dateFrom: '', dateTo: '' }) }] : [])
   ];
   const renderPanel = (hideTitle: boolean) => <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clear}>
-    {outbound
-      ? <FilterSection title="Кому" active={!!panelFilters.to}><CheckboxGroup value={panelFilters.to} options={TO_OPTIONS} onChange={value => change({ to: value.includes(',') ? '' : value })} /></FilterSection>
-      : shelf
+    {outbound || shelf
       ? null
       : received
       ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /></FilterSection>
@@ -509,7 +513,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
-  const outboundTo = (row: ReturnRow) => row.decision?.outcome === 'us' ? 'Нам' : 'Поставщику';
   const outboundDoc = (row: ReturnRow) => {
     const doc = row.decision?.outcome === 'us' ? (row.decision?.onec?.number ? `№${row.decision.onec.number}` : '') : row.decision?.doc_number || '';
     return <>{row.decision?.warehouse || '—'}<div className="pa-sub">{doc ? <CopyValue value={doc} label="номер документа">{doc}</CopyValue> : ''}</div></>;
@@ -541,8 +544,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     <h1 className="pa-visually-hidden">Возвраты</h1>
     <p className="pa-returns__description">{section === 'waiting'
       ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
-      : outbound
-        ? 'Возвраты, которые по решению сотрудников нужно отправить поставщику или вернуть нам. Скачайте ТТН и передайте товар вместе с ней.'
+      : supplier
+        ? 'Возвраты, которые по решению сотрудников нужно отправить поставщику. Скачайте ТТН и передайте товар вместе с ней.'
+        : warehouse
+        ? 'Возвраты, которые по решению сотрудников возвращаются на наш склад: перемещение в 1С создано. Когда товар придёт к нам, статус станет «Получено нами».'
         : shelf
         ? 'Возвраты, которые по решению сотрудников остаются у вас: перемещение на ваш склад в 1С проведено.'
         : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
@@ -553,7 +558,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
       <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
       <ReturnsTab to="/returns/shelf" label="Полка" count={counts.shelf} />
-      <ReturnsTab to="/returns/outbound" label="К отправке" count={counts.outbound} />
+      <ReturnsTab to="/returns/supplier" label="Возврат поставщику" count={counts.supplier} />
+      <ReturnsTab to="/returns/warehouse" label="Возврат на склад" count={counts.warehouse} />
     </nav>
     <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
       <div className="pa-list__search-field">
@@ -597,12 +603,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         {!loading && !error && data && items.length === 0 && <EmptyState illustration={emptyIllustration} title={searching ? 'Ничего не найдено' : 'Возвратов пока нет'}>{searching ? 'Попробуйте изменить или сбросить фильтры.' : 'Возвраты появятся здесь, когда Ozon передаст данные.'}</EmptyState>}
         {!error && (loading || items.length > 0) && (
           phone
-            ? <ul className="pa-returns-cards" aria-label={outbound ? 'Возвраты к отправке' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : [...rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
+            ? <ul className="pa-returns-cards" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'} aria-busy={loading}>{loading ? skeletonCards(6) : [...rows.map(row => <li ref={row.key === highlighted ? highlightedCard : undefined} className={`pa-returns-card${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 {productCell(row)}
                 <dl className="pa-returns-card__details">
                   <dt>Отправление / коробка</dt><dd>{postingCell(row)}</dd>
                   {outbound ? <>
-                    <dt>Кому</dt><dd>{outboundTo(row)}</dd>
                     <dt>Склад и документ</dt><dd>{outboundDoc(row)}</dd>
                     <dt>Статус</dt><dd>{outboundStatus(row)}</dd>
                     <dt>Кабинет</dt><dd>{cabinetName(row)}</dd>
@@ -620,17 +625,16 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd></>}
                 </dl>
-                {outbound && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
+                {supplier && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={outbound ? 'Возвраты к отправке' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ' pa-table--outbound' : shelf ? ' pa-table--shelf' : ''}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(outbound ? OUTBOUND_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ''}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
                 {outbound ? <>
-                  <td className={TD}>{outboundTo(row)}</td>
                   <td className={TD}>{outboundDoc(row)}</td>
-                  <td className={TD}>{outboundTtn(row)}</td>
+                  {supplier && <td className={TD}>{outboundTtn(row)}</td>}
                   <td className={TD}>{outboundStatus(row)}</td>
                 </> : shelf ? <>
                   <td className={TD}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)} шт.</div></td>
@@ -652,7 +656,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
 /** Вкладка раздела по брендбуку (tabs.css); количество серым, чтобы не спорить с названием и активным цветом. */
 function ReturnsTab({ to, label, count }: { to: string; label: string; count: number | null }) {
   return <NavLink to={to} className="po-tab__tab" onClick={() => {
-    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/received') ? 'received' : to.endsWith('/shelf') ? 'shelf' : to.endsWith('/outbound') ? 'outbound' : 'waiting'); } catch { /* storage may be unavailable */ }
+    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/received') ? 'received' : to.endsWith('/shelf') ? 'shelf' : to.endsWith('/supplier') ? 'supplier' : to.endsWith('/warehouse') ? 'warehouse' : 'waiting'); } catch { /* storage may be unavailable */ }
   }}>
     {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
       <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500">

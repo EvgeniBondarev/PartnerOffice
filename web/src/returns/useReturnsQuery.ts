@@ -2,16 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { joinList, splitList } from '../lib/multi';
 
-export type ReturnsSection = 'waiting' | 'received' | 'shelf' | 'outbound';
-export interface ReturnFilters { pvz: string; status: string; clientId: string; mark: string; review: string; to: string; dateFrom: string; dateTo: string }
+export type ReturnsSection = 'waiting' | 'received' | 'shelf' | 'supplier' | 'warehouse';
+export interface ReturnFilters { pvz: string; status: string; clientId: string; mark: string; review: string; dateFrom: string; dateTo: string }
 
-export const NO_FILTERS: ReturnFilters = { pvz: '', status: '', clientId: '', mark: '', review: '', to: '', dateFrom: '', dateTo: '' };
+export const NO_FILTERS: ReturnFilters = { pvz: '', status: '', clientId: '', mark: '', review: '', dateFrom: '', dateTo: '' };
 export const STATUS_VALUES = ['ArrivedAtReturnPlace', 'CheckAtPickupPoint', 'MovingToSeller', 'WaitingShipment'];
 export const MARK_VALUES = ['pending', 'accepted', 'rejected', 'ok', 'defect', 'missort'];
 export const PVZ_DELAY_MS = 350;
 
 /** Имя параметра в адресной строке: ?mark=pending&client=3. Остальные имена совпадают с параметрами API. */
-const URL_KEYS: Record<keyof ReturnFilters, string> = { pvz: 'pvz', status: 'status', clientId: 'client', mark: 'mark', review: 'review', to: 'dest', dateFrom: 'from', dateTo: 'to' };
+const URL_KEYS: Record<keyof ReturnFilters, string> = { pvz: 'pvz', status: 'status', clientId: 'client', mark: 'mark', review: 'review', dateFrom: 'from', dateTo: 'to' };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Значения из адресной строки приходят от кого угодно (ссылка от коллеги, закладка): неизвестное отбрасываем, а не отправляем на сервер. */
@@ -26,8 +26,6 @@ export function parseFilters(params: URLSearchParams, section: ReturnsSection): 
     status: section === 'waiting' ? list('status', item => STATUS_VALUES.includes(item)) : '',
     mark: section === 'received' ? list('mark', item => MARK_VALUES.includes(item)) : '',
     review: section === 'received' ? list('review', item => item === 'queue') : '',
-    // «К отправке»: кому — поставщику или нам; оба сразу — то же, что ни одного
-    to: section === 'outbound' ? (['supplier', 'us'].includes(get('to')) ? get('to') : '') : '',
     dateFrom: date('dateFrom'),
     dateTo: date('dateTo')
   };

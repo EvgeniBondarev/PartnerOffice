@@ -726,30 +726,86 @@ describe('Возвраты', () => {
     });
   });
 
-  describe('«К отправке»', () => {
+  describe('«Возврат поставщику» и «Возврат на склад»', () => {
     const outboundRow = (extra = {}, decision = {}) => ({ key: 'fbo:9c1e:1', return_type: 'fbo', id: null, client_id: '1', name: 'NAKAYAMA NJ1694NY - Шрус', offer_id: 'NJ1694NY', box_barcode: 'ii15854304554', qty: 1,
       decision: { outcome: 'supplier', status: 'registered', status_name: 'Оформлен', warehouse: 'Минск — возвраты', doc_number: 'ВП-000214', ttn: { name: 'ТТН-214.pdf', size: 186368 }, ...decision }, ...extra });
     const outboundPage = (rows = [outboundRow()]) => ({ items: rows, total: rows.length, page: 1, page_size: 50, snapshot_at: null, partial: false, cabinets });
 
-    it('показывает кому, склад и документ, статус и кнопку «Скачать ТТН»; у «Нам» ТТН нет', async () => {
+    it('«Возврат поставщику»: склад и документ, статус и кнопка «Скачать ТТН», без колонки «Кому»', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(outboundPage())
+      });
+      renderApp('/returns/supplier');
+      await screen.findByText('NAKAYAMA NJ1694NY - Шрус');
+      expect([param(listing(calls).url, 'section'), param(listing(calls).url, 'to')]).toEqual(['outbound', 'supplier']);
+      const region = screen.getByRole('region', { name: 'Возвраты поставщику' });
+      for (const name of ['Склад и документ', 'ТТН', 'Статус']) expect(within(region).getByRole('columnheader', { name })).toBeInTheDocument();
+      expect(within(region).queryByRole('columnheader', { name: 'Кому' })).not.toBeInTheDocument();
+      const row = within(region).getAllByRole('row')[1];
+      for (const text of ['Минск — возвраты', 'ВП-000214', 'Оформлен']) expect(within(row).getByText(text)).toBeInTheDocument();
+      expect(within(row).getByRole('button', { name: 'Скачать ТТН' })).toBeInTheDocument();
+    });
+
+    it('«Возврат на склад»: наш склад и № 1С, статус, колонки ТТН нет', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
         '/partner-api/returns?*': () => json(outboundPage([
-          outboundRow(),
           outboundRow({ key: 'fbo:3d91:1', name: 'NAKAYAMA Q4225 - Диск тормозной' }, { outcome: 'us', status: 'transfer_created', status_name: 'Перемещение создано', warehouse: 'Основной склад M1', doc_number: null, ttn: null, onec: { number: 'НФУ1-005090', at: '2026-11-10T12:05:40' } })
         ]))
       });
-      renderApp('/returns/outbound');
+      renderApp('/returns/warehouse');
+      await screen.findByText('NAKAYAMA Q4225 - Диск тормозной');
+      expect([param(listing(calls).url, 'section'), param(listing(calls).url, 'to')]).toEqual(['outbound', 'us']);
+      const region = screen.getByRole('region', { name: 'Возвраты на склад' });
+      for (const name of ['Склад и документ', 'Статус']) expect(within(region).getByRole('columnheader', { name })).toBeInTheDocument();
+      for (const name of ['ТТН', 'Кому']) expect(within(region).queryByRole('columnheader', { name })).not.toBeInTheDocument();
+      const row = within(region).getAllByRole('row')[1];
+      for (const text of ['Основной склад M1', '№НФУ1-005090', 'Перемещение создано']) expect(within(row).getByText(text)).toBeInTheDocument();
+      expect(within(row).queryByRole('button', { name: 'Скачать ТТН' })).not.toBeInTheDocument();
+    });
+
+    it('вкладки: Ждёт получения, Получено, Полка, Возврат поставщику, Возврат на склад; «К отправке» больше нет', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(outboundPage())
+      });
+      renderApp('/returns/supplier');
       await screen.findByText('NAKAYAMA NJ1694NY - Шрус');
-      expect(param(listing(calls).url, 'section')).toBe('outbound');
-      const region = screen.getByRole('region', { name: 'Возвраты к отправке' });
-      for (const name of ['Кому', 'Склад и документ', 'ТТН', 'Статус']) expect(within(region).getByRole('columnheader', { name })).toBeInTheDocument();
-      const rows = within(region).getAllByRole('row');
-      for (const text of ['Поставщику', 'Минск — возвраты', 'ВП-000214', 'Оформлен']) expect(within(rows[1]).getByText(text)).toBeInTheDocument();
-      expect(within(rows[1]).getByRole('button', { name: 'Скачать ТТН' })).toBeInTheDocument();
-      for (const text of ['Нам', 'Основной склад M1', '№НФУ1-005090', 'Перемещение создано']) expect(within(rows[2]).getByText(text)).toBeInTheDocument();
-      expect(within(rows[2]).queryByRole('button', { name: 'Скачать ТТН' })).not.toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /К отправке/ })).toHaveAttribute('href', '/returns/outbound');
+      const nav = screen.getByRole('navigation', { name: 'Разделы возвратов' });
+      expect(within(nav).getAllByRole('link').map(link => [link.textContent?.replace(/\d[\d\s\u00a0]*$/, '').trim(), link.getAttribute('href')])).toEqual([
+        ['Ждёт получения', '/returns/waiting'], ['Получено', '/returns/received'], ['Полка', '/returns/shelf'],
+        ['Возврат поставщику', '/returns/supplier'], ['Возврат на склад', '/returns/warehouse']]);
+      expect(within(nav).queryByText(/К отправке/)).not.toBeInTheDocument();
+    });
+
+    it('счётчики двух вкладок считаются по адресату: поставщику и на склад', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(received())
+      });
+      renderApp('/returns/received');
+      await screen.findByText('Товар А');
+      await waitFor(() => expect(calls.some(c => c.url.includes('section=outbound') && c.url.includes('to=supplier') && c.url.includes('pageSize=1'))).toBe(true));
+      expect(calls.some(c => c.url.includes('section=outbound') && c.url.includes('to=us') && c.url.includes('pageSize=1'))).toBe(true);
+    });
+
+    it('старая ссылка «К отправке» ведёт во «Возврат поставщику», а с dest=us — во «Возврат на склад»', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(outboundPage())
+      });
+      renderApp('/returns/outbound');
+      await screen.findByRole('region', { name: 'Возвраты поставщику' });
+      expect(param(listing(calls).url, 'to')).toBe('supplier');
+      cleanup();
+      const other = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(outboundPage())
+      });
+      renderApp('/returns/outbound?dest=us');
+      await screen.findByRole('region', { name: 'Возвраты на склад' });
+      expect(param(listing(other).url, 'to')).toBe('us');
     });
 
     it('«Скачать ТТН» запрашивает файл по ключу позиции и сохраняет его под своим именем', async () => {
@@ -762,7 +818,7 @@ describe('Возвраты', () => {
         '/partner-api/returns?*': () => json(outboundPage()),
         '/partner-api/returns/ttn?*': () => ({ status: 200, file: new TextEncoder().encode('%PDF-1.4'), headers: { 'Content-Type': 'application/pdf' } })
       });
-      renderApp('/returns/outbound');
+      renderApp('/returns/supplier');
       const user = userEvent.setup();
       await user.click(await screen.findByRole('button', { name: 'Скачать ТТН' }));
       await waitFor(() => expect(clicked).toEqual(['ТТН-214.pdf']));
@@ -779,7 +835,7 @@ describe('Возвраты', () => {
         '/partner-api/returns?*': () => json(outboundPage()),
         '/partner-api/returns/ttn?*': () => json({ error: 'ТТН не найдена.' }, 404)
       });
-      renderApp('/returns/outbound');
+      renderApp('/returns/supplier');
       const user = userEvent.setup();
       await user.click(await screen.findByRole('button', { name: 'Скачать ТТН' }));
       expect(await screen.findByText('Не удалось скачать ТТН')).toBeInTheDocument();
@@ -793,36 +849,21 @@ describe('Возвраты', () => {
         '/partner-api/returns?*': () => json(outboundPage()),
         '/partner-api/returns/ttn?*': () => json({ error: 'x' }, 503)
       });
-      renderApp('/returns/outbound');
+      renderApp('/returns/supplier');
       await userEvent.setup().click(await screen.findByRole('button', { name: 'Скачать ТТН' }));
       expect(await screen.findByText('Файл ТТН сейчас недоступен. Попробуйте позже.')).toBeInTheDocument();
     });
 
-    it('фильтр «Кому» применяется сразу, не показывает пункт выдачи; оба значения сразу — без фильтра', async () => {
+    it('в разделах нет фильтра «Кому» и поля пункта выдачи; параметр dest из адреса на сервер не уходит', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
         '/partner-api/returns?*': () => json(outboundPage())
       });
-      renderApp('/returns/outbound');
+      renderApp('/returns/supplier?dest=us');
       await screen.findByText('NAKAYAMA NJ1694NY - Шрус');
+      expect(screen.queryByRole('group', { name: 'Кому' })).not.toBeInTheDocument();
       expect(screen.queryByLabelText('Название пункта')).not.toBeInTheDocument();
-      const user = userEvent.setup();
-      const group = screen.getByRole('group', { name: 'Кому' });
-      await user.click(within(group).getByRole('checkbox', { name: 'Поставщику' }));
-      await waitFor(() => expect(param(listing(calls).url, 'to')).toBe('supplier'));
-      expect(within(screen.getByRole('list', { name: 'Выбранные фильтры' })).getByText('Кому: Поставщику')).toBeInTheDocument();
-      await user.click(within(group).getByRole('checkbox', { name: 'Нам' }));
-      await waitFor(() => expect(param(listing(calls).url, 'to')).toBe(''));
-    });
-
-    it('из адреса принимается только известное значение «Кому», а в других разделах оно не уходит на сервер', async () => {
-      const calls = mockApi({
-        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
-        '/partner-api/returns?*': () => json(received())
-      });
-      renderApp('/returns/received?dest=supplier');
-      await screen.findByText('Товар А');
-      expect(param(listing(calls).url, 'to')).toBe('');
+      expect(param(listing(calls).url, 'to')).toBe('supplier');
     });
   });
 
