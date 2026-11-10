@@ -103,7 +103,7 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Принят: Товар А')).toBeInTheDocument();
     expect(search).toHaveValue('');
     expect(screen.queryByRole('listbox', { name: 'Подсказки по возвратам' })).not.toBeInTheDocument();
-    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted', defect: false, missort: false });
     expect(calls.some(c => c.url.includes('exact=true'))).toBe(true);
   });
 
@@ -149,7 +149,7 @@ describe('Возвраты', () => {
     const user = userEvent.setup();
     await user.type(screen.getByRole('searchbox', { name: 'Поиск возвратов' }), 'ii14471039742{Enter}');
     expect(await screen.findByText('Принят: Подушка двигателя 11483 FEBI')).toBeInTheDocument();
-    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbo:abc:1', status: 'accepted' });
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbo:abc:1', status: 'accepted', defect: false, missort: false });
   });
 
   it('принимает позицию по быстро набранному коду и без Enter', async () => {
@@ -165,7 +165,7 @@ describe('Возвраты', () => {
     await user.type(search, 'ii14471039743');
     expect(await screen.findByText('Принят: Товар А')).toBeInTheDocument();
     expect(search).toHaveValue('');
-    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted', defect: false, missort: false });
     expect(calls.filter(c => c.url.includes('exact=true')).every(c => c.url.includes('search=ii14471039743'))).toBe(true);
   });
 
@@ -252,8 +252,75 @@ describe('Возвраты', () => {
     await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    // «Принят» не закрывает меню: под ним раскрывается «Результат приёмки»
+    expect(screen.getByRole('menuitemradio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{Escape}');
     expect(within(screen.getByRole('table')).getByText('Брак')).toBeInTheDocument();
-    expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted' });
+    expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: false });
+  });
+
+  describe('приёмка: основной статус и подстатус', () => {
+    const accepted = (extra = {}) => ({ mark: 'accepted', defect: false, missort: false, ...extra });
+    const arrange = (row: Record<string, unknown>, reply: Record<string, unknown>) => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(received(row)),
+        'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: { comment: '', ...reply } }] })
+      });
+      renderApp('/returns/received');
+      return calls;
+    };
+
+    it('в меню нет флажков «Брак»/«Пересорт», подстатус виден только у «Принят»', async () => {
+      arrange({}, accepted());
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
+      expect(screen.queryByRole('menuitemcheckbox')).not.toBeInTheDocument();
+      expect(screen.queryByText('Результат приёмки')).not.toBeInTheDocument();
+      expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual(['Ожидает', 'Принят', 'Не принят']);
+    });
+
+    it('«Принят»: раскрывается «Результат приёмки», по умолчанию ОК; брак сохраняется сразу и статус остаётся', async () => {
+      const calls = arrange({ mark: 'accepted' }, accepted({ defect: true }));
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
+      expect(screen.getByText('Результат приёмки')).toBeInTheDocument();
+      expect(screen.getByRole('menuitemradio', { name: /^ОК/ })).toHaveAttribute('aria-checked', 'true');
+      await user.click(screen.getByRole('menuitemradio', { name: 'Брак' }));
+      await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: true, missort: false }));
+      // выбор подстатуса закрывает меню; основной бейдж — по-прежнему «Принят», рядом бейдж «Брак»
+      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
+      expect(screen.getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Брак')).toBeInTheDocument();
+    });
+
+    it('подстатусы взаимоисключающие; клавиатура проходит по радиокнопкам', async () => {
+      const calls = arrange({ mark: 'accepted', defect: true }, accepted({ missort: true }));
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
+      expect(screen.getByRole('menuitemradio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('menuitemradio', { name: 'Пересорт' })).toHaveAttribute('aria-checked', 'false');
+      await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}'); // Принят → ОК → Брак → Пересорт
+      await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: true }));
+    });
+
+    it('уход из «Принят» сбрасывает подстатус и закрывает меню', async () => {
+      const calls = arrange({ mark: 'accepted', defect: true }, { mark: 'rejected', defect: false, missort: false });
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
+      await user.click(screen.getByRole('menuitemradio', { name: 'Не принят' }));
+      await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected', defect: false, missort: false }));
+      expect(await screen.findByRole('button', { name: 'Статус приёмки: Не принят' })).toBeInTheDocument();
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('table')).queryByText('Брак')).not.toBeInTheDocument();
+    });
+
+    it('у «Ожидает» и «Не принят» бейджа подстатуса нет, даже если в данных остался старый флаг', async () => {
+      arrange({ mark: 'pending', defect: true, missort: true }, accepted());
+      await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
+      expect(within(screen.getByRole('table')).queryByText('Брак')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('table')).queryByText('Пересорт')).not.toBeInTheDocument();
+    });
   });
 
   it('подтягивает свежие данные при возврате на вкладку, не прячет таблицу', async () => {
@@ -287,7 +354,7 @@ describe('Возвраты', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
-    await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected' }));
+    await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected', defect: false, missort: false }));
   });
 
   it('штуки одного отправления показаны одной строкой: отметка на все, разбор показывает каждую', async () => {
@@ -309,7 +376,7 @@ describe('Возвраты', () => {
     await user.click(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
-    expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([expect.objectContaining({ keys: ['fbs:1', 'fbs:2'], status: 'accepted' })]);
+    expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([expect.objectContaining({ keys: ['fbs:1', 'fbs:2'], status: 'accepted', defect: false, missort: false })]);
 
     await user.click(toggle);
     expect(await screen.findAllByText('Втулка')).toHaveLength(2);
@@ -328,7 +395,7 @@ describe('Возвраты', () => {
     renderApp('/returns/received');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
-    await user.click(await screen.findByRole('menuitemcheckbox', { name: 'Брак' }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByText('Сервис возвратов временно недоступен.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' })).toBeInTheDocument();
   });
@@ -366,16 +433,40 @@ describe('Возвраты', () => {
     await screen.findByText('Товар А');
     const user = userEvent.setup();
     const group = screen.getByRole('group', { name: 'Приёмка' });
+    await user.click(within(group).getByRole('checkbox', { name: 'Ожидает' }));
     await user.click(within(group).getByRole('checkbox', { name: 'Принят' }));
-    await user.click(within(group).getByRole('checkbox', { name: 'Брак' }));
-    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('accepted,defect'));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('pending,accepted'));
     const chips = screen.getByRole('list', { name: 'Выбранные фильтры' });
+    expect(within(chips).getByText('Приёмка: Ожидает')).toBeInTheDocument();
     expect(within(chips).getByText('Приёмка: Принят')).toBeInTheDocument();
-    expect(within(chips).getByText('Приёмка: Брак')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Приёмка: Принят' }));
+    await user.click(screen.getByRole('button', { name: 'Убрать фильтр: Приёмка: Ожидает' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('accepted'));
+    expect(within(group).getByRole('checkbox', { name: 'Принят' })).toBeChecked();
+    expect(within(group).getByRole('checkbox', { name: 'Ожидает' })).not.toBeChecked();
+  });
+
+  it('фильтр «Приёмка»: уточнение ОК / Брак / Пересорт появляется только при «Принят»; в старой ссылке ?mark=defect — «Принят → Брак»', async () => {
+    const calls = setup('/returns/received');
+    await screen.findByText('Товар А');
+    const user = userEvent.setup();
+    const group = screen.getByRole('group', { name: 'Приёмка' });
+    expect(screen.queryByRole('group', { name: 'Результат приёмки' })).not.toBeInTheDocument();
+    await user.click(within(group).getByRole('checkbox', { name: 'Принят' }));
+    const sub = await screen.findByRole('group', { name: 'Результат приёмки' });
+    await user.click(within(sub).getByRole('checkbox', { name: 'Брак' }));
     await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('defect'));
-    expect(within(group).getByRole('checkbox', { name: 'Брак' })).toBeChecked();
-    expect(within(group).getByRole('checkbox', { name: 'Принят' })).not.toBeChecked();
+    expect(within(screen.getByRole('list', { name: 'Выбранные фильтры' })).getByText('Приёмка: Принят · Брак')).toBeInTheDocument();
+    await user.click(within(sub).getByRole('checkbox', { name: 'Брак' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('accepted'));
+    await user.click(within(group).getByRole('checkbox', { name: 'Принят' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe(''));
+    expect(screen.queryByRole('group', { name: 'Результат приёмки' })).not.toBeInTheDocument();
+    cleanup();
+    const legacy = setup('/returns/received?mark=missort');
+    await screen.findByText('Товар А');
+    expect(param(listing(legacy).url, 'mark')).toBe('missort');
+    expect(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Принят' })).toBeChecked();
+    expect(within(screen.getByRole('group', { name: 'Результат приёмки' })).getByRole('checkbox', { name: 'Пересорт' })).toBeChecked();
   });
 
   it('«Ждёт получения»: свои фильтры — статус Ozon, а не приёмка', async () => {
@@ -423,9 +514,9 @@ describe('Возвраты', () => {
     const calls = setup('/returns/received');
     await screen.findByText('Товар А');
     const user = userEvent.setup();
-    await user.click(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Брак' }));
-    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('defect'));
-    expect(screen.getByRole('checkbox', { name: 'Брак' })).toBeChecked();
+    await user.click(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Не принят' }));
+    await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('rejected'));
+    expect(screen.getByRole('checkbox', { name: 'Не принят' })).toBeChecked();
   });
 
   it('быстрые даты задают период, включая сегодняшний день', async () => {
@@ -808,8 +899,8 @@ describe('Возвраты', () => {
       const user = userEvent.setup();
       await user.click(screen.getByRole('button', { name: /^Фильтры/ }));
       const sheet = await screen.findByRole('complementary', { name: 'Фильтры' });
-      await user.click(within(sheet).getByRole('checkbox', { name: 'Брак' }));
-      await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('defect'));
+      await user.click(within(sheet).getByRole('checkbox', { name: 'Не принят' }));
+      await waitFor(() => expect(param(listing(calls).url, 'mark')).toBe('rejected'));
       await user.click(within(sheet).getByRole('button', { name: 'Показать 1 возврат' }));
       expect(screen.queryByRole('complementary', { name: 'Фильтры' })).not.toBeInTheDocument();
     });

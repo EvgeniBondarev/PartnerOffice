@@ -7,7 +7,7 @@ export interface ReturnFilters { pvz: string; status: string; clientId: string; 
 
 export const NO_FILTERS: ReturnFilters = { pvz: '', status: '', clientId: '', mark: '', onec: '', review: '', ack: '', to: '', dateFrom: '', dateTo: '' };
 export const STATUS_VALUES = ['ArrivedAtReturnPlace', 'CheckAtPickupPoint', 'MovingToSeller', 'WaitingShipment'];
-export const MARK_VALUES = ['pending', 'accepted', 'rejected', 'defect', 'missort'];
+export const MARK_VALUES = ['pending', 'accepted', 'rejected', 'ok', 'defect', 'missort'];
 export const PVZ_DELAY_MS = 350;
 
 /** Имя параметра в адресной строке: ?mark=pending&client=3. Остальные имена совпадают с параметрами API. */
