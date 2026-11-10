@@ -522,7 +522,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
   const shelfStatus = (row: ReturnRow) => <Badge kind="primary success">{row.decision?.status_name || 'На полке'}</Badge>;
-  const markCell = (row: ReturnRow) => <MarkCell row={row} onec={row.onec} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
+  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
@@ -700,10 +700,10 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
 }
 
 /**
- * Статус приёмки: бейдж открывает список; у возврата, уже перемещённого в 1С (не на склад партнёра), статус только виден. Основной статус один (Ожидает / Принят / Не принят); у «Принят» раскрывается
+ * Статус приёмки: бейдж открывает список. Основной статус один (Ожидает / Принят / Не принят); у «Принят» раскрывается
  * «Результат приёмки» — ОК / Брак / Пересорт радиокнопками. Подстатус не меняет статус, уход из «Принят» сбрасывает его в ОК.
  */
-function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec?: ReturnRow['onec']; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
+function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
   const sub = markSub(row);
   const subBadge = MARK_SUBS.find(item => item.value === sub && item.kind);
@@ -754,7 +754,7 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
   const firstSub = items.findIndex(item => item.sub);
 
   return <div className="pa-returns__mark-box" ref={rootRef}>
-    {canWork && !(onec && onec.status !== 'none')
+    {canWork
       ? <button type="button" ref={buttonRef} className="pa-badge-button" aria-haspopup="menu" aria-expanded={open} aria-label={`Статус приёмки: ${status.label}`} disabled={busy}
           onClick={() => setOpen(!open)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); } }}>
           <Badge kind={status.kind} chevron>{status.label}</Badge>
@@ -762,8 +762,6 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
       : <Badge kind={status.kind}>{status.label}</Badge>}
     {/* Маленький бейдж рядом — только если подстатус не ОК; у «Ожидает» и «Не принят» его нет */}
     {subBadge && <Badge kind={subBadge.kind!} size={400}>{subBadge.label}</Badge>}
-    {/* Разбор после приёмки: серый бейдж под основным статусом, чтобы не расширять таблицу */}
-    {row.review === 'queue' && <div className="pa-returns__review"><Badge kind="secondary neutral" title="Сотрудники решают, что делать с возвратом: оставить на полке, вернуть поставщику или нам">На разборе</Badge></div>}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
       <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
         {items.map((item, index) => <div key={item.id}>
