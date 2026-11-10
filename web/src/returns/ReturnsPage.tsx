@@ -79,8 +79,7 @@ const MARK_OPTIONS = [{ value: 'pending', label: 'Ожидает' }, { value: 'a
 const MARK_SUB_OPTIONS = [{ value: 'ok', label: 'ОК (стандартно)' }, { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }];
 const SUB_VALUES = MARK_SUB_OPTIONS.map(option => option.value);
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
-const ACK_OPTIONS = [{ value: 'yes', label: 'Положил на полку' }, { value: 'no', label: 'Ещё не отмечено' }];
-const SHELF_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад партнёра', 'Перемещено', 'Статус', 'Отметка'];
+const SHELF_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад партнёра', 'Перемещено', 'Статус'];
 const OUTBOUND_COLUMNS = ['Товар', 'Отправление / коробка', 'Кому', 'Склад и документ', 'ТТН', 'Статус'];
 const TO_OPTIONS = [{ value: 'supplier', label: 'Поставщику' }, { value: 'us', label: 'Нам' }];
 /** Статусы решений «К отправке»: «Оформлен» ждёт отправки, остальные — движение товара уже произошло. */
@@ -321,22 +320,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   /** Перечитать уже показанные порции, не прячась за скелетон: после отметки и скана список остаётся на месте. */
   const refreshQuietly = () => { quietRefresh.current = true; setRetry(n => n + 1); };
 
-  /** Отметка приёмки: сервер возвращает итоговое состояние, им и заменяем строку (без угадывания на клиенте). */
-  /** «Положил на полку»: необязательная отметка партнёра, статус позиции не меняется. */
-  const ack = async (row: ReturnRow) => {
-    if (!row.key || saving.includes(row.key)) return;
-    savingNow.current = true;
-    setMarkError(''); setSaving(keys => [...keys, row.key!]);
-    try {
-      const result = await request<{ partner_ack_at: string | null }>('/partner-api/returns/shelf-ack', { method: 'POST', body: JSON.stringify({ key: row.key }) });
-      setItems(previous => previous.map(item => item.key === row.key ? { ...item, decision: { ...item.decision, partner_ack_at: result.partner_ack_at } } : item));
-    } catch (err) {
-      // 404/400: позиции уже нет на полке (сотрудник её снял) — список устарел
-      const stale = err instanceof ApiError && (err.status === 404 || err.status === 400);
-      setMarkError(stale ? 'Позиции уже нет на полке. Список обновлён.' : err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
-      if (stale) refreshQuietly();
-    } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
-  };
   const [ttnError, setTtnError] = useState('');
   const [ttnBusy, setTtnBusy] = useState<string[]>([]);
   /** «Скачать ТТН»: файл отдаёт Studio2 потоком (прямой ссылки нет), поэтому качаем запросом с сессией и сохраняем сами,
@@ -359,6 +342,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       setTtnError(err instanceof TypeError ? 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.' : err instanceof Error ? err.message : 'Не удалось скачать ТТН.');
     } finally { setTtnBusy(keys => keys.filter(key => key !== row.key)); }
   };
+  /** Отметка приёмки: сервер возвращает итоговое состояние, им и заменяем строку (без угадывания на клиенте). */
   const mark = async (row: ReturnRow, patch: MarkPatch) => {
     if (!row.key || saving.includes(row.key)) return;
     // свёрнутая строка — это несколько записей: отметка пишется на каждую штуку
@@ -480,7 +464,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'ack' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...splitList(panelFilters.mark).map(value => ({
@@ -489,7 +473,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       onRemove: () => { const rest = splitList(panelFilters.mark).filter(item => item !== value); change({ mark: joinList(SUB_VALUES.includes(value) && !rest.some(item => SUB_VALUES.includes(item)) && !rest.includes('accepted') ? [...rest, 'accepted'] : rest) }); }
     })),
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
-    ...valueChips('ack', 'Отметка', value => label(ACK_OPTIONS, value)),
     ...valueChips('to', 'Кому', value => label(TO_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
@@ -500,7 +483,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     {outbound
       ? <FilterSection title="Кому" active={!!panelFilters.to}><CheckboxGroup value={panelFilters.to} options={TO_OPTIONS} onChange={value => change({ to: value.includes(',') ? '' : value })} /></FilterSection>
       : shelf
-      ? <FilterSection title="Отметка" active={!!panelFilters.ack}><CheckboxGroup value={panelFilters.ack} options={ACK_OPTIONS} onChange={value => change({ ack: value.includes(',') ? '' : value })} /></FilterSection>
+      ? null
       : received
       ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /></FilterSection>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
@@ -539,11 +522,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
   const shelfStatus = (row: ReturnRow) => <Badge kind="primary success">{row.decision?.status_name || 'На полке'}</Badge>;
-  const ackCell = (row: ReturnRow) => row.decision?.partner_ack_at
-    ? <div className="pa-returns__mark-box"><Badge kind="secondary neutral">Положил на полку</Badge><div className="pa-returns__review pa-sub">{formatUtcDateTime(row.decision.partner_ack_at)}</div></div>
-    : canWork
-      ? <Button variant="secondary" size={400} disabled={!!row.key && saving.includes(row.key)} onClick={() => ack(row)}>Положил на полку</Button>
-      : <span className="pa-sub">—</span>;
   const markCell = (row: ReturnRow) => <MarkCell row={row} onec={row.onec} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
@@ -566,7 +544,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       : outbound
         ? 'Возвраты, которые по решению сотрудников нужно отправить поставщику или вернуть нам. Скачайте ТТН и передайте товар вместе с ней.'
         : shelf
-        ? 'Возвраты, которые по решению сотрудников остаются у вас: перемещение на ваш склад в 1С проведено. Отметка «Положил на полку» необязательна.'
+        ? 'Возвраты, которые по решению сотрудников остаются у вас: перемещение на ваш склад в 1С проведено.'
         : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
       </>}
       search={
@@ -642,7 +620,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd></>}
                 </dl>
-                {shelf && <div className="pa-returns__mark-box pa-returns-card__mark">{ackCell(row)}</div>}
                 {outbound && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
@@ -659,7 +636,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <td className={TD}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)} шт.</div></td>
                   <td className={TD}>{shelfMoved(row)}</td>
                   <td className={TD}>{shelfStatus(row)}</td>
-                  <td className={TD}>{ackCell(row)}</td>
                 </> : <>
                 <td className={TD}>{statusBadge(row)}</td>
                 <td className={TD}>{placeCell(row)}</td>
