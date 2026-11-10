@@ -16,7 +16,7 @@ import { DateFilterSection, FilterPanel } from '../ui/FilterPanel';
 import { FilterLayout } from '../ui/FilterLayout';
 import { FilterSection } from '../ui/FilterSection';
 import { CheckboxGroup } from '../ui/CheckboxGroup';
-import { splitList, toggleValue } from '../lib/multi';
+import { joinList, splitList, toggleValue } from '../lib/multi';
 import { Skeleton } from '../ui/Skeleton';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { TextField } from '../ui/TextField';
@@ -53,25 +53,30 @@ const displayedRows = (items: ReturnRow[], expanded: Set<string>): ReturnRow[] =
   row.units?.length && row.key && expanded.has(row.key) ? row.units.map(unit => ({ ...unit, image_url: row.image_url, unitOf: row.key })) : [row]);
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
 const TD = 'po-table-cell-base__cell po-table-cell-base__td ozi-table-500 po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
-/** У каждого состояния приёмки свой цвет бейджа брендбука; брак и пересорт — флаги, их можно сочетать со статусом. */
+/** У каждого состояния приёмки свой цвет бейджа брендбука; брак и пересорт — подстатус внутри «Принят» (взаимоисключающий, ОК по умолчанию). */
 const MARK_STATUSES: { value: 'pending' | 'accepted' | 'rejected'; label: string; kind: BadgeKind }[] = [
   { value: 'pending', label: 'Ожидает', kind: 'secondary warning' },
   { value: 'accepted', label: 'Принят', kind: 'primary success' },
   { value: 'rejected', label: 'Не принят', kind: 'primary negative' }
 ];
-const MARK_FLAGS: { field: 'defect' | 'missort'; label: string; kind: BadgeKind }[] = [
-  { field: 'defect', label: 'Брак', kind: 'secondary negative' },
-  { field: 'missort', label: 'Пересорт', kind: 'secondary info' }
+type MarkSub = 'ok' | 'defect' | 'missort';
+const MARK_SUBS: { value: MarkSub; label: string; hint?: string; kind?: BadgeKind }[] = [
+  { value: 'ok', label: 'ОК', hint: '(стандартно)' },
+  { value: 'defect', label: 'Брак', kind: 'secondary negative' },
+  { value: 'missort', label: 'Пересорт', kind: 'secondary info' }
 ];
-const MENU_WIDTH = 220, MENU_HEIGHT = 260;
+/** Подстатус есть только у «Принят»: флаги на других статусах (старые отметки) не показываем; если стоят оба, главнее брак. */
+const markSub = (row: Pick<ReturnRow, 'mark' | 'defect' | 'missort'>): MarkSub => row.mark !== 'accepted' ? 'ok' : row.defect ? 'defect' : row.missort ? 'missort' : 'ok';
+const subPatch = (sub: MarkSub): MarkPatch => ({ status: 'accepted', defect: sub === 'defect', missort: sub === 'missort' });
+const MENU_WIDTH = 240, MENU_HEIGHT = 320;
 const STATUS_OPTIONS = [
   { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' },
   { value: 'MovingToSeller', label: 'В пути к продавцу' }, { value: 'WaitingShipment', label: 'Ожидает отправки' }
 ];
-const MARK_OPTIONS = [
-  { value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' },
-  { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }
-];
+const MARK_OPTIONS = [{ value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' }];
+/** Уточнение внутри «Принят». На сервер уходит вместо «accepted»: defect / missort / ok — принятые с этим подстатусом. */
+const MARK_SUB_OPTIONS = [{ value: 'ok', label: 'ОК (стандартно)' }, { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }];
+const SUB_VALUES = MARK_SUB_OPTIONS.map(option => option.value);
 const ONEC_OPTIONS = [{ value: 'accepted', label: 'Принято в 1С' }, { value: 'pending', label: 'Ещё не принято' }];
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
 const ACK_OPTIONS = [{ value: 'yes', label: 'Положил на полку' }, { value: 'no', label: 'Ещё не отмечено' }];
@@ -424,7 +429,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec' | 'review' | 'ack' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
-    ...valueChips('mark', 'Приёмка', value => label(MARK_OPTIONS, value)),
+    ...splitList(panelFilters.mark).map(value => ({
+      id: `mark:${value}`, label: `Приёмка: ${SUB_VALUES.includes(value) ? `Принят · ${label(MARK_SUB_OPTIONS, value).replace(' (стандартно)', '')}` : label(MARK_OPTIONS, value)}`,
+      // последнее снятое уточнение возвращает общий «Принят», а не стирает его
+      onRemove: () => { const rest = splitList(panelFilters.mark).filter(item => item !== value); change({ mark: joinList(SUB_VALUES.includes(value) && !rest.some(item => SUB_VALUES.includes(item)) && !rest.includes('accepted') ? [...rest, 'accepted'] : rest) }); }
+    })),
     ...valueChips('onec', 'Учёт в 1С', value => label(ONEC_OPTIONS, value)),
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
     ...valueChips('ack', 'Отметка', value => label(ACK_OPTIONS, value)),
@@ -440,7 +449,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       : shelf
       ? <FilterSection title="Отметка" active={!!panelFilters.ack}><CheckboxGroup value={panelFilters.ack} options={ACK_OPTIONS} onChange={value => change({ ack: value.includes(',') ? '' : value })} /></FilterSection>
       : received
-      ? <FilterSection title="Приёмка" active={!!panelFilters.mark || !!panelFilters.onec}><CheckboxGroup value={panelFilters.mark} options={MARK_OPTIONS} onChange={value => change({ mark: value })} /><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection>
+      ? <FilterSection title="Приёмка" active={!!panelFilters.mark || !!panelFilters.onec}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
     {received && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={REVIEW_OPTIONS} onChange={value => change({ review: value })} /></FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
@@ -624,18 +633,69 @@ function ReturnsTab({ to, label, count }: { to: string; label: string; count: nu
   </NavLink>;
 }
 
-/** Статус приёмки: бейдж открывает список. Статус выбирается один, брак и пересорт включаются и снимаются отдельно. */
+/**
+ * Фильтр «Приёмка»: Ожидает / Принят / Не принят; у «Принят» раскрывается уточнение ОК / Брак / Пересорт.
+ * В адрес и на сервер уходят значения через запятую: «accepted» — все принятые, «defect» — принятые с браком (старые ссылки ?mark=defect
+ * открываются как «Принят → Брак»). Выбор уточнения заменяет общий «accepted», снятие всех уточнений возвращает его.
+ */
+function MarkFilter({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const selected = splitList(value);
+  const subs = selected.filter(item => SUB_VALUES.includes(item));
+  const accepted = selected.includes('accepted') || subs.length > 0;
+  const others = selected.filter(item => item !== 'accepted' && !SUB_VALUES.includes(item));
+  const toggleStatus = (status: string) => {
+    if (status !== 'accepted') { onChange(toggleValue(value, status)); return; }
+    onChange(joinList(accepted ? others : [...others, 'accepted']));
+  };
+  const toggleSub = (sub: string) => {
+    const next = subs.includes(sub) ? subs.filter(item => item !== sub) : [...subs, sub];
+    onChange(joinList([...others, ...(next.length ? next : ['accepted'])]));
+  };
+  return <div className="pa-filter-options">
+    {MARK_OPTIONS.map(option => {
+      const checked = option.value === 'accepted' ? accepted : selected.includes(option.value);
+      return <div key={option.value}>
+        <label className="pa-filter-option ozi-table-500">
+          <input type="checkbox" className="po-checkbox" checked={checked} onChange={() => toggleStatus(option.value)} />
+          <span className="pa-filter-option__label">{option.label}</span>
+        </label>
+        {option.value === 'accepted' && accepted && <div className="pa-filter-sub" role="group" aria-label="Результат приёмки">
+          {MARK_SUB_OPTIONS.map(sub => <label key={sub.value} className="pa-filter-option ozi-table-500">
+            <input type="checkbox" className="po-checkbox" checked={subs.includes(sub.value)} onChange={() => toggleSub(sub.value)} />
+            <span className="pa-filter-option__label">{sub.label}</span>
+          </label>)}
+        </div>}
+      </div>;
+    })}
+  </div>;
+}
+
+/**
+ * Статус приёмки: бейдж открывает список. Основной статус один (Ожидает / Принят / Не принят); у «Принят» раскрывается
+ * «Результат приёмки» — ОК / Брак / Пересорт радиокнопками. Подстатус не меняет статус, уход из «Принят» сбрасывает его в ОК.
+ */
 function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec?: ReturnRow['onec']; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
-  const flags = MARK_FLAGS.filter(flag => row[flag.field]);
+  const sub = markSub(row);
+  const subBadge = MARK_SUBS.find(item => item.value === sub && item.kind);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const items = [
-    ...MARK_STATUSES.map(item => ({ id: item.value, label: item.label, kind: item.kind, role: 'menuitemradio', checked: item.value === status.value, apply: () => onChange({ status: item.value }) })),
-    ...MARK_FLAGS.map(flag => ({ id: flag.field, label: flag.label, kind: flag.kind, role: 'menuitemcheckbox', checked: !!row[flag.field], apply: () => onChange({ [flag.field]: !row[flag.field] }) }))
-  ];
+  type Item = { id: string; label: string; hint?: string; kind?: BadgeKind; radio: boolean; sub: boolean; checked: boolean; keepOpen?: boolean; apply: () => void };
+  const statusItem = (item: typeof MARK_STATUSES[number]): Item => ({
+    id: item.value, label: item.label, kind: item.kind, radio: false, sub: false, checked: item.value === status.value,
+    // «Принят» оставляет меню открытым: сразу можно отметить брак; повторный выбор ничего не отправляет
+    keepOpen: item.value === 'accepted',
+    apply: () => { if (item.value !== status.value) onChange(item.value === 'accepted' ? subPatch('ok') : { status: item.value, defect: false, missort: false }); }
+  });
+  const items: Item[] = MARK_STATUSES.flatMap(item => [
+    statusItem(item),
+    ...(item.value === 'accepted' && status.value === 'accepted' ? MARK_SUBS.map((option): Item => ({
+      id: `sub-${option.value}`, label: option.label, hint: option.hint, kind: option.kind, radio: true, sub: true, checked: option.value === sub,
+      apply: () => { if (option.value !== sub) onChange(subPatch(option.value)); }
+    })) : [])
+  ]);
 
   // Список рисуется поверх таблицы (fixed), иначе его обрежет прокрутка таблицы; у нижнего края открывается вверх.
   useLayoutEffect(() => {
@@ -653,7 +713,7 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
   }, [open]);
   useEffect(() => { if (position) menuRef.current?.focus({ preventScroll: true }); }, [position]);
 
-  const choose = (index: number) => { items[index]?.apply(); close(); };
+  const choose = (index: number) => { const item = items[index]; if (!item) return; item.apply(); if (!item.keepOpen) close(); };
   const onMenuKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'ArrowDown') { event.preventDefault(); setActive(i => Math.min(items.length - 1, i + 1)); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(i => Math.max(0, i - 1)); }
@@ -662,6 +722,7 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
     else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(active); }
     else if (event.key === 'Tab') setOpen(false);
   };
+  const firstSub = items.findIndex(item => item.sub);
 
   return <div className="pa-returns__mark-box" ref={rootRef}>
     {onec && onec.status !== 'none' ? <OneCStatus onec={onec} /> : canWork
@@ -670,18 +731,23 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
           <Badge kind={status.kind} chevron>{status.label}</Badge>
         </button>
       : <Badge kind={status.kind}>{status.label}</Badge>}
-    {flags.map(flag => <Badge key={flag.field} kind={flag.kind}>{flag.label}</Badge>)}
+    {/* Маленький бейдж рядом — только если подстатус не ОК; у «Ожидает» и «Не принят» его нет */}
+    {subBadge && <Badge kind={subBadge.kind!} size={400}>{subBadge.label}</Badge>}
     {/* Разбор после приёмки: серый бейдж под основным статусом, чтобы не расширять таблицу */}
     {row.review === 'queue' && <div className="pa-returns__review"><Badge kind="secondary neutral" title="Сотрудники решают, что делать с возвратом: оставить на полке, вернуть поставщику или нам">На разборе</Badge></div>}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
       <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
         {items.map((item, index) => <div key={item.id}>
-          {index === MARK_STATUSES.length && <div className="pa-returns__menu-sep" role="separator" />}
-          <div role={item.role} aria-checked={item.checked} className={`po-dropdown-item${active === index ? ' po-dropdown-item--focused' : ''}`}
+          {index === firstSub && <div className="pa-returns__menu-subhead" aria-hidden="true">Результат приёмки</div>}
+          <div role="menuitemradio" aria-checked={item.checked}
+            className={`po-dropdown-item${active === index ? ' po-dropdown-item--focused' : ''}${item.sub ? ' pa-returns__menu-sub' : ''}${item.sub && index === firstSub ? ' pa-returns__menu-sub--first' : ''}${item.sub && items[index + 1]?.sub !== true ? ' pa-returns__menu-sub--last' : ''}`}
             onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => choose(index)}>
             <div className="po-dropdown-item__block">
-              <Badge kind={item.kind}>{item.label}</Badge>
-              {item.checked && <span className="po-dropdown-item__check" aria-hidden="true"><Icon name="ui-check" /></span>}
+              {item.sub
+                ? <><span className={`po-radio${item.checked ? ' po-radio--checked' : ''}`} aria-hidden="true" />
+                  {item.kind ? <Badge kind={item.kind}>{item.label}</Badge> : <span className="pa-returns__menu-ok">{item.label}{item.hint && <span className="pa-returns__menu-hint">{item.hint}</span>}</span>}</>
+                : <><Badge kind={item.kind!}>{item.label}</Badge>
+                  {item.checked && <span className="po-dropdown-item__check" aria-hidden="true"><Icon name="ui-check" /></span>}</>}
             </div>
           </div>
         </div>)}
