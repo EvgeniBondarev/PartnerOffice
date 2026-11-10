@@ -601,6 +601,146 @@ button.po-day:disabled { cursor: default; }
 .pa-skeleton-stack { display: flex; flex: 1 1 auto; flex-direction: column; gap: 6px; min-width: 0; }
 .pa-list__summary:has(.po-skeleton-common__skeleton) { align-items: center; }
 
+/* Возвраты: сверху одна строка — вкладки разделов слева и поиск справа; под ней слева панель фильтров, справа таблица
+   начинается на уровне панели. Не помещаются вместе — поиск уходит на свою строку. */
+.pa-list__top { margin-bottom: 16px; }
+.pa-list__topbar { align-items: center; display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.pa-list .pa-list__top .pa-returns__tabs { flex: 0 1 auto; margin: 0; max-width: 100%; overflow-x: auto; }
+.pa-list__top .pa-returns__tabs .po-data-content__label { white-space: nowrap; }
+.pa-list .pa-list__topbar .pa-list__search { flex: 1 1 320px; margin: 0 0 0 auto; max-width: 560px; min-width: 0; }
+@media (max-width: 767px) {
+  .pa-list__topbar { gap: 8px; }
+  .pa-list .pa-list__topbar .pa-list__search { flex: 1 1 100%; margin-left: 0; max-width: none; }
+}
+
+.pa-list__left { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.pa-list__right { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+/* Слева заголовок и панель, справа поиск и список: список начинается высоко и занимает всю высоту. */
+.pa-list__aside { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+.pa-list__layout--panel .pa-returns__description { display: none; }
+.pa-list__layout--panel .pa-returns__tabs { margin-bottom: 12px; }
+.pa-list__main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.pa-list__bar { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 8px; }
+.pa-list__bar:empty { display: none; }
+.pa-list__filters-button {
+  align-items: center; appearance: none; background: var(--ozi-bg-secondary-transparent); border: 0; border-radius: 12px; color: var(--ozi-text-primary-transparent);
+  cursor: pointer; display: inline-flex; height: 32px; padding: 0 12px;
+}
+.pa-list__filters-button:hover { background: var(--ozi-bg-tertiary-transparent); }
+.pa-list__filters-button:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
+.pa-list__summary { margin-bottom: 8px; }
+
+.pa-filters { display: flex; flex-direction: column; }
+.pa-filters__head { align-items: center; display: flex; justify-content: space-between; margin-bottom: 8px; }
+.pa-filters__title { color: var(--ozi-text-primary-transparent); margin: 0; }
+.pa-filters__quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.pa-filters__quick .po-button__secondary[aria-pressed='true'] { background: var(--action-25-opaque); color: var(--ozi-text-action, var(--ozi-graphic-action-primary)); }
+.pa-filter-section { border: 0; border-top: 1px solid var(--ozi-graphic-quaternary-transparent); margin: 0; min-width: 0; padding: 8px 0 12px; }
+.pa-filter-section__legend { float: left; padding: 0; width: 100%; }
+.pa-filter-section__legend + * { clear: both; }
+.pa-filter-section__toggle { align-items: center; appearance: none; background: none; border: 0; border-radius: 8px; color: var(--ozi-text-primary-transparent); cursor: pointer; display: flex; gap: 8px; justify-content: space-between; padding: 4px 0; text-align: left; width: 100%; }
+.pa-filter-section__toggle:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
+.pa-filter-section__toggle > span:first-child { flex: 1 1 auto; }
+.pa-filter-section__dot { background: var(--ozi-graphic-action-primary); border-radius: 50%; flex: none; height: 8px; width: 8px; }
+.pa-filter-section__chevron { flex: none; transition: transform .15s; }
+.pa-filter-section__chevron--open { transform: rotate(180deg); }
+.pa-filter-section__body { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+.pa-filter-section__body[hidden] { display: none; }
+.pa-filter-options { display: flex; flex-direction: column; gap: 2px; }
+.pa-filter-option { align-items: center; cursor: pointer; display: flex; gap: 10px; min-height: 32px; }
+.pa-filter-option__label { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.pa-filter-option__count { color: var(--ozi-text-secondary-transparent); flex: none; }
+.pa-filter-option--dim { color: var(--ozi-text-tertiary-transparent); }
+
+.pa-chips { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.pa-chip { align-items: center; background: var(--ozi-bg-action-secondary-transparent); border-radius: 12px; color: var(--ozi-text-primary-transparent); display: inline-flex; gap: 2px; max-width: 100%; min-height: 32px; padding: 0 4px 0 12px; }
+.pa-chip__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-chip__remove { align-items: center; appearance: none; background: none; border: 0; border-radius: 8px; color: var(--ozi-graphic-secondary-transparent); cursor: pointer; display: inline-flex; height: 28px; justify-content: center; padding: 0; width: 28px; }
+.pa-chip__remove:hover { color: var(--ozi-graphic-primary-transparent); }
+.pa-chip__remove:focus-visible { outline: 2px solid var(--action-400); }
+.pa-chips__clear-button { background: none; border: 0; cursor: pointer; padding: 0 4px; }
+
+.pa-returns-cards { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0 0 16px; padding: 0; }
+.pa-returns-card { background: var(--ozi-bg-primary); border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 12px; display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+.pa-returns-card__details { display: grid; gap: 4px 12px; grid-template-columns: minmax(96px, 40%) minmax(0, 1fr); margin: 0; }
+.pa-returns-card__details dt { color: var(--ozi-text-secondary-transparent); }
+.pa-returns-card__details dd { margin: 0; overflow-wrap: anywhere; }
+.pa-overlay__window--sheet { border-radius: 16px 16px 0 0; inset: auto 0 0 0; margin: 0; max-height: 85dvh; width: 100%; }
+
+/* Планшет и телефон: панель убирается из колонки (ниже 1200px таблице не хватает места), фильтры открываются поверх. */
+@media (max-width: 1199px) {
+  .pa-list__layout--panel { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 767px) {
+  .pa-list__search { flex-wrap: wrap; gap: 8px; }
+  .pa-list__search-field { flex: 1 1 100%; }
+  .pa-list__search .po-button__button { flex: 1 1 100%; }
+  .pa-returns__scanner { flex: 1 1 100%; }
+  .pa-list__filters-button { height: 44px; }
+}
+/* Поле периода стоит у левого края страницы: календарь раскрывается вправо, поверх списка, а не за край окна. */
+.pa-filters .pa-popover--calendar { left: 0; right: auto; }
+.pa-filters__head--end { justify-content: flex-end; }
+
+/* ---------- Возвраты: вид по макету (поиск-капсула, панель и таблица карточками) ---------- */
+.pa-list__aside { background: var(--ozi-bg-primary); border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 16px; padding: 16px 20px; z-index: 5; }
+.pa-list__search {
+  background: var(--ozi-bg-primary); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ozi-graphic-quaternary-transparent); padding: 4px; gap: 8px; transition: box-shadow .1s;
+}
+.pa-list__search:focus-within { box-shadow: inset 0 0 0 2px var(--ozi-graphic-action-primary); }
+.pa-list__search .po-input__container { background: transparent; box-shadow: none; }
+.pa-list__search .po-input__size-500 { --container-height: 44px; }
+.pa-list__search .po-button__button { height: 44px; border-radius: 8px; }
+.pa-returns__scanner { background: var(--ozi-bg-secondary-transparent); border-radius: 8px; padding: 6px 10px; }
+.pa-returns__scanner::before { background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 4px); border-radius: 0; height: 10px; width: 14px; }
+.pa-filters__title { font-size: 17px; line-height: 24px; }
+.pa-filters__head .pa-link { font-size: 13px; }
+.pa-filter-section { border-top-color: var(--ozi-graphic-quaternary-transparent); }
+.pa-filter-section__toggle { font-size: 14px; font-weight: 600; line-height: 20px; }
+.pa-filter-section__chevron { color: var(--ozi-graphic-tertiary-transparent); }
+.pa-chip { background: var(--ozi-bg-action-secondary-transparent); border-radius: 8px; color: var(--ozi-graphic-action-primary); font-size: 13px; min-height: 28px; padding: 0 2px 0 10px; }
+.pa-chip__remove { color: var(--ozi-graphic-action-primary); height: 24px; width: 24px; }
+.pa-chips__clear-button { color: var(--ozi-text-secondary-transparent); text-decoration: underline; }
+.pa-list__summary { align-items: baseline; margin: 4px 0 12px; }
+.pa-list__summary .po-page__count { font-size: 17px; font-weight: 700; }
+.pa-list .pa-scroll { background: var(--ozi-bg-primary); border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 16px; }
+.pa-list .pa-table .po-table__table { min-width: 0; table-layout: fixed; width: 100%; }
+.pa-list .pa-table .po-table-cell-base__cell { min-width: 0; overflow-wrap: normal; word-break: normal; }
+.pa-list .pa-table .pa-col-product { max-width: none; min-width: 0; width: 27%; }
+.pa-list .pa-table th:nth-child(2), .pa-list .pa-table td:nth-child(2) { width: 18%; }
+.pa-list .pa-table th:nth-child(3), .pa-list .pa-table td:nth-child(3) { width: 10%; }
+.pa-list .pa-table th:nth-child(4), .pa-list .pa-table td:nth-child(4) { width: 15%; }
+.pa-list .pa-table th:nth-child(5), .pa-list .pa-table td:nth-child(5) { width: 9%; }
+.pa-list .pa-table th:nth-child(6), .pa-list .pa-table td:nth-child(6) { width: 5%; }
+.pa-list .pa-table th:nth-child(7), .pa-list .pa-table td:nth-child(7) { width: 16%; }
+.pa-list .pa-returns__product > div:last-child { min-width: 0; }
+.pa-list .pa-returns__product-info { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.pa-list .pa-table td:nth-child(2) .pa-copy-value { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-list .pa-table .pa-returns__mark { width: 15%; white-space: normal; }
+.pa-list .pa-table .pa-returns__mark-box { min-width: 0; }
+.pa-list .pa-table .pa-returns__mark-box .po-badge__badge { max-width: 100%; }
+.pa-list .pa-table .pa-returns__mark-box .po-badge__label { overflow: hidden; text-overflow: ellipsis; }
+.pa-list .pa-table thead th { background: var(--ozi-bg-primary); color: var(--ozi-text-secondary-transparent); font-size: 13px; }
+
+/* Масштаб по макету: в списке возвратов текст 14px, подписи 12–13px, строки плотнее. */
+.pa-list .po-table-cell-base__td, .pa-list .pa-filter-option, .pa-list .pa-returns__description, .pa-list .po-input__input { font-size: 14px; line-height: 20px; }
+.pa-list .po-table-cell-base__td { padding-bottom: 12px; padding-top: 12px; }
+.pa-list .po-table-cell-base__th { padding-bottom: 10px; padding-top: 10px; }
+.pa-list .pa-sub { font-size: 12px; line-height: 16px; }
+.pa-list .po-badge__badge { font-size: 12px; line-height: 16px; }
+.pa-list .pa-filter-option { min-height: 28px; }
+.pa-list .pa-photo, .pa-list .pa-photo__button { height: 40px; width: 40px; }
+.pa-list__summary { font-size: 13px; line-height: 20px; }
+.pa-list__filters-button { font-size: 14px; }
+.pa-list .pa-returns__tabs { margin-bottom: 16px; }
+
+/* ---------- Лёгкий скелетон: мягкая пульсация светлых заглушек вместо резкого мигания ---------- */
+.po-skeleton-common__skeleton { animation: pa-skeleton-soft 1.6s ease-in-out infinite; background: var(--ozi-bg-secondary-transparent); }
+@keyframes pa-skeleton-soft { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .po-skeleton-common__skeleton { animation: none; } }
+.pa-skeleton-stack { display: flex; flex: 1 1 auto; flex-direction: column; gap: 6px; min-width: 0; }
+.pa-list__summary:has(.po-skeleton-common__skeleton) { align-items: center; }
+
 /* Возвраты: вкладки разделов стоят отдельной строкой сверху, над панелью фильтров и поиском; поиск не шире 560px. */
 .pa-list__top { margin-bottom: 16px; }
 .pa-list .pa-list__top .pa-returns__tabs { margin: 0; max-width: 100%; overflow-x: auto; }
