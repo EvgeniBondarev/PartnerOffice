@@ -714,6 +714,38 @@ describe('Возвраты', () => {
       expect(param(listing(calls).url, 'ack')).toBeNull();   // старая ссылка с ?ack= на сервер не уходит
     });
 
+    it('возврат на уже открытую вкладку показывает прежний список сразу, без скелетона, и обновляет его в фоне', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': (_init, url) => json(url?.includes('section=shelf')
+          ? { items: [{ key: 'fbs:1:50', return_type: 'fbs', id: 50, client_id: '1', name: 'Шрус на полке', qty: 1, decision: { outcome: 'shelf', status: 'on_shelf', status_name: 'На полке' } }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false }
+          : received())
+      });
+      renderApp('/returns/received');
+      await screen.findByText('Товар А');
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('link', { name: /^Полка/ }));
+      await screen.findByText('Шрус на полке');
+      // с этого момента любой скелетон — это перезагрузка списка, которой быть не должно
+      let skeletons = 0;
+      const observer = new MutationObserver(records => {
+        for (const record of records) record.addedNodes.forEach(node => {
+          if (node instanceof Element && (node.matches('.po-skeleton-common__skeleton') || node.querySelector('.po-skeleton-common__skeleton'))) skeletons += 1;
+        });
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+      const before = calls.filter(c => c.url.includes('section=received') && !c.url.includes('pageSize=1')).length;
+      await user.click(screen.getByRole('link', { name: /^Получено/ }));
+      // строки на месте в тот же момент, счётчик вкладки не обнулился
+      expect(screen.getByText('Товар А')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^Получено\s*1$/ })).toBeInTheDocument();
+      await waitFor(() => expect(calls.filter(c => c.url.includes('section=received') && !c.url.includes('pageSize=1')).length).toBeGreaterThan(before));
+      await user.click(screen.getByRole('link', { name: /^Полка/ }));
+      expect(screen.getByText('Шрус на полке')).toBeInTheDocument();
+      observer.disconnect();
+      expect(skeletons).toBe(0);
+    });
+
     it('счётчики вкладок: у «Ждёт получения» и «Получено» запрашивается и число на полке', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),

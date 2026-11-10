@@ -127,6 +127,23 @@ function suggestionLabel(row: ReturnRow, query: string): string {
   return fields.find(value => value?.toLocaleLowerCase().includes(search)) || row.name || 'Возврат';
 }
 
+/**
+ * Недавно открытые списки и счётчики вкладок. Вернувшись на вкладку (или кнопкой «Назад»), страница сразу показывает
+ * прежние строки, а свежие подтягивает в фоне: без скелетона и без «нуля» в счётчиках. Ключ включает партнёра и адрес запроса
+ * (раздел, фильтры, поиск), поэтому чужие данные после смены учётной записи не покажутся.
+ */
+const LIST_CACHE_LIMIT = 40;
+const EMPTY_COUNTS: Record<ReturnsSection, number | null> = { waiting: null, received: null, shelf: null, supplier: null, warehouse: null };
+const listCache = new Map<string, { data: ReturnPage; items: ReturnRow[] }>();
+const countsCache = new Map<number, Record<ReturnsSection, number | null>>();
+export function clearReturnsCache() { listCache.clear(); countsCache.clear(); }
+const rememberList = (key: string, entry: { data: ReturnPage; items: ReturnRow[] }) => {
+  listCache.delete(key); listCache.set(key, entry);
+  if (listCache.size > LIST_CACHE_LIMIT) listCache.delete(listCache.keys().next().value as string);
+};
+const listUrlFor = (section: ReturnsSection, filters: Record<string, string>, page: number) =>
+  `/partner-api/returns?${new URLSearchParams({ ...listParams(section), page: String(page), pageSize: String(PAGE_SIZE), ...filters })}`;
+
 export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection }) {
   const { partner } = useAuth();
   useEffect(() => {
@@ -139,9 +156,13 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ search, ...panelFilters }), [search, panelFilters]);
-  const [data, setData] = useState<ReturnPage | null>(null);
+  const partnerId = partner?.id ?? 0;
+  const cacheKey = (url: string) => `${partnerId}|${url}`;
+  // Уже открытый список показывается сразу, свежие данные приходят в фоне
+  const [initialHit] = useState(() => listCache.get(cacheKey(listUrlFor(section, filters, 1))));
+  const [data, setData] = useState<ReturnPage | null>(initialHit?.data ?? null);
   // Список подгружается при прокрутке: items копится порциями, pagesLoaded — сколько порций уже в нём.
-  const [items, setItems] = useState<ReturnRow[]>([]);
+  const [items, setItems] = useState<ReturnRow[]>(initialHit?.items ?? []);
   const itemsRef = useRef<ReturnRow[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
   const [pagesLoaded, setPagesLoaded] = useState(1);
@@ -152,10 +173,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
-  // Первый кадр уже со скелетоном: иначе список мигнул бы пустотой до начала загрузки.
-  const [loading, setLoading] = useState(true);
+  // Первый кадр уже со скелетоном: иначе список мигнул бы пустотой до начала загрузки (если списка нет в кэше).
+  const [loading, setLoading] = useState(!initialHit);
   const [retry, setRetry] = useState(0);
-  const [counts, setCounts] = useState<Record<ReturnsSection, number | null>>({ waiting: null, received: null, shelf: null, supplier: null, warehouse: null });
+  const [counts, setCounts] = useState<Record<ReturnsSection, number | null>>(() => countsCache.get(partnerId) ?? EMPTY_COUNTS);
+  useEffect(() => { countsCache.set(partnerId, counts); }, [partnerId, counts]);
   const quietRefresh = useRef(false);
   const savingNow = useRef(false);
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
@@ -201,26 +223,34 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
 
   useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
-  const listUrl = (page: number) => `/partner-api/returns?${new URLSearchParams({ ...listParams(section), page: String(page), pageSize: String(PAGE_SIZE), ...filters })}`;
+  const listUrl = (page: number) => listUrlFor(section, filters, page);
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
     moreController.current?.abort();
     // Фоновое обновление не прячет таблицу, не трогает подсказки и не показывает ошибку.
     // Оно не перечитывает все ранее загруженные страницы: это превращало обновление в N запросов.
-    const quiet = quietRefresh.current;
+    const background = quietRefresh.current;
     quietRefresh.current = false;
+    // Такой список уже открывали: показываем прежние строки сразу и обновляем их тихо, без скелетона
+    const hit = background ? undefined : listCache.get(cacheKey(listUrl(1)));
+    const quiet = background || !!hit;
     const upto = 1;
-    if (!quiet) { setLoading(true); setError(''); setMoreError(''); setLoadingMore(false); }
+    if (hit) {
+      setData(hit.data); setItems(hit.items); pagesRef.current = upto; setPagesLoaded(upto);
+      setLoading(false); setError(''); setMoreError(''); setLoadingMore(false);
+    } else if (!quiet) { setLoading(true); setError(''); setMoreError(''); setLoadingMore(false); }
     Promise.all(Array.from({ length: upto }, (_, index) => request<ReturnPage>(listUrl(index + 1), { signal: controller.signal })))
       .then(results => {
         if (filters.search !== currentSearch.current) return;
         const result = results[0];
+        const rows = mergeRows([], results.flatMap(item => item.items));
+        rememberList(cacheKey(listUrl(1)), { data: result, items: rows });
         setData(result);
         setCounts(previous => ({ ...previous, [section]: result.total }));
-        setItems(mergeRows([], results.flatMap(item => item.items)));
+        setItems(rows);
         pagesRef.current = upto; setPagesLoaded(upto);
-        if (!quiet && filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
+        if (!background && filters.search.length >= 2 && filters.search !== suppressedSearch.current) {
           suggestionSearch.current = filters.search;
           setSuggestions(result.items.slice(0, 10));
           setActiveSuggestion(-1);
