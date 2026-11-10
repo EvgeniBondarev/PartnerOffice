@@ -86,9 +86,8 @@ describe('Возвраты', () => {
     expect(screen.queryByRole('checkbox', { name: 'Ещё не принято' })).not.toBeInTheDocument();
     // старая ссылка с ?onec= на сервер не уходит
     expect(new URLSearchParams(calls.filter(c => c.url.startsWith('/partner-api/returns?')).at(-1)!.url.split('?')[1]).has('onec')).toBe(false);
-    // возврат, уже перемещённый в 1С куда-то ещё, виден со статусом, но партнёр его не перемечает
-    expect(within(region).getByText('Принят')).toBeInTheDocument();
-    expect(within(region).queryByRole('button', { name: /Статус приёмки/ })).not.toBeInTheDocument();
+    // возврат, перемещённый в 1С куда-то ещё, виден как обычный «Принят»; статус и «Брак»/«Пересорт» партнёр меняет
+    expect(within(region).getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
   });
 
   it('принимает однозначный результат сканирования и выделяет строку', async () => {
@@ -603,7 +602,7 @@ describe('Возвраты', () => {
   });
 
   describe('разбор после приёмки', () => {
-    it('«Получено»: у принятого возврата серый бейдж «На разборе» под статусом, отдельной колонки нет', async () => {
+    it('«Получено»: у принятого возврата только «Принят», бейджа «На разборе» и отдельной колонки нет', async () => {
       mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
         '/partner-api/returns?*': () => json({
@@ -617,9 +616,8 @@ describe('Возвраты', () => {
       await screen.findByText('Товар А');
       expect(screen.queryByRole('columnheader', { name: 'Разбор' })).not.toBeInTheDocument();
       const rows = within(screen.getByRole('region', { name: 'Полученные возвраты' })).getAllByRole('row');
-      const badge = within(rows[1]).getByText('На разборе');
-      expect(badge.closest('.po-badge__badge')).toHaveClass('po-badge__neutral');
       expect(within(rows[1]).getByText('Принят')).toBeInTheDocument();
+      expect(within(rows[1]).queryByText('На разборе')).not.toBeInTheDocument();
       expect(within(rows[2]).queryByText('На разборе')).not.toBeInTheDocument();
     });
 
