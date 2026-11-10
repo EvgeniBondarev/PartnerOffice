@@ -34,8 +34,10 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
   stateRef.current = state;
   const generation = useRef(0);
   const inFlight = useRef(false);
+  const moreController = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    moreController.current?.abort();
     const controller = new AbortController();
     const current = ++generation.current;
     inFlight.current = true;
@@ -52,7 +54,7 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
       .finally(() => {
         if (generation.current === current) inFlight.current = false;
       });
-    return () => controller.abort();
+    return () => { controller.abort(); moreController.current?.abort(); generation.current++; };
   }, [key, reloadKey, pageSize]);
 
   const hasMore = state.items.length < state.total;
@@ -61,9 +63,11 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
     const snapshot = stateRef.current;
     if (inFlight.current || snapshot.loading || snapshot.error || snapshot.items.length >= snapshot.total) return;
     const current = generation.current;
+    const controller = new AbortController();
+    moreController.current = controller;
     inFlight.current = true;
     setState((previous) => ({ ...previous, loadingMore: true, moreError: null }));
-    listOrders({ ...(JSON.parse(key) as OrdersQuery), page: snapshot.pages + 1, pageSize })
+    listOrders({ ...(JSON.parse(key) as OrdersQuery), page: snapshot.pages + 1, pageSize }, controller.signal)
       .then((page) => {
         if (generation.current !== current) return;
         setState((previous) => {

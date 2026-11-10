@@ -243,7 +243,7 @@ describe('Возвраты', () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': () => json(received()),
-      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: true, missort: false, comment: '', marked_by: 'partner:1' })
+      'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: { mark: 'accepted', defect: true, missort: false, comment: '', marked_by: 'partner:1' } }] })
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
@@ -253,7 +253,7 @@ describe('Возвраты', () => {
     await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
     expect(within(screen.getByRole('table')).getByText('Брак')).toBeInTheDocument();
-    expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'accepted' });
+    expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted' });
   });
 
   it('подтягивает свежие данные при возврате на вкладку, не прячет таблицу', async () => {
@@ -276,7 +276,7 @@ describe('Возвраты', () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': () => json(received()),
-      'POST /partner-api/returns/mark': () => json({ mark: 'rejected', defect: false, missort: false })
+      'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: { mark: 'rejected', defect: false, missort: false } }] })
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
@@ -287,7 +287,7 @@ describe('Возвраты', () => {
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
-    await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toEqual({ key: 'fbs:1:12', status: 'rejected' }));
+    await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected' }));
   });
 
   it('штуки одного отправления показаны одной строкой: отметка на все, разбор показывает каждую', async () => {
@@ -295,7 +295,10 @@ describe('Возвраты', () => {
     const row = { ...unit, id: 1, key: 'fbs:1', qty: 2, image_url: 'https://cdn1.ozone.ru/s3/folder/pic.jpg', units: [{ ...unit, id: 1, key: 'fbs:1' }, { ...unit, id: 2, key: 'fbs:2' }] };
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
-      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', defect: false, missort: false, comment: '', marked_by: 'partner:1' }),
+      'POST /partner-api/returns/marks': () => json({ results: [
+        { key: 'fbs:1', ok: true, changes: { mark: 'accepted', defect: false, missort: false, comment: '', marked_by: 'partner:1' } },
+        { key: 'fbs:2', ok: true, changes: { mark: 'accepted', defect: false, missort: false, comment: '', marked_by: 'partner:1' } }
+      ] }),
       '/partner-api/returns?*': () => json({ items: [row], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
     });
     renderApp('/returns/received');
@@ -306,7 +309,7 @@ describe('Возвраты', () => {
     await user.click(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' }));
     await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
-    expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([{ key: 'fbs:1', status: 'accepted' }, { key: 'fbs:2', status: 'accepted' }]);
+    expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([expect.objectContaining({ keys: ['fbs:1', 'fbs:2'], status: 'accepted' })]);
 
     await user.click(toggle);
     expect(await screen.findAllByText('Втулка')).toHaveLength(2);
