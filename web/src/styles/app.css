@@ -434,14 +434,17 @@ button.po-day:disabled { cursor: default; }
 .pa-returns__units-toggle { background: none; border: 0; cursor: pointer; display: block; font-size: 13px; font-weight: 400; line-height: 16px; margin-top: 2px; padding: 0; text-align: left; }
 .pa-returns__mark { width: 1%; white-space: nowrap; }
 .pa-returns__mark-box { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
-.pa-mark-chips { display: flex; flex-direction: column; gap: 4px; }
-.pa-mark-chips__row { display: flex; flex-wrap: wrap; gap: 4px; }
-.pa-mark-chip { appearance: none; background: none; border: 0; border-radius: 8px; cursor: pointer; display: inline-flex; padding: 0; }
-.pa-mark-chip:not(.pa-mark-chip--active) .po-badge__badge { opacity: .8; }
-.pa-mark-chip:not(.pa-mark-chip--active):hover:not(:disabled) .po-badge__badge { opacity: 1; }
-.pa-mark-chip--active { cursor: default; }
-.pa-mark-chip:disabled { cursor: default; opacity: .6; }
-.pa-mark-chip:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
+.pa-returns__menu { box-sizing: border-box; min-width: 0; z-index: 1600; }
+/* Плашки результата приёмки правее статуса: серые, а выбранная — своим цветом (ОК светло-зелёная, Брак красноватая, Пересорт фиолетовая) */
+.pa-subchips { align-items: center; display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.pa-subchip { appearance: none; background: var(--ozi-bg-secondary-transparent); border: 0; border-radius: 10px; color: var(--ozi-text-secondary-transparent); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; line-height: 16px; padding: 2px 8px; white-space: nowrap; }
+button.pa-subchip:hover:not(:disabled):not(.pa-subchip--active) { color: var(--ozi-text-primary-transparent); }
+.pa-subchip--active { cursor: default; }
+.pa-subchip--ok.pa-subchip--active { background: var(--ozi-bg-success-secondary); color: var(--ozi-text-success); }
+.pa-subchip--defect.pa-subchip--active { background: var(--ozi-bg-negative-secondary); color: var(--ozi-text-negative); }
+.pa-subchip--missort.pa-subchip--active { background: var(--ozi-violet-200); color: #4b3bc0; }
+.pa-subchip:disabled { cursor: default; opacity: .6; }
+.pa-subchip:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
 .pa-badge-button { appearance: none; background: none; border: 0; border-radius: 8px; cursor: pointer; display: inline-flex; padding: 0; }
 .pa-badge-button:disabled { cursor: default; opacity: .6; }
 .pa-badge-button:focus-visible { outline: 2px solid var(--action-400); outline-offset: 2px; }
