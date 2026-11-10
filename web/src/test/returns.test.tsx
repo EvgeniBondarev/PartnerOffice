@@ -87,7 +87,7 @@ describe('Возвраты', () => {
     // старая ссылка с ?onec= на сервер не уходит
     expect(new URLSearchParams(calls.filter(c => c.url.startsWith('/partner-api/returns?')).at(-1)!.url.split('?')[1]).has('onec')).toBe(false);
     // возврат, перемещённый в 1С куда-то ещё, виден как обычный «Принят»; статус и «Брак»/«Пересорт» партнёр меняет
-    expect(within(region).getByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+    expect(within(region).getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
   });
 
   it('принимает однозначный результат сканирования и выделяет строку', async () => {
@@ -238,7 +238,7 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Товар А')).toBeInTheDocument();
     expect(calls.some(c => c.url.includes('section=received'))).toBe(true);
     expect(within(screen.getByRole('table')).getByText('Ожидает')).toBeInTheDocument();
-    expect(screen.queryByRole('radiogroup', { name: 'Статус приёмки' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Статус приёмки/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
   });
 
@@ -252,8 +252,9 @@ describe('Возвраты', () => {
     const user = userEvent.setup();
     expect(screen.queryByRole('button', { name: 'Принять' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
-    await user.click(await screen.findByRole('radio', { name: 'Принят' }));
-    expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
     // у «Принят» ниже раскрывается «Результат приёмки»
     expect(screen.getByRole('radio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
     expect(within(screen.getByRole('table')).getByRole('radio', { name: 'Брак', checked: true })).toBeInTheDocument();
@@ -272,20 +273,21 @@ describe('Возвраты', () => {
       return calls;
     };
 
-    it('статусы чипами сразу в ячейке, без меню; «ОК / Брак / Пересорт» видны только у «Принят»', async () => {
+    it('меню статуса из трёх пунктов; плашки «ОК / Брак / Пересорт» стоят правее статуса и только у «Принят»', async () => {
       arrange({}, accepted());
-      await screen.findByRole('radio', { name: 'Ожидает', checked: true });
-      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
+      expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual(['Ожидает', 'Принят', 'Не принят']);
       expect(screen.queryByRole('radiogroup', { name: 'Результат приёмки' })).not.toBeInTheDocument();
-      expect(screen.getAllByRole('radio').map(item => item.textContent)).toEqual(['Ожидает', 'Принят', 'Не принят']);
     });
 
     it('«Принят» одним кликом: результат ОК по умолчанию', async () => {
       const calls = arrange({}, accepted());
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('radio', { name: 'Принят' }));
+      await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: false }));
-      expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
       expect(screen.getByRole('radio', { name: 'ОК', checked: true })).toBeInTheDocument();
     });
 
@@ -298,7 +300,7 @@ describe('Возвраты', () => {
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: true, missort: false }));
       // основной статус по-прежнему «Принят», выбран «Брак»
       expect(await screen.findByRole('radio', { name: 'Брак', checked: true })).toBeInTheDocument();
-      expect(screen.getByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
     });
 
     it('подстатусы взаимоисключающие; выбираются и с клавиатуры', async () => {
@@ -314,15 +316,16 @@ describe('Возвраты', () => {
     it('уход из «Принят» сбрасывает подстатус: «ОК / Брак / Пересорт» пропадают', async () => {
       const calls = arrange({ mark: 'accepted', defect: true }, { mark: 'rejected', defect: false, missort: false });
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('radio', { name: 'Не принят' }));
+      await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Не принят' }));
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected', defect: false, missort: false }));
-      expect(await screen.findByRole('radio', { name: 'Не принят', checked: true })).toBeInTheDocument();
+      expect(await screen.findByRole('button', { name: 'Статус приёмки: Не принят' })).toBeInTheDocument();
       expect(screen.queryByRole('radiogroup', { name: 'Результат приёмки' })).not.toBeInTheDocument();
     });
 
     it('у «Ожидает» и «Не принят» бейджа подстатуса нет, даже если в данных остался старый флаг', async () => {
       arrange({ mark: 'pending', defect: true, missort: true }, accepted());
-      await screen.findByRole('radio', { name: 'Ожидает', checked: true });
+      await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
       expect(screen.queryByRole('radio', { name: 'Брак' })).not.toBeInTheDocument();
       expect(screen.queryByRole('radio', { name: 'Пересорт' })).not.toBeInTheDocument();
     });
@@ -335,16 +338,16 @@ describe('Возвраты', () => {
       '/partner-api/returns?*': () => json(received({ mark: status }))
     });
     renderApp('/returns/received');
-    await screen.findByRole('radio', { name: 'Ожидает', checked: true });
+    await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
     const before = calls.filter(c => c.url.startsWith('/partner-api/returns?')).length;
     status = 'accepted';
     window.dispatchEvent(new Event('focus'));
-    expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
     expect(calls.filter(c => c.url.startsWith('/partner-api/returns?')).length).toBeGreaterThan(before);
     expect(screen.queryByText('Загружаем возвраты…')).not.toBeInTheDocument();
   });
 
-  it('статус выбирается с клавиатуры: фокус на «Не принят» и Enter', async () => {
+  it('список статуса открывается с клавиатуры и закрывается по Esc', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': () => json(received()),
@@ -352,8 +355,13 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    (await screen.findByRole('radio', { name: 'Не принят' })).focus();
-    await user.keyboard('{Enter}');
+    const trigger = await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
+    trigger.focus();
+    await user.keyboard('{ArrowDown}');
+    expect(await screen.findByRole('menu', { name: 'Статус приёмки' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
     await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected', defect: false, missort: false }));
   });
 
@@ -373,8 +381,9 @@ describe('Возвраты', () => {
     expect(await screen.findAllByText('Втулка')).toHaveLength(1);
     const toggle = screen.getByRole('button', { name: '2 шт. · Разобрать по штукам' });
 
-    await user.click(await screen.findByRole('radio', { name: 'Принят' }));
-    expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
     expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([expect.objectContaining({ keys: ['fbs:1', 'fbs:2'], status: 'accepted', defect: false, missort: false })]);
 
     await user.click(toggle);
@@ -393,9 +402,10 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('radio', { name: 'Принят' }));
+    await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
     expect(await screen.findByText('Сервис возвратов временно недоступен.')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Ожидает', checked: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' })).toBeInTheDocument();
   });
 
   const listing = (calls: ReturnType<typeof mockApi>) => calls.filter(c => c.url.startsWith('/partner-api/returns?') && !c.url.endsWith('pageSize=1')).at(-1)!;
@@ -644,7 +654,8 @@ describe('Возвраты', () => {
       });
       renderApp('/returns/received');
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('radio', { name: 'Принят' }));
+      await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
       expect(await screen.findByText(/Возврат уже изменился или закрыт сотрудниками/)).toBeInTheDocument();
       expect(screen.queryByText('Возврат не найден.')).not.toBeInTheDocument();
       const before = calls.filter(c => c.url.startsWith('/partner-api/returns?')).length;
@@ -659,7 +670,8 @@ describe('Возвраты', () => {
       });
       renderApp('/returns/received');
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('radio', { name: 'Не принят' }));
+      await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+    await user.click(await screen.findByRole('menuitemradio', { name: 'Не принят' }));
       expect(await screen.findByText('По возврату уже принято решение: отметку изменить нельзя.')).toBeInTheDocument();
     });
 

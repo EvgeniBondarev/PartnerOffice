@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ApiError, request } from '../api/client';
 import { API_BASE_URL, apiUrl } from '../config';
@@ -19,10 +19,12 @@ import { joinList, splitList, toggleValue } from '../lib/multi';
 import { Skeleton } from '../ui/Skeleton';
 import { useMediaQuery } from '../ui/useMediaQuery';
 import { TextField } from '../ui/TextField';
+import { Icon } from '../ui/Icon';
 import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
 import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
+import { usePopover } from '../ui/usePopover';
 import { useReturnsQuery, type ReturnsSection } from './useReturnsQuery';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
@@ -59,14 +61,11 @@ const MARK_STATUSES: { value: 'pending' | 'accepted' | 'rejected'; label: string
   { value: 'rejected', label: 'Не принят', kind: 'primary negative' }
 ];
 type MarkSub = 'ok' | 'defect' | 'missort';
-const MARK_SUBS: { value: MarkSub; label: string; kind?: BadgeKind }[] = [
-  { value: 'ok', label: 'ОК' },
-  { value: 'defect', label: 'Брак', kind: 'secondary negative' },
-  { value: 'missort', label: 'Пересорт', kind: 'secondary info' }
-];
+const MARK_SUBS: { value: MarkSub; label: string }[] = [{ value: 'ok', label: 'ОК' }, { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }];
 /** Подстатус есть только у «Принят»: флаги на других статусах (старые отметки) не показываем; если стоят оба, главнее брак. */
 const markSub = (row: Pick<ReturnRow, 'mark' | 'defect' | 'missort'>): MarkSub => row.mark !== 'accepted' ? 'ok' : row.defect ? 'defect' : row.missort ? 'missort' : 'ok';
 const subPatch = (sub: MarkSub): MarkPatch => ({ status: 'accepted', defect: sub === 'defect', missort: sub === 'missort' });
+const MENU_WIDTH = 200, MENU_HEIGHT = 150;
 const STATUS_OPTIONS = [
   { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' },
   { value: 'MovingToSeller', label: 'В пути к продавцу' }, { value: 'WaitingShipment', label: 'Ожидает отправки' }
@@ -746,28 +745,75 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
 }
 
 /**
- * Статус приёмки прямо в ячейке, без меню: чипы «Ожидает / Принят / Не принят», а у «Принят» ниже «ОК / Брак / Пересорт».
- * Текущее значение выбрано цветом, остальные серые; клик сохраняет сразу. Подстатус не меняет основной статус,
- * уход из «Принят» сбрасывает его в ОК. Без права на приёмку — только бейджи.
+ * Статус приёмки: бейдж открывает список из трёх статусов (Ожидает / Принят / Не принят). Правее у «Принят» стоят маленькие плашки
+ * результата: ОК (светло-зелёная), Брак (красноватая), Пересорт (фиолетовая). Выбранная светится своим цветом, остальные серые;
+ * клик по плашке сохраняет сразу. Плашка не меняет основной статус, уход из «Принят» сбрасывает её в ОК.
+ * Без права на приёмку — только бейдж и плашка не-ОК результата.
  */
 function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
   const sub = markSub(row);
-  if (!canWork) {
-    // Маленький бейдж рядом — только если подстатус не ОК; у «Ожидает» и «Не принят» его нет
-    const subBadge = MARK_SUBS.find(item => item.value === sub && item.kind);
-    return <div className="pa-returns__mark-box"><Badge kind={status.kind}>{status.label}</Badge>{subBadge && <Badge kind={subBadge.kind!} size={400}>{subBadge.label}</Badge>}</div>;
-  }
-  const chip = (label: string, active: boolean, kind: BadgeKind, onClick: () => void) =>
-    <button key={label} type="button" role="radio" aria-checked={active} disabled={busy} className={`pa-mark-chip${active ? ' pa-mark-chip--active' : ''}`}
-      onClick={() => { if (!active) onClick(); }}><Badge kind={active ? kind : 'secondary neutral'} size={400}>{label}</Badge></button>;
-  return <div className="pa-mark-chips">
-    <div role="radiogroup" aria-label="Статус приёмки" className="pa-mark-chips__row">
-      {MARK_STATUSES.map(item => chip(item.label, item.value === status.value, item.kind,
-        () => onChange(item.value === 'accepted' ? subPatch('ok') : { status: item.value, defect: false, missort: false })))}
-    </div>
-    {status.value === 'accepted' && <div role="radiogroup" aria-label="Результат приёмки" className="pa-mark-chips__row">
-      {MARK_SUBS.map(option => chip(option.label, option.value === sub, option.kind ?? 'primary neutral', () => onChange(subPatch(option.value))))}
+  const { open, setOpen, close, rootRef, buttonRef } = usePopover();
+  const [active, setActive] = useState(0);
+  const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const items = MARK_STATUSES.map(item => ({
+    ...item, checked: item.value === status.value,
+    apply: () => { if (item.value !== status.value) onChange(item.value === 'accepted' ? subPatch('ok') : { status: item.value, defect: false, missort: false }); }
+  }));
+
+  // Список рисуется поверх таблицы (fixed), иначе его обрежет прокрутка таблицы; у нижнего края открывается вверх.
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) { setPosition(null); return; }
+    const rect = buttonRef.current.getBoundingClientRect();
+    const gap = 8, width = Math.min(MENU_WIDTH, window.innerWidth - gap * 2);
+    const left = Math.min(Math.max(gap, rect.left), window.innerWidth - width - gap);
+    const below = window.innerHeight - rect.bottom - gap - 4, above = rect.top - gap - 4;
+    setPosition(below < MENU_HEIGHT && above > below ? { bottom: window.innerHeight - rect.top + 4, left, width, maxHeight: above } : { top: rect.bottom + 4, left, width, maxHeight: below });
+    setActive(Math.max(0, items.findIndex(item => item.checked)));
+    const hide = () => setOpen(false);
+    window.addEventListener('scroll', hide, true); window.addEventListener('resize', hide);
+    return () => { window.removeEventListener('scroll', hide, true); window.removeEventListener('resize', hide); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  useEffect(() => { if (position) menuRef.current?.focus({ preventScroll: true }); }, [position]);
+
+  const choose = (index: number) => { items[index]?.apply(); close(); };
+  const onMenuKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'ArrowDown') { event.preventDefault(); setActive(i => Math.min(items.length - 1, i + 1)); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(i => Math.max(0, i - 1)); }
+    else if (event.key === 'Home') { event.preventDefault(); setActive(0); }
+    else if (event.key === 'End') { event.preventDefault(); setActive(items.length - 1); }
+    else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(active); }
+    else if (event.key === 'Tab') setOpen(false);
+  };
+  const accepted = status.value === 'accepted';
+
+  return <div className="pa-returns__mark-box" ref={rootRef}>
+    {canWork
+      ? <button type="button" ref={buttonRef} className="pa-badge-button" aria-haspopup="menu" aria-expanded={open} aria-label={`Статус приёмки: ${status.label}`} disabled={busy}
+          onClick={() => setOpen(!open)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); } }}>
+          <Badge kind={status.kind} chevron>{status.label}</Badge>
+        </button>
+      : <Badge kind={status.kind}>{status.label}</Badge>}
+    {accepted && (canWork
+      ? <div className="pa-subchips" role="radiogroup" aria-label="Результат приёмки">
+        {MARK_SUBS.map(option => <button key={option.value} type="button" role="radio" aria-checked={option.value === sub} disabled={busy}
+          className={`pa-subchip pa-subchip--${option.value}${option.value === sub ? ' pa-subchip--active' : ''}`}
+          onClick={() => { if (option.value !== sub) onChange(subPatch(option.value)); }}>{option.label}</button>)}
+      </div>
+      : sub !== 'ok' && <span className={`pa-subchip pa-subchip--${sub} pa-subchip--active`}>{MARK_SUBS.find(option => option.value === sub)?.label}</span>)}
+    {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
+      <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
+        {items.map((item, index) => <div key={item.value} role="menuitemradio" aria-checked={item.checked}
+          className={`po-dropdown-item${active === index ? ' po-dropdown-item--focused' : ''}`}
+          onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActive(index)} onClick={() => choose(index)}>
+          <div className="po-dropdown-item__block">
+            <Badge kind={item.kind}>{item.label}</Badge>
+            {item.checked && <span className="po-dropdown-item__check" aria-hidden="true"><Icon name="ui-check" /></span>}
+          </div>
+        </div>)}
+      </div></div>
     </div>}
   </div>;
 }
