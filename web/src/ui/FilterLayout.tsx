@@ -10,8 +10,10 @@ export const PANEL_MIN_WIDTH = 1280;
 const PANEL_MEDIA = '(min-width: 1200px)', PHONE_MEDIA = '(max-width: 767px)';
 
 interface FilterLayoutProps {
-  /** Заголовок страницы (и табы): в левой колонке над панелью. */
+  /** Заголовок страницы: в левой колонке над панелью. */
   heading: ReactNode;
+  /** Во всю ширину над панелью и поиском (например, вкладки разделов). */
+  top?: ReactNode;
   /** Поиск: в правой колонке над списком, на уровне заголовка, чтобы список занимал всю высоту. */
   search: ReactNode;
   /** Содержимое панели; в шторке и боковой панели заголовок «Фильтры» убирают. */
@@ -30,7 +32,7 @@ interface FilterLayoutProps {
  * Шаблон «список с панелью фильтров»: слева заголовок и панель, справа поиск, теги выбранного и список (children).
  * Общий для всех страниц со списками: ширина экрана, кнопка «Фильтры (N)», боковая панель и шторка решаются здесь.
  */
-export function FilterLayout({ heading, search, panel, chips, activeCount, onClear, resultLabel, onMouseDown, children }: FilterLayoutProps) {
+export function FilterLayout({ heading, top, search, panel, chips, activeCount, onClear, resultLabel, onMouseDown, children }: FilterLayoutProps) {
   const ref = useRef<HTMLDivElement>(null);
   const width = useElementWidth(ref);
   const wideWindow = useMediaQuery(PANEL_MEDIA), phone = useMediaQuery(PHONE_MEDIA, false);
@@ -39,6 +41,7 @@ export function FilterLayout({ heading, search, panel, chips, activeCount, onCle
   useEffect(() => { if (docked) setDrawerOpen(false); }, [docked]);
   return (
     <>
+      {top && <div className="pa-list__top">{top}</div>}
       <div ref={ref} className={`pa-list__layout${docked ? ' pa-list__layout--panel' : ''}`}>
         <div className="pa-list__left">
           <div className="pa-list__heading">{heading}</div>
