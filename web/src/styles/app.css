@@ -613,12 +613,17 @@ button.po-day:disabled { cursor: default; }
 }
 
 /* «К отправке» и «Полка»: шесть колонок со своим содержимым (кнопка, бейдж статуса), ширины не такие, как у «Получено». */
-.pa-list .pa-table.pa-table--outbound th:nth-child(1), .pa-list .pa-table.pa-table--outbound td:nth-child(1) { width: 26%; }
-.pa-list .pa-table.pa-table--outbound th:nth-child(2), .pa-list .pa-table.pa-table--outbound td:nth-child(2) { width: 16%; }
-.pa-list .pa-table.pa-table--outbound th:nth-child(3), .pa-list .pa-table.pa-table--outbound td:nth-child(3) { width: 9%; }
-.pa-list .pa-table.pa-table--outbound th:nth-child(4), .pa-list .pa-table.pa-table--outbound td:nth-child(4) { width: 19%; }
-.pa-list .pa-table.pa-table--outbound th:nth-child(5), .pa-list .pa-table.pa-table--outbound td:nth-child(5) { width: 14%; }
-.pa-list .pa-table.pa-table--outbound th:nth-child(6), .pa-list .pa-table.pa-table--outbound td:nth-child(6) { width: 16%; }
+/* «Возврат поставщику»: товар, отправление, склад и документ, ТТН, статус */
+.pa-list .pa-table.pa-table--supplier th:nth-child(1), .pa-list .pa-table.pa-table--supplier td:nth-child(1) { width: 30%; }
+.pa-list .pa-table.pa-table--supplier th:nth-child(2), .pa-list .pa-table.pa-table--supplier td:nth-child(2) { width: 20%; }
+.pa-list .pa-table.pa-table--supplier th:nth-child(3), .pa-list .pa-table.pa-table--supplier td:nth-child(3) { width: 22%; }
+.pa-list .pa-table.pa-table--supplier th:nth-child(4), .pa-list .pa-table.pa-table--supplier td:nth-child(4) { width: 14%; }
+.pa-list .pa-table.pa-table--supplier th:nth-child(5), .pa-list .pa-table.pa-table--supplier td:nth-child(5) { width: 14%; }
+/* «Возврат на склад»: товар, отправление, склад и документ, статус (ТТН нет) */
+.pa-list .pa-table.pa-table--warehouse th:nth-child(1), .pa-list .pa-table.pa-table--warehouse td:nth-child(1) { width: 34%; }
+.pa-list .pa-table.pa-table--warehouse th:nth-child(2), .pa-list .pa-table.pa-table--warehouse td:nth-child(2) { width: 24%; }
+.pa-list .pa-table.pa-table--warehouse th:nth-child(3), .pa-list .pa-table.pa-table--warehouse td:nth-child(3) { width: 24%; }
+.pa-list .pa-table.pa-table--warehouse th:nth-child(4), .pa-list .pa-table.pa-table--warehouse td:nth-child(4) { width: 18%; }
 .pa-list .pa-table.pa-table--shelf th:nth-child(1), .pa-list .pa-table.pa-table--shelf td:nth-child(1) { width: 30%; }
 .pa-list .pa-table.pa-table--shelf th:nth-child(2), .pa-list .pa-table.pa-table--shelf td:nth-child(2) { width: 20%; }
 .pa-list .pa-table.pa-table--shelf th:nth-child(3), .pa-list .pa-table.pa-table--shelf td:nth-child(3) { width: 20%; }
