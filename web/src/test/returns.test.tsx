@@ -822,6 +822,19 @@ describe('Возвраты', () => {
       expect(calls.some(c => c.url.includes('section=outbound') && c.url.includes('to=us') && c.url.includes('pageSize=1'))).toBe(true);
     });
 
+    it('если сервер отдаёт счётчики с разбивкой supplier/us, вкладки берут их оттуда без отдельных запросов', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns/counts': () => json({ counts: { waiting: 1, received: 2, shelf: 3, supplier: 4, us: 5, outbound: 9 } }),
+        '/partner-api/returns?*': () => json(received())
+      });
+      renderApp('/returns/received');
+      await screen.findByText('Товар А');
+      expect(await screen.findByRole('link', { name: /^Возврат поставщику\s*4$/ })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^Возврат на склад\s*5$/ })).toBeInTheDocument();
+      expect(calls.some(c => c.url.includes('section=outbound') && c.url.includes('pageSize=1'))).toBe(false);
+    });
+
     it('старая ссылка «К отправке» ведёт во «Возврат поставщику», а с dest=us — во «Возврат на склад»', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),

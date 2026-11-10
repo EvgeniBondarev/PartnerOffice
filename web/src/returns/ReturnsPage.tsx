@@ -133,6 +133,7 @@ function suggestionLabel(row: ReturnRow, query: string): string {
  * (раздел, фильтры, поиск), поэтому чужие данные после смены учётной записи не покажутся.
  */
 const LIST_CACHE_LIMIT = 40;
+const COUNTS_REFRESH_MS = 60_000;
 const EMPTY_COUNTS: Record<ReturnsSection, number | null> = { waiting: null, received: null, shelf: null, supplier: null, warehouse: null };
 const listCache = new Map<string, { data: ReturnPage; items: ReturnRow[] }>();
 const countsCache = new Map<number, Record<ReturnsSection, number | null>>();
@@ -287,10 +288,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observable, hasMore, loading, loadingMore, moreError, pagesLoaded, phone]);
 
-  // Счётчики всех разделов приходят одним агрегированным запросом, без трёх list-запросов.
+  // Счётчики всех разделов приходят одним агрегированным запросом, без list-запросов на каждую вкладку. Обновляются реже списка
+  // (раз в минуту): опрос списка каждые 15 с не должен каждый раз заставлять сервер пересчитывать все разделы.
   useEffect(() => {
     if (!allowed) return;
-    const controller = new AbortController();
+    let controller = new AbortController();
     const loadCounts = (names: ReturnsSection[]) => {
       for (const other of names.filter(name => name !== section)) {
         request<ReturnPage>(`/partner-api/returns?${new URLSearchParams({ ...listParams(other), page: '1', pageSize: '1' })}`, { signal: controller.signal })
@@ -298,17 +300,30 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
           .catch(() => undefined);
       }
     };
-    // «Возврат поставщику» и «Возврат на склад» агрегированный запрос не разделяет по адресату: их счётчики — отдельными запросами
-    loadCounts(['supplier', 'warehouse']);
-    request<{ counts: Partial<Record<string, number>> }>('/partner-api/returns/counts', { signal: controller.signal })
-      .then(result => {
-        if (result?.counts) setCounts(previous => ({ ...previous, ...Object.fromEntries((['waiting', 'received', 'shelf'] as const).filter(name => result.counts[name] !== undefined).map(name => [name, result.counts[name]])) }));
-        else loadCounts(['waiting', 'received', 'shelf']);
-      })
-      // Compatible rollout: an already deployed Studio2 may not yet expose /counts.
-      .catch(() => loadCounts(['waiting', 'received', 'shelf']));
-    return () => controller.abort();
-  }, [allowed, section, retry]);
+    const load = () => {
+      if (document.visibilityState !== 'visible') return;
+      controller.abort(); controller = new AbortController();
+      request<{ counts: Partial<Record<string, number>> }>('/partner-api/returns/counts', { signal: controller.signal })
+        .then(result => {
+          const all = result?.counts;
+          if (!all) { loadCounts(['waiting', 'received', 'shelf', 'supplier', 'warehouse']); return; }
+          setCounts(previous => ({
+            ...previous,
+            ...Object.fromEntries((['waiting', 'received', 'shelf'] as const).filter(name => all[name] !== undefined).map(name => [name, all[name]])),
+            // «Возврат поставщику» и «Возврат на склад» — части раздела outbound по адресату (`supplier` и `us` в ответе)
+            ...(all.supplier !== undefined ? { supplier: all.supplier } : {}),
+            ...(all.us !== undefined ? { warehouse: all.us } : {})
+          }));
+          // Compatible rollout: ozon-returns без разбивки по адресату — счётчики этих двух вкладок отдельными запросами
+          loadCounts([...(all.supplier === undefined ? ['supplier' as const] : []), ...(all.us === undefined ? ['warehouse' as const] : [])]);
+        })
+        // Compatible rollout: an already deployed Studio2 may not yet expose /counts.
+        .catch(() => { if (!controller.signal.aborted) loadCounts(['waiting', 'received', 'shelf', 'supplier', 'warehouse']); });
+    };
+    load();
+    const timer = window.setInterval(load, COUNTS_REFRESH_MS);
+    return () => { window.clearInterval(timer); controller.abort(); };
+  }, [allowed, section]);
 
   // Выгрузка из Ozon и отметки из ozon-returns приходят без участия страницы: подтягиваем их раз в минуту
   // и при возврате на вкладку, пока открыта вкладка и нет несохранённой отметки.
