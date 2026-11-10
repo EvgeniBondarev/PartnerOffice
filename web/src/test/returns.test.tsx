@@ -695,67 +695,25 @@ describe('Возвраты', () => {
       expect(param(listing(calls).url, 'section')).toBe('shelf');
       const region = screen.getByRole('region', { name: 'Возвраты на полке' });
       for (const text of ['ГОМЕЛЬ — партнёр', '№НФУ1-005072', 'На полке']) expect(within(region).getByText(text)).toBeInTheDocument();
-      for (const name of ['Склад партнёра', 'Перемещено', 'Статус', 'Отметка']) expect(within(region).getByRole('columnheader', { name })).toBeInTheDocument();
+      for (const name of ['Склад партнёра', 'Перемещено', 'Статус']) expect(within(region).getByRole('columnheader', { name })).toBeInTheDocument();
+      expect(within(region).queryByRole('columnheader', { name: 'Отметка' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Положил на полку' })).not.toBeInTheDocument();
       expect(within(region).queryByRole('columnheader', { name: 'Приёмка' })).not.toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Полка/ })).toHaveAttribute('href', '/returns/shelf');
     });
 
-    it('«Положил на полку» только с правом «Приём возвратов»; отметка не меняет статус и ставится один раз', async () => {
+    it('на «Полке» нет отметки «Положил на полку», колонки «Отметка» и её фильтра, даже с правом «Приём возвратов»', async () => {
       const calls = mockApi({
-        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
         '/partner-api/returns?*': () => json(shelfPage())
       });
-      renderApp('/returns/shelf');
+      renderApp('/returns/shelf?ack=no');
       await screen.findByText('Шрус NAKAYAMA');
       expect(screen.queryByRole('button', { name: 'Положил на полку' })).not.toBeInTheDocument();
-      expect(calls.some(c => c.url.includes('shelf-ack'))).toBe(false);
-    });
-
-    it('отметка «Положил на полку»: запрос, дата вместо кнопки, статус «На полке» остаётся', async () => {
-      const calls = mockApi({
-        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
-        '/partner-api/returns?*': () => json(shelfPage()),
-        'POST /partner-api/returns/shelf-ack': () => json({ partner_ack_at: '2026-11-10T11:30:00' })
-      });
-      renderApp('/returns/shelf');
-      const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Положил на полку' }));
-      await waitFor(() => expect(screen.queryByRole('button', { name: 'Положил на полку' })).not.toBeInTheDocument());
-      const post = calls.find(c => c.url.includes('shelf-ack'))!;
-      expect(post.body).toEqual({ key: 'fbs:1:12' });
-      const region = screen.getByRole('region', { name: 'Возвраты на полке' });
-      expect(within(region).getByText('Положил на полку')).toBeInTheDocument();
-      expect(within(region).getByText('На полке')).toBeInTheDocument();
-    });
-
-    it('отметка позиции, которой уже нет на полке: понятное сообщение и обновление списка', async () => {
-      mockApi({
-        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
-        '/partner-api/returns?*': () => json(shelfPage()),
-        'POST /partner-api/returns/shelf-ack': () => json({ error: 'Позиция не найдена среди возвратов на полке.' }, 404)
-      });
-      renderApp('/returns/shelf');
-      const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Положил на полку' }));
-      expect(await screen.findByText('Позиции уже нет на полке. Список обновлён.')).toBeInTheDocument();
-    });
-
-    it('фильтр «Отметка» применяется сразу, не показывает пункт выдачи, обе отметки сразу — без фильтра', async () => {
-      const calls = mockApi({
-        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
-        '/partner-api/returns?*': () => json(shelfPage())
-      });
-      renderApp('/returns/shelf');
-      await screen.findByText('Шрус NAKAYAMA');
+      expect(screen.queryByRole('group', { name: 'Отметка' })).not.toBeInTheDocument();
       expect(screen.queryByLabelText('Название пункта')).not.toBeInTheDocument();
       expect(screen.queryByRole('group', { name: 'Приёмка' })).not.toBeInTheDocument();
-      const user = userEvent.setup();
-      const group = screen.getByRole('group', { name: 'Отметка' });
-      await user.click(within(group).getByRole('checkbox', { name: 'Ещё не отмечено' }));
-      await waitFor(() => expect(param(listing(calls).url, 'ack')).toBe('no'));
-      expect(within(screen.getByRole('list', { name: 'Выбранные фильтры' })).getByText('Отметка: Ещё не отмечено')).toBeInTheDocument();
-      await user.click(within(group).getByRole('checkbox', { name: 'Положил на полку' }));
-      await waitFor(() => expect(param(listing(calls).url, 'ack')).toBe(''));
+      expect(param(listing(calls).url, 'ack')).toBeNull();   // старая ссылка с ?ack= на сервер не уходит
     });
 
     it('счётчики вкладок: у «Ждёт получения» и «Получено» запрашивается и число на полке', async () => {
