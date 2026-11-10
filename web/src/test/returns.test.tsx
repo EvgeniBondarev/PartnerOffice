@@ -87,7 +87,7 @@ describe('Возвраты', () => {
     // старая ссылка с ?onec= на сервер не уходит
     expect(new URLSearchParams(calls.filter(c => c.url.startsWith('/partner-api/returns?')).at(-1)!.url.split('?')[1]).has('onec')).toBe(false);
     // возврат, перемещённый в 1С куда-то ещё, виден как обычный «Принят»; статус и «Брак»/«Пересорт» партнёр меняет
-    expect(within(region).getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    expect(within(region).getByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
   });
 
   it('принимает однозначный результат сканирования и выделяет строку', async () => {
@@ -238,7 +238,7 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Товар А')).toBeInTheDocument();
     expect(calls.some(c => c.url.includes('section=received'))).toBe(true);
     expect(within(screen.getByRole('table')).getByText('Ожидает')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Статус приёмки/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Статус приёмки' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
   });
 
@@ -252,13 +252,11 @@ describe('Возвраты', () => {
     const user = userEvent.setup();
     expect(screen.queryByRole('button', { name: 'Принять' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Комментарий приёмки')).not.toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
-    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
-    // «Принят» не закрывает меню: под ним раскрывается «Результат приёмки»
-    expect(screen.getByRole('menuitemradio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
-    await user.keyboard('{Escape}');
-    expect(within(screen.getByRole('table')).getByText('Брак')).toBeInTheDocument();
+    await user.click(await screen.findByRole('radio', { name: 'Принят' }));
+    expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+    // у «Принят» ниже раскрывается «Результат приёмки»
+    expect(screen.getByRole('radio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(screen.getByRole('table')).getByRole('radio', { name: 'Брак', checked: true })).toBeInTheDocument();
     expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: false });
   });
 
@@ -274,55 +272,59 @@ describe('Возвраты', () => {
       return calls;
     };
 
-    it('в меню нет флажков «Брак»/«Пересорт», подстатус виден только у «Принят»', async () => {
+    it('статусы чипами сразу в ячейке, без меню; «ОК / Брак / Пересорт» видны только у «Принят»', async () => {
       arrange({}, accepted());
+      await screen.findByRole('radio', { name: 'Ожидает', checked: true });
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      expect(screen.queryByRole('radiogroup', { name: 'Результат приёмки' })).not.toBeInTheDocument();
+      expect(screen.getAllByRole('radio').map(item => item.textContent)).toEqual(['Ожидает', 'Принят', 'Не принят']);
+    });
+
+    it('«Принят» одним кликом: результат ОК по умолчанию', async () => {
+      const calls = arrange({}, accepted());
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
-      expect(screen.queryByRole('menuitemcheckbox')).not.toBeInTheDocument();
-      expect(screen.queryByText('Результат приёмки')).not.toBeInTheDocument();
-      expect(screen.getAllByRole('menuitemradio').map(item => item.textContent)).toEqual(['Ожидает', 'Принят', 'Не принят']);
+      await user.click(await screen.findByRole('radio', { name: 'Принят' }));
+      await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: false }));
+      expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'ОК', checked: true })).toBeInTheDocument();
     });
 
     it('«Принят»: раскрывается «Результат приёмки», по умолчанию ОК; брак сохраняется сразу и статус остаётся', async () => {
       const calls = arrange({ mark: 'accepted' }, accepted({ defect: true }));
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
-      expect(screen.getByText('Результат приёмки')).toBeInTheDocument();
-      expect(screen.getByRole('menuitemradio', { name: /^ОК/ })).toHaveAttribute('aria-checked', 'true');
-      await user.click(screen.getByRole('menuitemradio', { name: 'Брак' }));
+      expect(await screen.findByRole('radiogroup', { name: 'Результат приёмки' })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'ОК' })).toHaveAttribute('aria-checked', 'true');
+      await user.click(screen.getByRole('radio', { name: 'Брак' }));
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: true, missort: false }));
-      // выбор подстатуса закрывает меню; основной бейдж — по-прежнему «Принят», рядом бейдж «Брак»
-      await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-      expect(screen.getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
-      expect(within(screen.getByRole('table')).getByText('Брак')).toBeInTheDocument();
+      // основной статус по-прежнему «Принят», выбран «Брак»
+      expect(await screen.findByRole('radio', { name: 'Брак', checked: true })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
     });
 
-    it('подстатусы взаимоисключающие; клавиатура проходит по радиокнопкам', async () => {
+    it('подстатусы взаимоисключающие; выбираются и с клавиатуры', async () => {
       const calls = arrange({ mark: 'accepted', defect: true }, accepted({ missort: true }));
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
-      expect(screen.getByRole('menuitemradio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
-      expect(screen.getByRole('menuitemradio', { name: 'Пересорт' })).toHaveAttribute('aria-checked', 'false');
-      await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}'); // Принят → ОК → Брак → Пересорт
+      expect(await screen.findByRole('radio', { name: 'Брак' })).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByRole('radio', { name: 'Пересорт' })).toHaveAttribute('aria-checked', 'false');
+      screen.getByRole('radio', { name: 'Пересорт' }).focus();
+      await user.keyboard('{Enter}');
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: true }));
     });
 
-    it('уход из «Принят» сбрасывает подстатус и закрывает меню', async () => {
+    it('уход из «Принят» сбрасывает подстатус: «ОК / Брак / Пересорт» пропадают', async () => {
       const calls = arrange({ mark: 'accepted', defect: true }, { mark: 'rejected', defect: false, missort: false });
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
-      await user.click(screen.getByRole('menuitemradio', { name: 'Не принят' }));
+      await user.click(await screen.findByRole('radio', { name: 'Не принят' }));
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected', defect: false, missort: false }));
-      expect(await screen.findByRole('button', { name: 'Статус приёмки: Не принят' })).toBeInTheDocument();
-      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-      expect(within(screen.getByRole('table')).queryByText('Брак')).not.toBeInTheDocument();
+      expect(await screen.findByRole('radio', { name: 'Не принят', checked: true })).toBeInTheDocument();
+      expect(screen.queryByRole('radiogroup', { name: 'Результат приёмки' })).not.toBeInTheDocument();
     });
 
     it('у «Ожидает» и «Не принят» бейджа подстатуса нет, даже если в данных остался старый флаг', async () => {
       arrange({ mark: 'pending', defect: true, missort: true }, accepted());
-      await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
-      expect(within(screen.getByRole('table')).queryByText('Брак')).not.toBeInTheDocument();
-      expect(within(screen.getByRole('table')).queryByText('Пересорт')).not.toBeInTheDocument();
+      await screen.findByRole('radio', { name: 'Ожидает', checked: true });
+      expect(screen.queryByRole('radio', { name: 'Брак' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: 'Пересорт' })).not.toBeInTheDocument();
     });
   });
 
@@ -333,16 +335,16 @@ describe('Возвраты', () => {
       '/partner-api/returns?*': () => json(received({ mark: status }))
     });
     renderApp('/returns/received');
-    await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
+    await screen.findByRole('radio', { name: 'Ожидает', checked: true });
     const before = calls.filter(c => c.url.startsWith('/partner-api/returns?')).length;
     status = 'accepted';
     window.dispatchEvent(new Event('focus'));
-    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
     expect(calls.filter(c => c.url.startsWith('/partner-api/returns?')).length).toBeGreaterThan(before);
     expect(screen.queryByText('Загружаем возвраты…')).not.toBeInTheDocument();
   });
 
-  it('список статуса открывается с клавиатуры и закрывается по Esc', async () => {
+  it('статус выбирается с клавиатуры: фокус на «Не принят» и Enter', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': () => json(received()),
@@ -350,13 +352,8 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    const trigger = await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' });
-    trigger.focus();
-    await user.keyboard('{ArrowDown}');
-    expect(await screen.findByRole('menu', { name: 'Статус приёмки' })).toBeInTheDocument();
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    await user.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}{Enter}');
+    (await screen.findByRole('radio', { name: 'Не принят' })).focus();
+    await user.keyboard('{Enter}');
     await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'rejected', defect: false, missort: false }));
   });
 
@@ -376,9 +373,8 @@ describe('Возвраты', () => {
     expect(await screen.findAllByText('Втулка')).toHaveLength(1);
     const toggle = screen.getByRole('button', { name: '2 шт. · Разобрать по штукам' });
 
-    await user.click(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
-    expect(await screen.findByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    await user.click(await screen.findByRole('radio', { name: 'Принят' }));
+    expect(await screen.findByRole('radio', { name: 'Принят', checked: true })).toBeInTheDocument();
     expect(calls.filter(c => c.method === 'POST').map(c => c.body)).toEqual([expect.objectContaining({ keys: ['fbs:1', 'fbs:2'], status: 'accepted', defect: false, missort: false })]);
 
     await user.click(toggle);
@@ -397,10 +393,9 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
-    await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+    await user.click(await screen.findByRole('radio', { name: 'Принят' }));
     expect(await screen.findByText('Сервис возвратов временно недоступен.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Статус приёмки: Ожидает' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Ожидает', checked: true })).toBeInTheDocument();
   });
 
   const listing = (calls: ReturnType<typeof mockApi>) => calls.filter(c => c.url.startsWith('/partner-api/returns?') && !c.url.endsWith('pageSize=1')).at(-1)!;
@@ -649,8 +644,7 @@ describe('Возвраты', () => {
       });
       renderApp('/returns/received');
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Ожидает' }));
-      await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+      await user.click(await screen.findByRole('radio', { name: 'Принят' }));
       expect(await screen.findByText(/Возврат уже изменился или закрыт сотрудниками/)).toBeInTheDocument();
       expect(screen.queryByText('Возврат не найден.')).not.toBeInTheDocument();
       const before = calls.filter(c => c.url.startsWith('/partner-api/returns?')).length;
@@ -665,8 +659,7 @@ describe('Возвраты', () => {
       });
       renderApp('/returns/received');
       const user = userEvent.setup();
-      await user.click(await screen.findByRole('button', { name: 'Статус приёмки: Принят' }));
-      await user.click(await screen.findByRole('menuitemradio', { name: 'Не принят' }));
+      await user.click(await screen.findByRole('radio', { name: 'Не принят' }));
       expect(await screen.findByText('По возврату уже принято решение: отметку изменить нельзя.')).toBeInTheDocument();
     });
 
