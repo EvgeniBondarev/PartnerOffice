@@ -24,7 +24,6 @@ import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
 import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
-import { Tooltip } from '../ui/Tooltip';
 import { usePopover } from '../ui/usePopover';
 import { useReturnsQuery, type ReturnsSection } from './useReturnsQuery';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
@@ -79,7 +78,6 @@ const MARK_OPTIONS = [{ value: 'pending', label: 'Ожидает' }, { value: 'a
 /** Уточнение внутри «Принят». На сервер уходит вместо «accepted»: defect / missort / ok — принятые с этим подстатусом. */
 const MARK_SUB_OPTIONS = [{ value: 'ok', label: 'ОК (стандартно)' }, { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }];
 const SUB_VALUES = MARK_SUB_OPTIONS.map(option => option.value);
-const ONEC_OPTIONS = [{ value: 'accepted', label: 'Принято в 1С' }, { value: 'pending', label: 'Ещё не принято' }];
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
 const ACK_OPTIONS = [{ value: 'yes', label: 'Положил на полку' }, { value: 'no', label: 'Ещё не отмечено' }];
 const SHELF_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад партнёра', 'Перемещено', 'Статус', 'Отметка'];
@@ -482,7 +480,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'onec' | 'review' | 'ack' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'ack' | 'to', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...splitList(panelFilters.mark).map(value => ({
@@ -490,7 +488,6 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       // последнее снятое уточнение возвращает общий «Принят», а не стирает его
       onRemove: () => { const rest = splitList(panelFilters.mark).filter(item => item !== value); change({ mark: joinList(SUB_VALUES.includes(value) && !rest.some(item => SUB_VALUES.includes(item)) && !rest.includes('accepted') ? [...rest, 'accepted'] : rest) }); }
     })),
-    ...valueChips('onec', 'Учёт в 1С', value => label(ONEC_OPTIONS, value)),
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
     ...valueChips('ack', 'Отметка', value => label(ACK_OPTIONS, value)),
     ...valueChips('to', 'Кому', value => label(TO_OPTIONS, value)),
@@ -505,7 +502,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       : shelf
       ? <FilterSection title="Отметка" active={!!panelFilters.ack}><CheckboxGroup value={panelFilters.ack} options={ACK_OPTIONS} onChange={value => change({ ack: value.includes(',') ? '' : value })} /></FilterSection>
       : received
-      ? <FilterSection title="Приёмка" active={!!panelFilters.mark || !!panelFilters.onec}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /><CheckboxGroup value={panelFilters.onec} options={ONEC_OPTIONS} onChange={value => change({ onec: value })} /></FilterSection>
+      ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /></FilterSection>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
     {received && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={REVIEW_OPTIONS} onChange={value => change({ review: value })} /></FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
@@ -727,7 +724,7 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
 }
 
 /**
- * Статус приёмки: бейдж открывает список. Основной статус один (Ожидает / Принят / Не принят); у «Принят» раскрывается
+ * Статус приёмки: бейдж открывает список; у возврата, уже перемещённого в 1С (не на склад партнёра), статус только виден. Основной статус один (Ожидает / Принят / Не принят); у «Принят» раскрывается
  * «Результат приёмки» — ОК / Брак / Пересорт радиокнопками. Подстатус не меняет статус, уход из «Принят» сбрасывает его в ОК.
  */
 function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec?: ReturnRow['onec']; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
@@ -781,7 +778,7 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
   const firstSub = items.findIndex(item => item.sub);
 
   return <div className="pa-returns__mark-box" ref={rootRef}>
-    {onec && onec.status !== 'none' ? <OneCStatus onec={onec} /> : canWork
+    {canWork && !(onec && onec.status !== 'none')
       ? <button type="button" ref={buttonRef} className="pa-badge-button" aria-haspopup="menu" aria-expanded={open} aria-label={`Статус приёмки: ${status.label}`} disabled={busy}
           onClick={() => setOpen(!open)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true); } }}>
           <Badge kind={status.kind} chevron>{status.label}</Badge>
@@ -810,10 +807,4 @@ function MarkCell({ row, onec, canWork, busy, onChange }: { row: ReturnRow; onec
       </div></div>
     </div>}
   </div>;
-}
-
-function OneCStatus({ onec }: { onec: NonNullable<ReturnRow['onec']> }) {
-  const details = [onec.number ? `№${onec.number}` : '', onec.at ? formatUtcDateTime(onec.at) : ''].filter(Boolean).join('\n');
-  const badge = <Badge kind={onec.status === 'accepted' ? 'primary success' : 'secondary warning'}>{onec.status === 'accepted' ? 'Принято в 1С' : 'Оформляется в 1С'}</Badge>;
-  return details ? <Tooltip text={details}>{badge}</Tooltip> : badge;
 }
