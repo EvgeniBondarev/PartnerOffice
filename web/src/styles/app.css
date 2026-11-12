@@ -923,6 +923,11 @@ button.pa-subchip:hover:not(:disabled):not(.pa-subchip--active) { color: var(--o
 .pa-schema__pill--fbo { color: #8b5cf6; background: color-mix(in srgb, #8b5cf6 12%, transparent); }
 .pa-schema__pill--realfbs { color: #e0743f; background: color-mix(in srgb, #e0743f 12%, transparent); }
 .pa-schema__arrow { font-size: 10px; color: var(--ozi-text-secondary-transparent); padding: 0 1px; }
+/* Метка схемы перед номером отправления: у FBO-возврата повторной продажи показан номер исходного FBS (заказ Studio2) */
+.pa-returns__side { display: inline-block; margin-right: 6px; padding: 0 4px; border-radius: 4px; border: 1px solid currentColor;
+  font-size: 10px; font-weight: 700; line-height: 16px; vertical-align: 1px; color: #2a78d6; background: color-mix(in srgb, #2a78d6 12%, transparent); }
+/* Кнопка истории в ячейке приёмки — в строке статуса, вровень с бейджем */
+.pa-returns__mark-box .pa-hist-btn { flex: none; }
 .pa-returns__link { font-size: 11px; font-weight: 600; border-radius: 5px; padding: 0 5px; cursor: help; }
 .pa-returns__link--warning { color: var(--ozi-text-warning); border: 1px dashed currentColor; }
 .pa-returns__link--neutral { color: var(--ozi-text-secondary-transparent); border: 1px solid var(--ozi-graphic-quaternary-transparent); }

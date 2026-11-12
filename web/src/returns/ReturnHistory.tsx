@@ -5,11 +5,14 @@ import { Tooltip } from '../ui/Tooltip';
 /** Событие истории позиции от сервиса возвратов: дата и что произошло. */
 export interface ReturnEvent { when: string; kind: string; text: string }
 
-/** FBS-сторона пары у коробки вывоза со стока (Ozon уложил наш возврат «На складе Ozon» в эту коробку). */
+/** FBS-сторона пары: у коробки вывоза со стока (Ozon уложил наш возврат «На складе Ozon» в эту коробку) или у FBO-возврата
+ *  повторной продажи (`link: 'resale'`: товар из этого FBS-возврата Ozon продал со своего склада, и он вернулся снова). */
 export interface ReturnPair {
   schema?: string | null; posting_number?: string | null; order_number?: string | null; barcode?: string | null;
   return_date?: string | null; reason?: string | null; status_name?: string | null; ozon_warehouse?: string | null;
-  planned_place?: string | null; removal_id?: string | null; link?: 'unique' | 'queue' | string | null;
+  planned_place?: string | null; removal_id?: string | null; link?: 'unique' | 'queue' | 'posting' | 'resale' | string | null;
+  /** Отправление FBO-возврата повторной продажи (у пары `resale`). */
+  resale_posting?: string | null;
 }
 
 const SCHEMA_TITLE: Record<string, string> = {
@@ -18,11 +21,14 @@ const SCHEMA_TITLE: Record<string, string> = {
   realFBS: 'realFBS — продажа с доставкой продавца',
 };
 
-/** Значок схемы: FBS, FBO, realFBS или пара «FBS → FBO» — возврат, который Ozon принял на сток и вывез коробкой. */
-export function SchemaBadge({ schema }: { schema?: string[] | null }) {
+/** Значок схемы: FBS, FBO, realFBS или пара «FBS → FBO» — возврат, который Ozon принял на сток и вывез коробкой,
+ *  или (resale) FBO-возврат товара, который Ozon продал повторно из остатков FBS-возврата. */
+export function SchemaBadge({ schema, resale }: { schema?: string[] | null; resale?: boolean }) {
   if (!schema?.length) return null;
   const pair = schema.length > 1;
-  const title = pair
+  const title = pair && resale
+    ? 'FBS → FBO: возврат FBS Ozon оставил на своём складе, продал товар повторно по FBO, и он вернулся этим возвратом. Одна штука, показана одной строкой'
+    : pair
     ? `${schema[0]} → FBO: возврат ${schema[0]} Ozon принял на свой сток и вывез к вам коробкой. Одна штука, показана одной строкой`
     : SCHEMA_TITLE[schema[0]] ?? schema[0];
   return <Tooltip text={title}><span className={`pa-schema${pair ? ' pa-schema--pair' : ''}`} aria-label={`Схема: ${schema.join(' → ')}`}>
@@ -39,9 +45,11 @@ export const LINK_HINT: Record<string, { label: string; text: string; tone: 'war
     text: 'По очереди: у этого товара в кабинете несколько возвратов из разных заказов, а Ozon вывозит сток по товару, а не по экземпляру. Коробке сопоставлен самый ранний возврат — отправление и поставщик могут быть от соседнего заказа того же товара.' },
   posting: { label: 'часть заказа', tone: 'neutral',
     text: 'Часть заказа: в заказе было несколько штук этого товара, все они вернулись и уехали к вам коробкой со стока Ozon. Какая штука в какой коробке — не важно: заказ один.' },
+  resale: { label: 'повторная продажа', tone: 'neutral',
+    text: 'Повторная продажа: этот товар раньше вернулся по FBS и остался на складе Ozon. Ozon продал его ещё раз по FBO, и он вернулся снова — уже этим возвратом. Заказ и поставщик — от исходного FBS-отправления, его номер показан в строке.' },
 };
 
-/** Метка способа связи коробки с возвратом: «по очереди» или «часть заказа»; у однозначной пары метки нет. */
+/** Метка способа связи пары: «по очереди», «часть заказа» или «повторная продажа»; у однозначной пары коробки метки нет. */
 export function LinkTag({ link }: { link?: string | null }) {
   const hint = link ? LINK_HINT[link] : undefined;
   if (!hint) return null;
@@ -81,8 +89,10 @@ const CLOCK = <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"
 </svg>;
 
 /** Кнопка «История позиции» (часы) и окно с хронологией: дата и что произошло, цвет — по источнику события. */
-export function HistoryButton({ title, history, schema, posting, box }: {
-  title: string; history?: ReturnEvent[] | null; schema?: string[] | null; posting?: string | null; box?: string | null;
+export function HistoryButton({ title, history, schema, posting, resalePosting, box }: {
+  title: string; history?: ReturnEvent[] | null; schema?: string[] | null; posting?: string | null;
+  /** У пары повторной продажи: posting — исходное FBS-отправление, resalePosting — FBO-возврат. */
+  resalePosting?: string | null; box?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   if (!history?.length) return null;
@@ -94,8 +104,10 @@ export function HistoryButton({ title, history, schema, posting, box }: {
         <div className="pa-hist__head">
           <div className="pa-hist__name">{title}</div>
           <div className="pa-hist__meta">
-            <SchemaBadge schema={schema} />
-            {posting && <span>отправление <span className="pa-hist__code">{posting}</span></span>}
+            <SchemaBadge schema={schema} resale={!!resalePosting} />
+            {posting && resalePosting
+              ? <span>отправление FBS <span className="pa-hist__code">{posting}</span> → FBO <span className="pa-hist__code">{resalePosting}</span></span>
+              : posting && <span>отправление <span className="pa-hist__code">{posting}</span></span>}
             {box && <span>коробка <span className="pa-hist__code">{box}</span></span>}
           </div>
           <div className="pa-hist__legend">{used.map(k => <span key={k} className={`pa-hist__kind pa-hist--${k}`} title={KIND[k][1]}>{KIND[k][0]}</span>)}</div>

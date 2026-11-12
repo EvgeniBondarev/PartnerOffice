@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ApiError, request } from '../api/client';
 import { API_BASE_URL, apiUrl } from '../config';
@@ -73,6 +73,9 @@ type MarkSub = 'ok' | 'defect' | 'missort';
 const MARK_SUBS: { value: MarkSub; label: string }[] = [{ value: 'ok', label: 'ОК' }, { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }];
 /** Подстатус есть только у «Принят»: флаги на других статусах (старые отметки) не показываем; если стоят оба, главнее брак. */
 const markSub = (row: Pick<ReturnRow, 'mark' | 'defect' | 'missort'>): MarkSub => row.mark !== 'accepted' ? 'ok' : row.defect ? 'defect' : row.missort ? 'missort' : 'ok';
+/** FBO-возврат повторной продажи: товар из FBS-возврата Ozon продал со своего склада ещё раз, и он вернулся снова.
+ *  Заказ в Studio2 — по исходному FBS-отправлению, поэтому строка показывает его номер. */
+const isResale = (row: ReturnRow) => row.pair?.link === 'resale';
 const subPatch = (sub: MarkSub): MarkPatch => ({ status: 'accepted', defect: sub === 'defect', missort: sub === 'missort' });
 const MENU_WIDTH = 200, MENU_HEIGHT = 150;
 const STATUS_OPTIONS = [
@@ -128,7 +131,7 @@ const looksLikeCode = (value: string) => /^(?:(?:ii|bx)\d{6,}|\d{10,}|\d{6,}-\d{
 
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
 function suggestionLabel(row: ReturnRow, query: string): string {
-  const fields = [row.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.onec?.number, row.offer_id, row.sku?.toString(), row.name];
+  const fields = [row.posting_number, row.pair?.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.onec?.number, row.offer_id, row.sku?.toString(), row.name];
   const search = query.toLocaleLowerCase();
   return fields.find(value => value?.toLocaleLowerCase().includes(search)) || row.name || 'Возврат';
 }
@@ -331,16 +334,19 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     return () => { window.clearInterval(timer); controller.abort(); };
   }, [allowed, section]);
 
-  // Выгрузка из Ozon и отметки из ozon-returns приходят без участия страницы: подтягиваем их раз в минуту
-  // и при возврате на вкладку, пока открыта вкладка и нет несохранённой отметки.
+  // Выгрузка из Ozon и отметки из ozon-returns приходят без участия страницы: подтягиваем их по таймеру
+  // и при возврате на вкладку, пока открыта вкладка и нет несохранённой отметки. Пока жив поток событий (SSE),
+  // таймер молчит: поток сам сообщает о каждой новой ревизии, а полный список каждые 15 с гонял бы лишние данные.
+  const streamAlive = useRef(false);
   useEffect(() => {
     if (!allowed) return;
-    const refresh = () => {
+    const refresh = (event?: Event) => {
       if (document.visibilityState !== 'visible' || savingNow.current) return;
+      if (!event && streamAlive.current) return;
       quietRefresh.current = true;
       setRetry(n => n + 1);
     };
-    const timer = window.setInterval(refresh, 15_000);
+    const timer = window.setInterval(() => refresh(), 15_000);
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', refresh); window.removeEventListener('focus', refresh); };
@@ -353,6 +359,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     let closed = false;
     let busy = false;
     const source = new EventSource(apiUrl('/partner-api/returns/events'), { withCredentials: Boolean(API_BASE_URL) });
+    source.onopen = () => { streamAlive.current = true; };
+    source.onerror = () => { streamAlive.current = false; };
     const update = async () => {
       if (busy || closed) return;
       busy = true;
@@ -370,7 +378,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       finally { busy = false; }
     };
     source.addEventListener('revision', update);
-    return () => { closed = true; source.close(); };
+    return () => { closed = true; streamAlive.current = false; source.close(); };
   }, [allowed, data?.revision]);
 
   /** Перечитать уже показанные порции, не прячась за скелетон: после отметки и скана список остаётся на месте. */
@@ -552,13 +560,20 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const rows = displayedRows(items, expandedUnits);
   const hasMark = !shelf && !outbound && (canWork || received);
   const searching = activeCount > 0 || !!search;
+  /** Кнопка «История позиции»: в колонке приёмки рядом со статусом, а где колонки нет (полка, отправка) — в товаре. */
+  const historyButton = (row: ReturnRow) => <HistoryButton title={row.name || 'Товар'} history={row.history} schema={row.schema}
+    posting={row.pair?.posting_number || (row.return_type === 'fbo' ? null : row.posting_number)} resalePosting={isResale(row) ? row.posting_number : null}
+    box={row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `bx${row.box_id}` : null)) : null} />;
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
-    <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub pa-returns__sub"><SchemaBadge schema={row.schema} />{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}
+    <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub pa-returns__sub"><SchemaBadge schema={row.schema} resale={isResale(row)} />{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}
         <LinkTag link={row.pair?.link} />
-        <HistoryButton title={row.name || 'Товар'} history={row.history} schema={row.schema} posting={row.pair?.posting_number || (row.return_type === 'fbo' ? null : row.posting_number)} box={row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `bx${row.box_id}` : null)) : null} /></div>
+        {!hasMark && historyButton(row)}</div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
   const postingCell = (row: ReturnRow) => {
+    if (isResale(row) && row.pair?.posting_number) return <>
+      <CopyValue value={row.pair.posting_number} label="номер отправления FBS"><span className="pa-returns__side">FBS</span>{row.pair.posting_number}</CopyValue>
+      <div className="pa-sub">FBO · {row.posting_number ? <CopyValue value={row.posting_number} label="номер отправления FBO" /> : '—'}</div></>;
     const main = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—');
     const copyable = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? String(row.box_id) : null)) : row.posting_number;
     return <><CopyValue value={copyable} label={row.return_type === 'fbo' ? 'код коробки' : 'номер отправления'}>{main}</CopyValue>
@@ -566,7 +581,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         ? (row.pair?.posting_number ? <>{row.pair.schema || 'FBS'} · <CopyValue value={row.pair.posting_number} label="номер отправления" /></> : 'Коробка FBO')
         : row.barcode ? <CopyValue value={row.barcode} label="код этикетки" /> : 'Возврат'}</div></>;
   };
-  const supplierCell = (row: ReturnRow) => row.supplier ? <>{row.supplier}{row.return_type === 'fbo' && row.pair ? <div className="pa-sub">по заказу возврата</div> : null}</> : <span className="pa-sub">—</span>;
+  const supplierCell = (row: ReturnRow) => row.supplier ? <>{row.supplier}{isResale(row) ? <div className="pa-sub">по заказу FBS</div> : row.return_type === 'fbo' && row.pair ? <div className="pa-sub">по заказу возврата</div> : null}</> : <span className="pa-sub">—</span>;
   const pairReason = (row: ReturnRow) => row.pair?.reason ? <div className="pa-sub" title={row.pair.reason}>{row.pair.reason}</div> : null;
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
@@ -582,7 +597,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
   const shelfStatus = (row: ReturnRow) => <Badge kind="primary success">{row.decision?.status_name || 'На полке'}</Badge>;
-  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
+  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} history={historyButton(row)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
@@ -768,7 +783,7 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
  * клик по плашке сохраняет сразу. Плашка не меняет основной статус, уход из «Принят» сбрасывает её в ОК.
  * Без права на приёмку — только бейдж и плашка не-ОК результата.
  */
-function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
+function MarkCell({ row, canWork, busy, onChange, history }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void; history?: ReactNode }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
   const sub = markSub(row);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
@@ -814,6 +829,7 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
           <Badge kind={status.kind} chevron>{status.label}</Badge>
         </button>
       : <Badge kind={status.kind}>{status.label}</Badge>}
+    {history}
     {accepted && (canWork
       ? <div className="pa-subchips" role="radiogroup" aria-label="Результат приёмки">
         {MARK_SUBS.map(option => <Fragment key={option.value}>
