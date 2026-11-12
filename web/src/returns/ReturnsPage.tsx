@@ -26,6 +26,7 @@ import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
 import { usePopover } from '../ui/usePopover';
 import { useReturnsQuery, type ReturnsSection } from './useReturnsQuery';
+import { HistoryButton, SchemaBadge, type ReturnEvent, type ReturnPair } from './ReturnHistory';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 interface ReturnRow {
@@ -43,6 +44,14 @@ interface ReturnRow {
   units?: ReturnRow[];
   /** Ключ свёрнутой строки, если это штука, показанная отдельно при разборе. */
   unitOf?: string;
+  /** Схема: ['FBS'], ['FBO'], ['realFBS'] или пара ['FBS', 'FBO'] — коробка вывоза со стока с нашим возвратом. */
+  schema?: string[] | null;
+  /** Поставщик заказа в Studio2 (у коробки пары — поставщик её возврата). */
+  supplier?: string | null;
+  /** FBS-сторона пары у коробки: отправление, заказ, причина возврата. */
+  pair?: ReturnPair | null;
+  /** События позиции по времени. */
+  history?: ReturnEvent[] | null;
 }
 type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
 type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean };
@@ -88,6 +97,7 @@ const OUTBOUND_STATUS_KINDS: Record<string, BadgeKind> = { registered: 'secondar
 const skeletonRows = (count: number, hasMark: boolean) => Array.from({ length: count }, (_, i) => <tr key={`sk-${i}`} className="po-table-row__row" aria-hidden="true">
   <td className={`${TD} pa-col-product`}><div className="pa-returns__product"><Skeleton width={40} height={40} /><div className="pa-skeleton-stack"><Skeleton width="75%" height={16} /><Skeleton width="45%" height={12} /></div></div></td>
   <td className={TD}><div className="pa-skeleton-stack"><Skeleton width={130} height={16} /><Skeleton width={80} height={12} /></div></td>
+  <td className={TD}><Skeleton width={90} height={16} /></td>
   <td className={TD}><Skeleton width={110} height={22} radius={11} /></td>
   <td className={TD}><div className="pa-skeleton-stack"><Skeleton width={110} height={16} /><Skeleton width={90} height={12} /></div></td>
   <td className={TD}><Skeleton width={80} height={16} /></td>
@@ -544,14 +554,20 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const searching = activeCount > 0 || !!search;
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
-    <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub">{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}</div>
+    <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub pa-returns__sub"><SchemaBadge schema={row.schema} />{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}
+        {row.pair?.link === 'queue' && <span className="pa-returns__queue" title="У этого товара в кабинете несколько возвратов на складе Ozon: отправление подобрано по очереди дат">по очереди</span>}
+        <HistoryButton title={row.name || 'Товар'} history={row.history} schema={row.schema} posting={row.pair?.posting_number || (row.return_type === 'fbo' ? null : row.posting_number)} box={row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `bx${row.box_id}` : null)) : null} /></div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
   const postingCell = (row: ReturnRow) => {
     const main = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—');
     const copyable = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? String(row.box_id) : null)) : row.posting_number;
     return <><CopyValue value={copyable} label={row.return_type === 'fbo' ? 'код коробки' : 'номер отправления'}>{main}</CopyValue>
-      <div className="pa-sub">{row.return_type === 'fbo' ? 'Коробка FBO' : row.barcode ? <CopyValue value={row.barcode} label="код этикетки" /> : 'Возврат'}</div></>;
+      <div className="pa-sub">{row.return_type === 'fbo'
+        ? (row.pair?.posting_number ? <>{row.pair.schema || 'FBS'} · <CopyValue value={row.pair.posting_number} label="номер отправления" /></> : 'Коробка FBO')
+        : row.barcode ? <CopyValue value={row.barcode} label="код этикетки" /> : 'Возврат'}</div></>;
   };
+  const supplierCell = (row: ReturnRow) => row.supplier ? <>{row.supplier}{row.return_type === 'fbo' && row.pair ? <div className="pa-sub">по заказу возврата</div> : null}</> : <span className="pa-sub">—</span>;
+  const pairReason = (row: ReturnRow) => row.pair?.reason ? <div className="pa-sub" title={row.pair.reason}>{row.pair.reason}</div> : null;
   const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
   const outboundDoc = (row: ReturnRow) => {
@@ -660,7 +676,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                     <dt>Кабинет</dt><dd>{cabinetName(row)}</dd>
                     <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd>
                   </> : <>
-                  <dt>Статус Ozon</dt><dd>{statusBadge(row)}</dd>
+                  <dt>Поставщик</dt><dd>{supplierCell(row)}</dd>
+                  <dt>Статус Ozon</dt><dd>{statusBadge(row)}{pairReason(row)}</dd>
                   <dt>Пункт выдачи</dt><dd>{placeCell(row)}</dd>
                   <dt>Кабинет</dt><dd>{cabinetName(row)}</dd>
                   <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
@@ -669,7 +686,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                 {supplier && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ''}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ' pa-table--main'}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Поставщик', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
@@ -682,7 +699,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
                   <td className={TD}>{shelfMoved(row)}</td>
                   <td className={TD}>{shelfStatus(row)}</td>
                 </> : <>
-                <td className={TD}>{statusBadge(row)}</td>
+                <td className={TD}>{supplierCell(row)}</td>
+                <td className={TD}>{statusBadge(row)}{pairReason(row)}</td>
                 <td className={TD}>{placeCell(row)}</td>
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}

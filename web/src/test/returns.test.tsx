@@ -46,6 +46,43 @@ describe('Возвраты', () => {
     expect(screen.getByText('Коробка FBO')).toBeInTheDocument();
   });
 
+  it('коробка пары FBS → FBO: одна строка со значком, отправлением возврата, поставщиком и историей', async () => {
+    const box = { key: 'fbo:pair', return_type: 'fbo', id: null, client_id: '1', box_barcode: 'ii19021072836', name: 'Маховик LUK', offer_id: '415043910=LUK',
+      status: 'ReceivedBySeller', status_name: 'Получена', qty: 1, mark: 'accepted', schema: ['FBS', 'FBO'], supplier: 'Фиктивно',
+      pair: { schema: 'FBS', posting_number: '31464102-0734-1', reason: 'Покупатель отменил заказ', removal_id: '33391897', link: 'unique' },
+      history: [
+        { when: '30.08.2026 17:53', kind: 'ozon', text: '**Заказ отменён**: Покупатель отменил заказ. Создан возврат FBS по отправлению [[31464102-0734-1]]' },
+        { when: '03.09.2026 → 27.10.2026', kind: 'fbo', text: '**Переход FBS → FBO.** Ozon оприходовал возврат в свой сток как «Доступно к продаже» на складе {{ПУШКИНО_2_РФЦ}}' },
+      ] };
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [box], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByText('Маховик LUK')).toBeInTheDocument();
+    expect(screen.getByLabelText('Схема: FBS → FBO')).toBeInTheDocument();
+    expect(screen.getByText('31464102-0734-1')).toBeInTheDocument();
+    expect(screen.getByText('Фиктивно')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Поставщик' })).toBeInTheDocument();
+    expect(screen.getByText('Покупатель отменил заказ')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'История позиции' }));
+    const dialog = await screen.findByRole('dialog', { name: 'История позиции' });
+    expect(within(dialog).getByText('03.09.2026 → 27.10.2026')).toBeInTheDocument();
+    expect(within(dialog).getByText('Заказ отменён').tagName).toBe('B');
+    expect(within(dialog).getByText('ПУШКИНО_2_РФЦ')).toHaveClass('pa-hist__place');
+    expect(within(dialog).getByText('«Доступно к продаже»')).toHaveClass('pa-hist__status');
+  });
+
+  it('строка без новых полей показывается как раньше, без истории', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [{ id: 12, client_id: '1', name: 'Товар А', status_name: 'В пути', qty: 1 }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/waiting');
+    expect(await screen.findByText('Товар А')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'История позиции' })).not.toBeInTheDocument();
+  });
+
   it('ищет при вводе и позволяет выбрать подсказку FBO клавиатурой', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
