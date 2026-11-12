@@ -954,13 +954,12 @@ button.pa-subchip:hover:not(:disabled):not(.pa-subchip--active) { color: var(--o
 .pa-hist--us { --k: #17a34a; } .pa-hist--warn { --k: #d03b3b; }
 @media (max-width: 600px) { .pa-hist__when { width: auto; white-space: normal; } }
 /* «Ждёт получения» / «Получено»: 8 колонок с «Поставщиком» — свои ширины вместо общих 7 колонок списка */
-.pa-list .pa-table--main .pa-col-product { width: 23%; }
+.pa-list .pa-table--main .pa-col-product { width: 22%; }
 .pa-list .pa-table--main th:nth-child(2), .pa-list .pa-table--main td:nth-child(2) { width: 15%; }
-.pa-list .pa-table--main th:nth-child(3), .pa-list .pa-table--main td:nth-child(3) { width: 11%; }
+.pa-list .pa-table--main th:nth-child(3), .pa-list .pa-table--main td:nth-child(3) { width: 10%; }
 .pa-list .pa-table--main th:nth-child(4), .pa-list .pa-table--main td:nth-child(4) { width: 12%; }
-.pa-list .pa-table--main th:nth-child(5), .pa-list .pa-table--main td:nth-child(5) { width: 13%; }
-.pa-list .pa-table--main th:nth-child(6), .pa-list .pa-table--main td:nth-child(6) { width: 9%; }
+.pa-list .pa-table--main th:nth-child(5), .pa-list .pa-table--main td:nth-child(5) { width: 12%; }
+.pa-list .pa-table--main th:nth-child(6), .pa-list .pa-table--main td:nth-child(6) { width: 12%; }   /* «27.10.2026» не переносится */
 .pa-list .pa-table--main th:nth-child(7), .pa-list .pa-table--main td:nth-child(7) { width: 6%; }
 .pa-list .pa-table--main th:nth-child(8), .pa-list .pa-table--main td:nth-child(8) { width: 11%; }
 .pa-list .pa-table--main td:nth-child(3) { overflow-wrap: anywhere; }
-.pa-list .pa-table--main td:nth-child(6), .pa-list .pa-table--main td:nth-child(7) { white-space: nowrap; }
