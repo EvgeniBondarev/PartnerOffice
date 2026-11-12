@@ -913,3 +913,54 @@ button.pa-subchip:hover:not(:disabled):not(.pa-subchip--active) { color: var(--o
 .pa-list .pa-table--outbound .po-badge__badge, .pa-list .pa-table--shelf .po-badge__badge { height: auto; max-width: 100%; min-height: 24px; }
 .pa-list .pa-table--outbound .po-badge__label, .pa-list .pa-table--shelf .po-badge__label { overflow: visible; text-overflow: clip; white-space: normal; }
 .pa-list .pa-table--outbound td .po-button__button, .pa-list .pa-table--shelf td .po-button__button { white-space: nowrap; }
+
+/* ---------- Возвраты: схема FBS/FBO, пара и история позиции ---------- */
+.pa-returns__sub { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.pa-schema { display: inline-flex; align-items: center; gap: 2px; flex: none; line-height: 1; }
+.pa-schema--pair { padding: 1px; border-radius: 6px; background: var(--ozi-bg-secondary-transparent); }
+.pa-schema__pill { font-size: 10px; font-weight: 700; letter-spacing: .3px; padding: 3px 5px; border-radius: 5px; border: 1px solid currentColor; }
+.pa-schema__pill--fbs { color: #2a78d6; background: color-mix(in srgb, #2a78d6 12%, transparent); }
+.pa-schema__pill--fbo { color: #8b5cf6; background: color-mix(in srgb, #8b5cf6 12%, transparent); }
+.pa-schema__pill--realfbs { color: #e0743f; background: color-mix(in srgb, #e0743f 12%, transparent); }
+.pa-schema__arrow { font-size: 10px; color: var(--ozi-text-secondary-transparent); padding: 0 1px; }
+.pa-returns__queue { font-size: 11px; font-weight: 600; color: var(--ozi-text-warning); border: 1px dashed currentColor; border-radius: 5px; padding: 0 5px; }
+.pa-hist-btn { display: inline-grid; place-items: center; width: 24px; height: 22px; padding: 0; border: 1px solid var(--ozi-graphic-quaternary-transparent);
+  border-radius: 6px; background: transparent; color: var(--ozi-text-secondary-transparent); cursor: pointer; }
+.pa-hist-btn:hover { color: var(--ozi-text-action); border-color: var(--ozi-text-action); }
+.pa-hist-btn:focus-visible { outline: 2px solid var(--ozi-graphic-action-primary); outline-offset: 1px; }
+.pa-hist { display: flex; flex-direction: column; gap: 12px; }
+.pa-hist__head { display: flex; flex-direction: column; gap: 6px; }
+.pa-hist__name { font-weight: 600; font-size: 16px; }
+.pa-hist__meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; color: var(--ozi-text-secondary-transparent); font-size: 13px; }
+.pa-hist__legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.pa-hist__kind { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; color: var(--k);
+  background: color-mix(in srgb, var(--k) 12%, transparent); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); }
+.pa-hist__wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--ozi-graphic-quaternary-transparent); border-radius: 10px; }
+.pa-hist__table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pa-hist__table th { position: sticky; top: 0; z-index: 1; background: var(--ozi-bg-primary); text-align: left; font-size: 12px; font-weight: 500;
+  color: var(--ozi-text-secondary-transparent); padding: 8px 10px; border-bottom: 1px solid var(--ozi-graphic-quaternary-transparent); }
+.pa-hist__table td { padding: 9px 10px; border-bottom: 1px solid var(--ozi-graphic-quaternary-transparent); vertical-align: top; }
+.pa-hist__table tr:last-child td { border-bottom: 0; }
+.pa-hist__table tbody tr { background: color-mix(in srgb, var(--k) 5%, transparent); }
+.pa-hist__table tbody td:first-child { box-shadow: inset 3px 0 0 var(--k); }
+.pa-hist__n { width: 28px; text-align: right; color: var(--ozi-text-secondary-transparent); font-variant-numeric: tabular-nums; }
+.pa-hist__when { width: 170px; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pa-hist__dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--k); margin-right: 7px; vertical-align: 1px; }
+.pa-hist__what { line-height: 1.45; }
+.pa-hist__status { font-weight: 600; }
+.pa-hist__code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; padding: 0 4px; border-radius: 4px; background: var(--ozi-bg-secondary-transparent); }
+.pa-hist__place { font-weight: 600; color: var(--k, var(--ozi-text-action)); }
+.pa-hist--ozon { --k: #2a78d6; } .pa-hist--stock { --k: #d99a00; } .pa-hist--fbo { --k: #8b5cf6; }
+.pa-hist--us { --k: #17a34a; } .pa-hist--warn { --k: #d03b3b; }
+@media (max-width: 600px) { .pa-hist__when { width: auto; white-space: normal; } }
+/* «Ждёт получения» / «Получено»: 8 колонок с «Поставщиком» — свои ширины вместо общих 7 колонок списка */
+.pa-list .pa-table--main .pa-col-product { width: 23%; }
+.pa-list .pa-table--main th:nth-child(2), .pa-list .pa-table--main td:nth-child(2) { width: 15%; }
+.pa-list .pa-table--main th:nth-child(3), .pa-list .pa-table--main td:nth-child(3) { width: 11%; }
+.pa-list .pa-table--main th:nth-child(4), .pa-list .pa-table--main td:nth-child(4) { width: 12%; }
+.pa-list .pa-table--main th:nth-child(5), .pa-list .pa-table--main td:nth-child(5) { width: 13%; }
+.pa-list .pa-table--main th:nth-child(6), .pa-list .pa-table--main td:nth-child(6) { width: 9%; }
+.pa-list .pa-table--main th:nth-child(7), .pa-list .pa-table--main td:nth-child(7) { width: 6%; }
+.pa-list .pa-table--main th:nth-child(8), .pa-list .pa-table--main td:nth-child(8) { width: 11%; }
+.pa-list .pa-table--main td:nth-child(3) { overflow-wrap: anywhere; }
+.pa-list .pa-table--main td:nth-child(6), .pa-list .pa-table--main td:nth-child(7) { white-space: nowrap; }
