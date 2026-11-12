@@ -1,5 +1,6 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import { Overlay } from '../ui/Overlay';
+import { Tooltip } from '../ui/Tooltip';
 
 /** Событие истории позиции от сервиса возвратов: дата и что произошло. */
 export interface ReturnEvent { when: string; kind: string; text: string }
@@ -24,12 +25,27 @@ export function SchemaBadge({ schema }: { schema?: string[] | null }) {
   const title = pair
     ? `${schema[0]} → FBO: возврат ${schema[0]} Ozon принял на свой сток и вывез к вам коробкой. Одна штука, показана одной строкой`
     : SCHEMA_TITLE[schema[0]] ?? schema[0];
-  return <span className={`pa-schema${pair ? ' pa-schema--pair' : ''}`} title={title} aria-label={`Схема: ${schema.join(' → ')}`}>
+  return <Tooltip text={title}><span className={`pa-schema${pair ? ' pa-schema--pair' : ''}`} aria-label={`Схема: ${schema.join(' → ')}`}>
     {schema.map((name, i) => <Fragment key={name + i}>
       {i > 0 && <span className="pa-schema__arrow" aria-hidden="true">→</span>}
       <span className={`pa-schema__pill pa-schema__pill--${name.toLowerCase()}`}>{name}</span>
     </Fragment>)}
-  </span>;
+  </span></Tooltip>;
+}
+
+/** Определения способа связи коробки с возвратом — показываются при наведении на метку. */
+export const LINK_HINT: Record<string, { label: string; text: string; tone: 'warning' | 'neutral' }> = {
+  queue: { label: 'по очереди', tone: 'warning',
+    text: 'По очереди: у этого товара в кабинете несколько возвратов из разных заказов, а Ozon вывозит сток по товару, а не по экземпляру. Коробке сопоставлен самый ранний возврат — отправление и поставщик могут быть от соседнего заказа того же товара.' },
+  posting: { label: 'часть заказа', tone: 'neutral',
+    text: 'Часть заказа: в заказе было несколько штук этого товара, все они вернулись и уехали к вам коробкой со стока Ozon. Какая штука в какой коробке — не важно: заказ один.' },
+};
+
+/** Метка способа связи коробки с возвратом: «по очереди» или «часть заказа»; у однозначной пары метки нет. */
+export function LinkTag({ link }: { link?: string | null }) {
+  const hint = link ? LINK_HINT[link] : undefined;
+  if (!hint) return null;
+  return <Tooltip text={hint.text}><span className={`pa-returns__link pa-returns__link--${hint.tone}`}>{hint.label}</span></Tooltip>;
 }
 
 /** Разметка текста события: **жирный**, «статус», [[код]], {{место}} — без HTML из ответа. */

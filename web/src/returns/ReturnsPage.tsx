@@ -26,7 +26,7 @@ import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
 import { usePopover } from '../ui/usePopover';
 import { useReturnsQuery, type ReturnsSection } from './useReturnsQuery';
-import { HistoryButton, SchemaBadge, type ReturnEvent, type ReturnPair } from './ReturnHistory';
+import { HistoryButton, LinkTag, SchemaBadge, type ReturnEvent, type ReturnPair } from './ReturnHistory';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 interface ReturnRow {
@@ -555,7 +555,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const productCell = (row: ReturnRow) => <div className="pa-returns__product">
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
     <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub pa-returns__sub"><SchemaBadge schema={row.schema} />{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}
-        {row.pair?.link === 'queue' && <span className="pa-returns__queue" title="У этого товара в кабинете несколько возвратов на складе Ozon: отправление подобрано по очереди дат">по очереди</span>}
+        <LinkTag link={row.pair?.link} />
         <HistoryButton title={row.name || 'Товар'} history={row.history} schema={row.schema} posting={row.pair?.posting_number || (row.return_type === 'fbo' ? null : row.posting_number)} box={row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `bx${row.box_id}` : null)) : null} /></div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
   const postingCell = (row: ReturnRow) => {

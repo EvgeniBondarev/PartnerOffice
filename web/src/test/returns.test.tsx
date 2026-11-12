@@ -73,6 +73,24 @@ describe('Возвраты', () => {
     expect(within(dialog).getByText('«Доступно к продаже»')).toHaveClass('pa-hist__status');
   });
 
+  it('метки связи: «часть заказа» и «по очереди» с определением при наведении', async () => {
+    const row = (key: string, link: string, posting: string) => ({ key, return_type: 'fbo', id: null, client_id: '1', box_barcode: key, name: `Товар ${link}`,
+      status: 'ReceivedBySeller', status_name: 'Получена', qty: 1, mark: 'pending', schema: ['FBS', 'FBO'], pair: { schema: 'FBS', posting_number: posting, link } });
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [row('b1', 'posting', 'P-1'), row('b2', 'queue', 'P-2'), row('b3', 'unique', 'P-3')], total: 3, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/received');
+    const part = await screen.findByText('часть заказа');
+    expect(screen.getByText('по очереди')).toBeInTheDocument();
+    expect(screen.getAllByText(/^(часть заказа|по очереди)$/)).toHaveLength(2);   // у однозначной пары метки нет
+    await userEvent.hover(part);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Часть заказа: в заказе было несколько штук');
+    await userEvent.unhover(part);
+    await userEvent.hover(screen.getByText('по очереди'));
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('По очереди: у этого товара в кабинете несколько возвратов из разных заказов');
+  });
+
   it('строка без новых полей показывается как раньше, без истории', async () => {
     mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
