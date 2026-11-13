@@ -22,6 +22,7 @@ import { TextField } from '../ui/TextField';
 import { Icon } from '../ui/Icon';
 import { Informer } from '../ui/Informer';
 import { Lightbox } from '../ui/Lightbox';
+import { ReturnIssueDialog } from './ReturnIssueDialog';
 import { ProductImage } from '../orders/OrdersTable';
 import { SearchField } from '../ui/SearchField';
 import { usePopover } from '../ui/usePopover';
@@ -54,7 +55,7 @@ interface ReturnRow {
   history?: ReturnEvent[] | null;
 }
 type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
-type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean };
+type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean; comment?: string };
 type BatchMarkResult = { key: string; ok: boolean; changes?: ReturnMark; error?: string };
 interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; revision?: string | null; suppliers?: string[] | null; cabinets?: { id: number; name: string; ozonClientId: string }[] }
 interface ReturnChanges { revision?: string | null; changed: boolean; reset: boolean; upsert: ReturnRow[]; remove: string[]; counts: Partial<Record<ReturnsSection, number>>; }
@@ -414,7 +415,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   /** Отметка приёмки: сервер возвращает итоговое состояние, им и заменяем строку (без угадывания на клиенте). */
   const mark = async (row: ReturnRow, patch: MarkPatch) => {
-    if (!row.key || saving.includes(row.key)) return;
+    if (!row.key || saving.includes(row.key)) return false;
     // свёрнутая строка — это несколько записей: отметка пишется на каждую штуку
     const keys = row.units?.length ? row.units.map(unit => unit.key!) : [row.key];
     savingNow.current = true;
@@ -443,6 +444,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       if (failures.length) setMarkError(`Не сохранено: ${failures.map(result => result.key).join(', ')}.`);
       // отметка одной штуки могла разделить строку: как их показывать, решает сервер
       if (row.unitOf || failures.length) refreshQuietly();
+      return failures.length === 0;
     } catch (err) {
       // 404/409: возврат уже закрыт сотрудниками, изменился или по нему принято решение — список устарел
       const stale = err instanceof ApiError && (err.status === 404 || err.status === 409);
@@ -450,6 +452,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         ? (err.status === 409 ? err.message : 'Возврат уже изменился или закрыт сотрудниками. Список обновлён, проверьте статус.')
         : err instanceof Error ? err.message : 'Не удалось сохранить отметку.');
       if (stale || keys.length > 1) refreshQuietly();   // часть штук могла сохраниться
+      return false;
     } finally { savingNow.current = false; setSaving(keys => keys.filter(key => key !== row.key)); }
   };
   useEffect(() => { if (highlighted) (highlightedRow.current ?? highlightedCard.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, items]);
@@ -792,12 +795,13 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
 /**
  * Статус приёмки: бейдж открывает список из трёх статусов (Ожидает / Принят / Не принят). Правее у «Принят» стоят маленькие плашки
  * результата: ОК (светло-зелёная), Брак (красноватая), Пересорт (фиолетовая). Выбранная светится своим цветом, остальные серые;
- * клик по плашке сохраняет сразу. Плашка не меняет основной статус, уход из «Принят» сбрасывает её в ОК.
+ * выбор «Брак» или «Пересорт» открывает форму комментария. Плашка не меняет основной статус, уход из «Принят» сбрасывает её в ОК.
  * Без права на приёмку — только бейдж и плашка не-ОК результата.
  */
-function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
+function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => Promise<boolean> }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
   const sub = markSub(row);
+  const [editing, setEditing] = useState<Exclude<MarkSub, 'ok'> | null>(null);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
@@ -848,10 +852,14 @@ function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: b
           {option.value === 'defect' && <span className="pa-subchips__break" aria-hidden="true" />}
           <button type="button" role="radio" aria-checked={option.value === sub} disabled={busy}
             className={`pa-subchip pa-subchip--${option.value}${option.value === sub ? ' pa-subchip--active' : ''}`}
-            onClick={() => { if (option.value !== sub) onChange(subPatch(option.value)); }}>{option.label}</button>
+            onClick={() => {
+              if (option.value === 'ok') { if (option.value !== sub) void onChange(subPatch(option.value)); }
+              else setEditing(option.value);
+            }}>{option.label}</button>
         </Fragment>)}
       </div>
       : sub !== 'ok' && <span className={`pa-subchip pa-subchip--${sub} pa-subchip--active`}>{MARK_SUBS.find(option => option.value === sub)?.label}</span>)}
+    {editing && <ReturnIssueDialog title={editing === 'defect' ? 'Брак' : 'Пересорт'} keys={row.units?.length ? row.units.map(unit => unit.key!) : [row.key!]} initialComment={row.comment || ''} onClose={() => setEditing(null)} onSave={comment => onChange({ ...subPatch(editing), comment })} />}
     {open && position && <div className="po-dropdown po-dropdown--500 pa-returns__menu" style={{ ...position, position: 'fixed' }}>
       <div className="po-dropdown__scroll"><div ref={menuRef} className="po-dropdown__list" role="menu" aria-label="Статус приёмки" tabIndex={-1} onKeyDown={onMenuKeyDown}>
         {items.map((item, index) => <div key={item.value} role="menuitemradio" aria-checked={item.checked}

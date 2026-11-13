@@ -424,6 +424,7 @@ describe('Возвраты', () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
         '/partner-api/returns?*': () => json(received(row)),
+        '/partner-api/returns/photos?*': () => json([]),
         'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: { comment: '', ...reply } }] })
       });
       renderApp('/returns/received');
@@ -448,16 +449,46 @@ describe('Возвраты', () => {
       expect(screen.getByRole('radio', { name: 'ОК', checked: true })).toBeInTheDocument();
     });
 
-    it('«Принят»: раскрывается «Результат приёмки», по умолчанию ОК; брак сохраняется сразу и статус остаётся', async () => {
+    it('«Принят»: раскрывается «Результат приёмки», по умолчанию ОК; брак сохраняется после заполнения формы и статус остаётся', async () => {
       const calls = arrange({ mark: 'accepted' }, accepted({ defect: true }));
       const user = userEvent.setup();
       expect(await screen.findByRole('radiogroup', { name: 'Результат приёмки' })).toBeInTheDocument();
       expect(screen.getByRole('radio', { name: 'ОК' })).toHaveAttribute('aria-checked', 'true');
       await user.click(screen.getByRole('radio', { name: 'Брак' }));
-      await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: true, missort: false }));
+      await user.type(screen.getByLabelText('Комментарий'), 'Повреждена упаковка');
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+      await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: true, missort: false, comment: 'Повреждена упаковка' }));
       // основной статус по-прежнему «Принят», выбран «Брак»
       expect(await screen.findByRole('radio', { name: 'Брак', checked: true })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
+    });
+
+    it('повторное нажатие открывает сохранённый комментарий; отмена не меняет отметку', async () => {
+      const calls = arrange({ mark: 'accepted', defect: true, comment: 'Скол' }, accepted({ defect: true, comment: 'Скол' }));
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('radio', { name: 'Брак', checked: true }));
+      expect(screen.getByLabelText('Комментарий')).toHaveValue('Скол');
+      await user.click(screen.getByRole('button', { name: 'Отмена' }));
+      expect(calls.filter(c => c.method === 'POST')).toHaveLength(0);
+    });
+
+    it('фото загружается после отметки и повторно показывается в форме', async () => {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(received({ mark: 'accepted' })),
+        '/partner-api/returns/photos?*': () => json([{ id: 'photo.jpg' }]),
+        'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: accepted({ defect: true, comment: 'Скол' }) }] }),
+        'POST /partner-api/returns/photos?*': () => json({ id: 'new.jpg' })
+      });
+      renderApp('/returns/received');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('radio', { name: 'Брак' }));
+      expect(await screen.findByAltText('Фото возврата')).toBeInTheDocument();
+      await user.type(screen.getByLabelText('Комментарий'), 'Скол');
+      await user.upload(screen.getByLabelText('Фотографии возврата'), new File(['image'], 'return.jpg', { type: 'image/jpeg' }));
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }));
+      await waitFor(() => expect(calls.find(c => c.method === 'POST' && c.url.includes('/photos?'))?.body).toBeInstanceOf(FormData));
+      expect(calls.filter(c => c.method === 'POST')[0].url).toContain('/marks');
     });
 
     it('подстатусы взаимоисключающие; выбираются и с клавиатуры', async () => {
@@ -467,6 +498,7 @@ describe('Возвраты', () => {
       expect(screen.getByRole('radio', { name: 'Пересорт' })).toHaveAttribute('aria-checked', 'false');
       screen.getByRole('radio', { name: 'Пересорт' }).focus();
       await user.keyboard('{Enter}');
+      await user.click(screen.getByRole('button', { name: 'Сохранить' }));
       await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toMatchObject({ keys: ['fbs:1:12'], status: 'accepted', defect: false, missort: true }));
     });
 

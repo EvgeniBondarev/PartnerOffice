@@ -30,7 +30,7 @@ export function mockApi(handlers: Record<string, Handler>) {
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? 'GET';
-      calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      calls.push({ url, method, body: init?.body instanceof FormData ? init.body : init?.body ? JSON.parse(String(init.body)) : undefined });
       const exact = `${method} ${url}`;
       // Ключ без метода относится только к GET: иначе GET и PUT одного адреса путались бы.
       const key = Object.keys(handlers).find((k) => k === exact || (method === 'GET' && k === url) || (k.endsWith('*') && (method === 'GET' ? url.startsWith(k.slice(0, -1)) : exact.startsWith(k.slice(0, -1)))));
