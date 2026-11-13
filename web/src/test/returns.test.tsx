@@ -73,6 +73,72 @@ describe('Возвраты', () => {
     expect(within(dialog).getByText('«Доступно к продаже»')).toHaveClass('pa-hist__status');
   });
 
+  it('FBO-возврат повторной продажи: номер FBS для Studio2, FBO строкой ниже, история с обоими номерами у статуса', async () => {
+    const row = { key: 'fbs:370459:1002139840', return_type: 'fbs', id: 1002139840, client_id: '370459', posting_number: '88010580-0320-1',
+      name: 'Основная фара DEPO 21211H6LLDEM', offer_id: '21211H6LLDEM=DEP', status: 'ReceivedBySeller', status_name: 'Получен', qty: 1,
+      mark: 'accepted', schema: ['FBS', 'FBO'], supplier: 'Юрал',
+      pair: { schema: 'FBS', posting_number: '93696056-0024-2', reason: 'Покупатель отменил заказ', status_name: 'На складе Ozon',
+              removal_id: '', resale_posting: '88010580-0320-1', link: 'resale' },
+      history: [
+        { when: '05.03.2026 10:37', kind: 'ozon', text: '**Заказ отменён**: Покупатель отменил заказ. Создан возврат FBS по отправлению [[93696056-0024-2]]' },
+        { when: '07.03.2026 → 04.09.2026', kind: 'fbo', text: '**Переход FBS → FBO.** Возврат FBS по отправлению [[93696056-0024-2]] остался в остатках Ozon, товар продан повторно по FBO — отправление [[88010580-0320-1]]' },
+      ] };
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ items: [row], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByText('Основная фара DEPO 21211H6LLDEM')).toBeInTheDocument();
+    // главный номер строки — FBS (по нему заказ в Studio2), с меткой FBS
+    expect(screen.getByLabelText('Скопировать номер отправления FBS 93696056-0024-2')).toBeInTheDocument();
+    expect(screen.getByText('93696056-0024-2')).toBeInTheDocument();
+    expect(screen.getByText('FBS', { selector: '.pa-returns__side' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Скопировать номер отправления FBO 88010580-0320-1')).toBeInTheDocument();
+    expect(screen.getByText('88010580-0320-1')).toBeInTheDocument();
+    expect(screen.getByText('по заказу FBS')).toBeInTheDocument();
+    expect(screen.getByText('повторная продажа')).toBeInTheDocument();
+    // кнопка истории — в колонке приёмки, рядом со статусом
+    const history = screen.getByRole('button', { name: 'История позиции' });
+    expect(history.closest('.pa-returns__mark-box')).not.toBeNull();
+    expect(history.closest('.pa-returns__product')).toBeNull();
+    await userEvent.click(history);
+    const dialog = await screen.findByRole('dialog', { name: 'История позиции' });
+    expect(within(dialog).getByText(/отправление FBS/)).toHaveTextContent('отправление FBS 93696056-0024-2 → FBO 88010580-0320-1');
+    expect(within(dialog).getByText('07.03.2026 → 04.09.2026')).toBeInTheDocument();
+  });
+
+  it('пока жив поток событий, список не перечитывается по таймеру; поток упал — опрос возвращается', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const streams: { onopen: (() => void) | null; onerror: (() => void) | null }[] = [];
+    vi.stubGlobal('EventSource', class {
+      onopen: (() => void) | null = null; onerror: (() => void) | null = null;
+      constructor() { streams.push(this); }
+      addEventListener() { /* событий ревизии в этом тесте нет */ }
+      close() { /* nothing */ }
+    });
+    try {
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json({ items: [{ key: 'fbs:1:1', id: 1, client_id: '1', name: 'Товар А', qty: 1 }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false, revision: 'r1' }),
+        '/partner-api/returns/counts': () => json({ counts: { waiting: 1, received: 0, shelf: 0, supplier: 0, us: 0 } })
+      });
+      renderApp('/returns/waiting');
+      expect(await screen.findByText('Товар А')).toBeInTheDocument();
+      await waitFor(() => expect(streams.length).toBeGreaterThan(0));
+      const lists = () => calls.filter(c => c.url.startsWith('/partner-api/returns?') && c.url.includes('pageSize=50')).length;
+      act(() => streams.at(-1)!.onopen?.());
+      const before = lists();
+      await vi.advanceTimersByTimeAsync(31_000);
+      expect(lists()).toBe(before);                       // поток жив — таймер молчит
+      act(() => streams.at(-1)!.onerror?.());
+      await vi.advanceTimersByTimeAsync(16_000);
+      await waitFor(() => expect(lists()).toBeGreaterThan(before));
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('метки связи: «часть заказа» и «по очереди» с определением при наведении', async () => {
     const row = (key: string, link: string, posting: string) => ({ key, return_type: 'fbo', id: null, client_id: '1', box_barcode: key, name: `Товар ${link}`,
       status: 'ReceivedBySeller', status_name: 'Получена', qty: 1, mark: 'pending', schema: ['FBS', 'FBO'], pair: { schema: 'FBS', posting_number: posting, link } });
