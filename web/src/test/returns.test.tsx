@@ -281,6 +281,55 @@ describe('Возвраты', () => {
     expect(calls.some(c => c.url.includes('exact=true'))).toBe(true);
   });
 
+  it('скан после обычного поиска принимает только отсканированный код и показывает уведомление', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', review_submitted: true })
+    });
+    renderApp('/returns/received');
+    const slow = userEvent.setup({ delay: 120 });
+    const search = await screen.findByRole('searchbox', { name: 'Поиск возвратов' });
+    await slow.type(search, 'товар');
+    await waitFor(() => expect(calls.some(c => c.url.includes('search=%D1%82%D0%BE%D0%B2%D0%B0%D1%80'))).toBe(true));
+    await new Promise(resolve => setTimeout(resolve, 400));
+    await userEvent.setup().type(search, 'ii11826954104{Enter}');
+    expect(await screen.findByText('Возврат отправлен на рассмотрение')).toBeInTheDocument();
+    const exact = calls.find(c => c.url.includes('exact=true'));
+    expect(new URL(exact!.url, 'http://test').searchParams.get('search')).toBe('ii11826954104');
+    expect(calls.filter(c => c.method === 'POST')).toHaveLength(1);
+  });
+
+  it('повторный скан совпадающего с поиском кода без Enter выполняет приёмку', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', review_submitted: true })
+    });
+    renderApp('/returns/received');
+    const search = await screen.findByRole('searchbox', { name: 'Поиск возвратов' });
+    await userEvent.setup({ delay: 120 }).type(search, 'ii11826954104');
+    await waitFor(() => expect(calls.some(c => c.url.includes('search=ii11826954104') && !c.url.includes('exact=true'))).toBe(true));
+    const fast = userEvent.setup();
+    await fast.clear(search);
+    await fast.type(search, 'ii11826954104');
+    expect(await screen.findByText('Возврат отправлен на рассмотрение')).toBeInTheDocument();
+    expect(calls.filter(c => c.method === 'POST')).toHaveLength(1);
+  });
+
+  it('кнопка «Найти» выполняет только поиск и не принимает возврат', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), exact_search: true })
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup({ delay: 120 });
+    await user.type(await screen.findByRole('searchbox', { name: 'Поиск возвратов' }), '770158');
+    await user.click(screen.getByRole('button', { name: 'Найти' }));
+    await waitFor(() => expect(calls.some(c => c.url.includes('search=770158'))).toBe(true));
+    expect(calls.some(c => c.method === 'POST' || c.url.includes('exact=true'))).toBe(false);
+  });
+
   it('ручной ввод с Enter только ищет и ничего не принимает', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
@@ -361,7 +410,7 @@ describe('Возвраты', () => {
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': (_init, url) => url?.includes('exact=true')
         ? json({ ...received(), items: [], total: 0, exact_search: true })
-        : json(received())
+        : url?.includes('search=8053379083565') ? json({ ...received(), items: [], total: 0 }) : json(received())
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
@@ -393,6 +442,18 @@ describe('Возвраты', () => {
     expect(calls.some(c => c.method === 'POST')).toBe(false);
     await user.clear(search);
     expect(screen.queryByText(/точное совпадение не найдено/i)).not.toBeInTheDocument();
+  });
+
+  it('не показывает успешную приёмку, если сервер не подтвердил статус', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received(), exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'pending', review_submitted: false })
+    });
+    renderApp('/returns/received');
+    await userEvent.setup().type(await screen.findByRole('searchbox', { name: 'Поиск возвратов' }), 'ii11826954104{Enter}');
+    expect(await screen.findByText('Сервер не подтвердил приёмку возврата.')).toBeInTheDocument();
+    expect(screen.queryByText('Возврат отправлен на рассмотрение')).not.toBeInTheDocument();
   });
 
   it('не принимает возвраты при нескольких совпадениях', async () => {

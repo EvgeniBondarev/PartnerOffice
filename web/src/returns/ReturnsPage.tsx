@@ -200,10 +200,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
   const [saving, setSaving] = useState<string[]>([]);
   const [markError, setMarkError] = useState('');
-  const [reviewNotice, setReviewNotice] = useState(false);
+  const [reviewNotice, setReviewNotice] = useState('');
   useEffect(() => {
     if (!reviewNotice) return;
-    const timer = window.setTimeout(() => setReviewNotice(false), 5000);
+    const timer = window.setTimeout(() => setReviewNotice(''), 5000);
     return () => window.clearTimeout(timer);
   }, [reviewNotice]);
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
@@ -215,7 +215,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [scanResult, setScanResult] = useState<{ kind: 'success' | 'warning' | 'error'; text: string; notFoundCode?: string } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const scanQueue = useRef<Promise<void>>(Promise.resolve());
-  const typing = useRef({ at: 0, fast: 0, length: 0 });
+  const typing = useRef({ at: 0, fast: 0, length: 0, prefix: 0 });
   const autoTried = useRef('');
   const formRef = useRef<HTMLFormElement>(null);
   const highlightedRow = useRef<HTMLTableRowElement>(null);
@@ -235,11 +235,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     setSuggestions([]);
     setSuggestionsOpen(false);
     setActiveSuggestion(-1);
-    if (typed === search) return;
     const timer = window.setTimeout(() => {
-      // Сканер без Enter: код набран машинной скоростью и похож на код этикетки — принимаем, не дожидаясь Enter.
-      if (section === 'received' && canWork && looksLikeCode(typed) && typed !== autoTried.current && looksScanned(typed)) { scan(typed); return; }
-      setSearch(typed);
+      // Сканер может дописать код к уже введённому поиску. Проверяем только новый быстрый фрагмент.
+      const scanned = scanCode(typed);
+      if (section === 'received' && canWork && looksLikeCode(scanned) && scanned !== autoTried.current && looksScanned(typed)) { scan(scanned); return; }
+      if (typed !== search) setSearch(typed);
     }, 350);
     return () => window.clearTimeout(timer);
   }, [searchDraft, search]);
@@ -427,7 +427,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     // свёрнутая строка — это несколько записей: отметка пишется на каждую штуку
     const keys = row.units?.length ? row.units.map(unit => unit.key!) : [row.key];
     savingNow.current = true;
-    setMarkError(''); setSaving(keys => [...keys, row.key!]);
+    setMarkError(''); setReviewNotice(''); setSaving(keys => [...keys, row.key!]);
     try {
       let results: BatchMarkResult[];
       try {
@@ -450,7 +450,8 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
             units: item.units?.map(unit => changes.get(unit.key || '') ? { ...unit, ...changes.get(unit.key || '') } : unit)
           } : item));
       if (failures.length) setMarkError(`Не сохранено: ${failures.map(result => result.key).join(', ')}.`);
-      if (results.some(result => result.ok && result.changes?.review_submitted)) setReviewNotice(true);
+      if (results.some(result => result.ok && result.changes?.review_submitted)) setReviewNotice('Возврат отправлен на рассмотрение');
+      else if (!failures.length && patch.status === 'accepted' && row.mark !== 'accepted' && results.length && results.every(result => result.ok && result.changes?.mark === 'accepted')) setReviewNotice('Возврат принят');
       // отметка одной штуки могла разделить строку: как их показывать, решает сервер
       if (row.unitOf || failures.length) refreshQuietly();
       return failures.length === 0;
@@ -469,14 +470,25 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   /** Сканер вводит код как очень быстрый набор и завершает его Enter: так отличаем скан от ручного ввода. */
   const noteInput = (value: string) => {
     const now = performance.now(), t = typing.current;
-    t.fast = !value || value.length < t.length ? 0 : value.length - t.length > 1 ? value.length : now - t.at < 100 ? t.fast + 1 : 0;
+    const added = value.length - t.length;
+    if (!value || added <= 0) { t.fast = 0; t.prefix = 0; }
+    else {
+      if (t.length > 0 && now - t.at >= 350 && search && t.length === search.length && value.startsWith(search))
+        t.prefix = search.length;
+      else if (now - t.at >= 350) t.prefix = 0;
+      t.fast = added > 1 ? value.length - t.prefix : now - t.at < 100 ? t.fast + 1 : 0;
+    }
     t.at = now; t.length = value.length;
   };
-  const looksScanned = (value: string) => value.length >= 4 && typing.current.fast >= value.length - 1;
+  const scanCode = (value: string) => value.slice(typing.current.prefix).trim();
+  const looksScanned = (value: string) => {
+    const code = scanCode(value);
+    return code.length >= 4 && typing.current.fast >= code.length - 1;
+  };
 
   /** true — позиция принята (или уже была принята); false — ничего не принято, поиск остаётся в поле. */
   const processScan = async (code: string): Promise<boolean> => {
-    setScanResult(null); setHighlighted(null);
+    setScanResult(null); setReviewNotice(''); setHighlighted(null);
     try {
       const query = new URLSearchParams({ section: 'received', page: '1', pageSize: '50', search: code, exact: 'true' });
       const result = await request<ReturnPage>(`/partner-api/returns?${query}`);
@@ -489,8 +501,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       const row = result.items[0];
       const title = row.name || row.posting_number || code;
       setHighlighted(row.key!);
-      if (row.mark === 'accepted') { setScanResult({ kind: 'success', text: `Уже принят: ${title}` }); return true; }
-      await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, ...subPatch('ok') }) });
+      if (row.mark === 'accepted') { setReviewNotice('Возврат уже принят'); setScanResult({ kind: 'success', text: `Уже принят: ${title}` }); return true; }
+      const saved = await request<ReturnMark>('/partner-api/returns/mark', { method: 'POST', body: JSON.stringify({ key: row.key, ...subPatch('ok') }) });
+      if (saved.mark !== 'accepted') throw new Error('Сервер не подтвердил приёмку возврата.');
+      setReviewNotice(saved.review_submitted ? 'Возврат отправлен на рассмотрение' : 'Возврат принят');
       setScanResult({ kind: 'success', text: `Принят: ${title}` });
       refreshQuietly();
       return true;
@@ -513,7 +527,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     currentSearch.current = ''; suppressedSearch.current = null;
     setSuggestions([]); setSuggestionsOpen(false); setActiveSuggestion(-1);
     setSearchDraft(''); setSearch('');
-    typing.current = { at: 0, fast: 0, length: 0 };
+    typing.current = { at: 0, fast: 0, length: 0, prefix: 0 };
     scanQueue.current = scanQueue.current.then(async () => { if (!await processScan(code)) keepSearch(code); });
   };
   // «Найти» и Enter применяют поиск сразу, не дожидаясь паузы; фильтры панели уже применены.
@@ -536,7 +550,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     } else if (event.key === 'Enter' && suggestionsOpen && activeSuggestion >= 0) {
       event.preventDefault(); chooseSuggestion(suggestions[activeSuggestion]);
     } else if (event.key === 'Enter' && section === 'received' && canWork && looksScanned(event.currentTarget.value)) {
-      event.preventDefault(); scan(event.currentTarget.value);
+      event.preventDefault(); scan(scanCode(event.currentTarget.value));
     }
   };
   if (!allowed) return <Informer kind="warning" title="Нет доступа">Обратитесь к владельцу кабинета.</Informer>;
@@ -694,7 +708,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       }
       panel={renderPanel} chips={chips} activeCount={activeCount} onClear={clear} onMouseDown={keepSearchFocus}
       resultLabel={data ? `Показать ${data.total.toLocaleString('ru-RU')} ${plural(data.total, 'возврат', 'возврата', 'возвратов')}` : 'Показать'}>
-    {reviewNotice && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> Возврат отправлен на рассмотрение</div>}
+    {reviewNotice && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> {reviewNotice}</div>}
     {received && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
         {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
         {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.notFoundCode && loadedSearch === scanResult.notFoundCode && (data?.total ?? 0) > 0
