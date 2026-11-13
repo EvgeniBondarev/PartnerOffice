@@ -22,7 +22,7 @@ export function parseFilters(params: URLSearchParams, section: ReturnsSection): 
   const date = (field: keyof ReturnFilters) => (ISO_DATE.test(get(field)) ? get(field) : '');
   return {
     pvz: get('pvz').trim().slice(0, 100),
-    supplier: section === 'received' ? get('supplier').trim().slice(0, 100) : '',
+    supplier: section === 'received' ? list('supplier', item => item.trim().length > 0 && item.trim().length <= 100) : '',
     clientId: list('clientId', item => /^\d{1,10}$/.test(item)),
     status: section === 'waiting' ? list('status', item => STATUS_VALUES.includes(item)) : '',
     mark: section === 'received' ? list('mark', item => MARK_VALUES.includes(item)) : '',
@@ -41,9 +41,8 @@ export function useReturnsQuery(section: ReturnsSection) {
   const [params, setParams] = useSearchParams();
   const filters = useMemo(() => parseFilters(params, section), [params, section]);
   const [pvzDraft, setPvzDraft] = useState(filters.pvz);
-  const [supplierDraft, setSupplierDraft] = useState(filters.supplier);
-  // Значения, которые страница сама записала в адрес: отличие от адреса значит, что сменили его снаружи («Назад»).
-  const written = useRef({ pvz: filters.pvz, supplier: filters.supplier });
+  // Какое значение «Пункта выдачи» страница сама записала в адрес: отличие от адреса значит, что сменили его снаружи («Назад»).
+  const written = useRef(filters.pvz);
 
   const change = useCallback((values: Partial<ReturnFilters>, replace = false) => {
     setParams(previous => {
@@ -56,30 +55,24 @@ export function useReturnsQuery(section: ReturnsSection) {
   }, [setParams]);
 
   const clear = useCallback(() => {
-    written.current = { pvz: '', supplier: '' };
+    written.current = '';
     setPvzDraft('');
-    setSupplierDraft('');
     change(NO_FILTERS);
   }, [change]);
 
-  const useDelayedTextFilter = (field: 'pvz' | 'supplier', draft: string, setDraft: (value: string) => void) => {
-    const filterValue = filters[field];
-    useEffect(() => {
-      const value = draft.trim();
-      if (value === filterValue) return;
-      const timer = window.setTimeout(() => { written.current = { ...written.current, [field]: value }; change({ [field]: value }, true); }, PVZ_DELAY_MS);
-      return () => window.clearTimeout(timer);
-    }, [field, draft, filterValue, change]);
+  useEffect(() => {
+    const pvz = pvzDraft.trim();
+    if (pvz === filters.pvz) return;
+    const timer = window.setTimeout(() => { written.current = pvz; change({ pvz }, true); }, PVZ_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [pvzDraft, filters.pvz, change]);
 
-    useEffect(() => {
-      if (filterValue === written.current[field]) return;
-      written.current = { ...written.current, [field]: filterValue };
-      setDraft(filterValue);
-    }, [field, filterValue, setDraft]);
-  };
-  useDelayedTextFilter('pvz', pvzDraft, setPvzDraft);
-  useDelayedTextFilter('supplier', supplierDraft, setSupplierDraft);
+  useEffect(() => {
+    if (filters.pvz === written.current) return;
+    written.current = filters.pvz;
+    setPvzDraft(filters.pvz);
+  }, [filters.pvz]);
 
   const activeCount = Object.values(filters).filter(Boolean).length;
-  return { filters, pvzDraft, setPvzDraft, supplierDraft, setSupplierDraft, change, clear, activeCount };
+  return { filters, pvzDraft, setPvzDraft, change, clear, activeCount };
 }

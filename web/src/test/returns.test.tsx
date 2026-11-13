@@ -62,7 +62,7 @@ describe('Возвраты', () => {
     expect(await screen.findByText('Маховик LUK')).toBeInTheDocument();
     expect(screen.getByLabelText('Схема: FBS → FBO')).toBeInTheDocument();
     expect(screen.getByText('31464102-0734-1')).toBeInTheDocument();
-    expect(screen.getByText('Фиктивно')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Фиктивно')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Поставщик' })).toBeInTheDocument();
     expect(screen.getByText('Покупатель отменил заказ')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'История позиции' }));
@@ -229,7 +229,7 @@ describe('Возвраты', () => {
     expect(within(region).getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
   });
 
-  it('в «Получено» фильтрует по поставщику при вводе и предлагает поставщиков из доступных строк', async () => {
+  it('в «Получено» фильтрует по поставщикам списком из доступных строк', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
       '/partner-api/returns?*': () => json({ ...received({ supplier: 'АвтоДеталь' }), items: [
@@ -239,12 +239,11 @@ describe('Возвраты', () => {
     });
     renderApp('/returns/received');
     await screen.findByText('Товар Б');
-    const supplier = await screen.findByLabelText('Название поставщика');
-    expect(document.querySelectorAll('#return-supplier-suggestions option')).toHaveLength(2);
     const user = userEvent.setup();
-    await user.type(supplier, 'Авто');
-    await waitFor(() => expect(calls.some(call => new URL(call.url, 'http://test').searchParams.get('supplier') === 'Авто')).toBe(true));
-    expect(screen.getByText('Поставщик: Авто')).toBeInTheDocument();
+    const group = screen.getByRole('group', { name: 'Поставщик' });
+    await user.click(within(group).getByRole('checkbox', { name: 'АвтоДеталь' }));
+    await waitFor(() => expect(calls.some(call => new URL(call.url, 'http://test').searchParams.get('supplier') === 'АвтоДеталь')).toBe(true));
+    expect(screen.getByText('Поставщик: АвтоДеталь')).toBeInTheDocument();
   });
 
   it('принимает однозначный результат сканирования и выделяет строку', async () => {
@@ -581,7 +580,7 @@ describe('Возвраты', () => {
   it('«Получено»: фильтры панели применяются сразу, без кнопки «Найти»', async () => {
     const calls = setup('/returns/received');
     await screen.findByText('Товар А');
-    expect(screen.getByRole('combobox', { name: 'Название поставщика' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Статус Ozon' })).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Принят' }));

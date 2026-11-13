@@ -162,7 +162,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const allowed = hasPermission(partner, 'ViewReturns');
   const canWork = hasPermission(partner, 'ReturnsWork');
   const phone = useMediaQuery('(max-width: 767px)', false);
-  const { filters: panelFilters, pvzDraft, setPvzDraft, supplierDraft, setSupplierDraft, change, clear, activeCount } = useReturnsQuery(section);
+  const { filters: panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount } = useReturnsQuery(section);
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ search, ...panelFilters }), [search, panelFilters]);
@@ -173,8 +173,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [data, setData] = useState<ReturnPage | null>(initialHit?.data ?? null);
   // Список подгружается при прокрутке: items копится порциями, pagesLoaded — сколько порций уже в нём.
   const [items, setItems] = useState<ReturnRow[]>(initialHit?.items ?? []);
+  const [supplierNames, setSupplierNames] = useState<string[]>(() => [...new Set((initialHit?.items ?? []).map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value)))]);
   const itemsRef = useRef<ReturnRow[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
+  useEffect(() => setSupplierNames(previous => [...new Set([...previous, ...items.map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value))])].sort((a, b) => a.localeCompare(b, 'ru'))), [items]);
   const [pagesLoaded, setPagesLoaded] = useState(1);
   const pagesRef = useRef(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -530,7 +532,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'supplier', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...splitList(panelFilters.mark).map(value => ({
@@ -541,7 +543,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
-    ...(panelFilters.supplier ? [{ id: 'supplier', label: `Поставщик: ${panelFilters.supplier}`, onRemove: () => change({ supplier: '' }) }] : []),
+    ...valueChips('supplier', 'Поставщик', value => value),
     ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
     ...(panelFilters.dateFrom || panelFilters.dateTo ? [{ id: 'date', label: `${received ? 'Получено' : 'Возврат'}: ${formatRange(panelFilters.dateFrom, panelFilters.dateTo)}`, onRemove: () => change({ dateFrom: '', dateTo: '' }) }] : [])
   ];
@@ -553,10 +555,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
     {received && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={REVIEW_OPTIONS} onChange={value => change({ review: value })} /></FilterSection>}
     {received && <FilterSection title="Поставщик" active={!!panelFilters.supplier}>
-      <TextField label="Название поставщика" value={supplierDraft} onValueChange={setSupplierDraft} size={500} maxLength={100} list="return-supplier-suggestions" />
-      <datalist id="return-supplier-suggestions">
-        {[...new Set(items.map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value)))].map(value => <option key={value} value={value} />)}
-      </datalist>
+      <CheckboxGroup value={panelFilters.supplier} options={supplierNames.map(value => ({ value, label: value }))} onChange={value => change({ supplier: value })} />
     </FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
