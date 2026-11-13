@@ -73,6 +73,20 @@ describe('Возвраты', () => {
     expect(within(dialog).getByText('«Доступно к продаже»')).toHaveClass('pa-hist__status');
   });
 
+  it('показывает штрихкод FBS рядом со связанной коробкой FBO', async () => {
+    const box = { key: 'fbo:pair', return_type: 'fbo', id: null, client_id: '1', box_id: 20258129493,
+      name: 'Кожух тормозного диска', status: 'ReceivedBySeller', status_name: 'Получена', qty: 1,
+      schema: ['FBS', 'FBO'], pair: { schema: 'FBS', posting_number: '10956078-0845-1', barcode: 'ii11826954104', link: 'unique' } };
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [box], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByText('ii11826954104')).toBeInTheDocument();
+    expect(screen.getByText('boxId 20258129493')).toBeInTheDocument();
+    expect(screen.getByText('10956078-0845-1')).toBeInTheDocument();
+  });
+
   it('FBO-возврат повторной продажи: номер FBS для Studio2, FBO строкой ниже, история с обоими номерами у статуса', async () => {
     const row = { key: 'fbs:370459:1002139840', return_type: 'fbs', id: 1002139840, client_id: '370459', posting_number: '88010580-0320-1',
       name: 'Основная фара DEPO 21211H6LLDEM', offer_id: '21211H6LLDEM=DEP', status: 'ReceivedBySeller', status_name: 'Получен', qty: 1,

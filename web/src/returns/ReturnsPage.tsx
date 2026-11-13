@@ -132,7 +132,7 @@ const looksLikeCode = (value: string) => /^(?:(?:ii|bx)\d{6,}|\d{10,}|\d{6,}-\d{
 
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
 function suggestionLabel(row: ReturnRow, query: string): string {
-  const fields = [row.posting_number, row.pair?.posting_number, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.onec?.number, row.offer_id, row.sku?.toString(), row.name];
+  const fields = [row.posting_number, row.pair?.posting_number, row.pair?.barcode, row.box_barcode, row.box_id?.toString(), row.barcode, row.ii_code, row.onec?.number, row.offer_id, row.sku?.toString(), row.name];
   const search = query.toLocaleLowerCase();
   return fields.find(value => value?.toLocaleLowerCase().includes(search)) || row.name || 'Возврат';
 }
@@ -592,16 +592,21 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         <LinkTag link={row.pair?.link} />
         {!hasOzonStatus && historyButton(row)}</div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
+  const barcodeLines = (row: ReturnRow) => {
+    const alreadyShown = new Set([row.box_barcode, row.return_type === 'fbo' ? null : row.barcode].filter(Boolean));
+    const codes = [...new Set([row.ii_code, row.pair?.barcode].filter((value): value is string => !!value && !alreadyShown.has(value)))];
+    return codes.map(code => <div className="pa-sub" key={code}><CopyValue value={code} label="штрихкод возврата" /></div>);
+  };
   const postingCell = (row: ReturnRow) => {
     if (isResale(row) && row.pair?.posting_number) return <>
       <CopyValue value={row.pair.posting_number} label="номер отправления FBS"><span className="pa-returns__side">FBS</span>{row.pair.posting_number}</CopyValue>
-      <div className="pa-sub">FBO · {row.posting_number ? <CopyValue value={row.posting_number} label="номер отправления FBO" /> : '—'}</div></>;
+      <div className="pa-sub">FBO · {row.posting_number ? <CopyValue value={row.posting_number} label="номер отправления FBO" /> : '—'}</div>{barcodeLines(row)}</>;
     const main = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `boxId ${row.box_id}` : 'Коробка FBO')) : (row.posting_number || '—');
     const copyable = row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? String(row.box_id) : null)) : row.posting_number;
     return <><CopyValue value={copyable} label={row.return_type === 'fbo' ? 'код коробки' : 'номер отправления'}>{main}</CopyValue>
       <div className="pa-sub">{row.return_type === 'fbo'
         ? (row.pair?.posting_number ? <>{row.pair.schema || 'FBS'} · <CopyValue value={row.pair.posting_number} label="номер отправления" /></> : 'Коробка FBO')
-        : row.barcode ? <CopyValue value={row.barcode} label="код этикетки" /> : 'Возврат'}</div></>;
+        : row.barcode ? <CopyValue value={row.barcode} label="код этикетки" /> : 'Возврат'}</div>{barcodeLines(row)}</>;
   };
   const supplierCell = (row: ReturnRow) => row.supplier ? <>{row.supplier}{isResale(row) ? <div className="pa-sub">по заказу FBS</div> : row.return_type === 'fbo' && row.pair ? <div className="pa-sub">по заказу возврата</div> : null}</> : <span className="pa-sub">—</span>;
   const pairReason = (row: ReturnRow) => row.pair?.reason ? <div className="pa-sub" title={row.pair.reason}>{row.pair.reason}</div> : null;
