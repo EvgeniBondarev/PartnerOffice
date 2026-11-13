@@ -54,7 +54,7 @@ interface ReturnRow {
   /** События позиции по времени. */
   history?: ReturnEvent[] | null;
 }
-type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
+type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'> & { review_submitted?: boolean };
 type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean; comment?: string };
 type BatchMarkResult = { key: string; ok: boolean; changes?: ReturnMark; error?: string };
 interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; revision?: string | null; suppliers?: string[] | null; cabinets?: { id: number; name: string; ozonClientId: string }[] }
@@ -199,6 +199,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [image, setImage] = useState<{ url: string; alt: string } | null>(null);
   const [saving, setSaving] = useState<string[]>([]);
   const [markError, setMarkError] = useState('');
+  const [reviewNotice, setReviewNotice] = useState(false);
+  useEffect(() => {
+    if (!reviewNotice) return;
+    const timer = window.setTimeout(() => setReviewNotice(false), 5000);
+    return () => window.clearTimeout(timer);
+  }, [reviewNotice]);
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
   const toggleUnits = (key: string) => setExpandedUnits(previous => {
     const next = new Set(previous);
@@ -442,6 +448,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
             units: item.units?.map(unit => changes.get(unit.key || '') ? { ...unit, ...changes.get(unit.key || '') } : unit)
           } : item));
       if (failures.length) setMarkError(`Не сохранено: ${failures.map(result => result.key).join(', ')}.`);
+      if (results.some(result => result.ok && result.changes?.review_submitted)) setReviewNotice(true);
       // отметка одной штуки могла разделить строку: как их показывать, решает сервер
       if (row.unitOf || failures.length) refreshQuietly();
       return failures.length === 0;
@@ -679,6 +686,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       }
       panel={renderPanel} chips={chips} activeCount={activeCount} onClear={clear} onMouseDown={keepSearchFocus}
       resultLabel={data ? `Показать ${data.total.toLocaleString('ru-RU')} ${plural(data.total, 'возврат', 'возврата', 'возвратов')}` : 'Показать'}>
+    {reviewNotice && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> Возврат отправлен на рассмотрение</div>}
     {received && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
         {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
         {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}

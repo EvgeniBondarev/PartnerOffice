@@ -845,6 +845,19 @@ describe('Возвраты', () => {
       await waitFor(() => expect(param(listing(calls).url, 'review')).toBe(''));
     });
 
+    it('показывает уведомление только после подтверждения постановки на разбор', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json(received()),
+        'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: { mark: 'accepted', review_submitted: true } }] })
+      });
+      renderApp('/returns/received');
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: /^Статус приёмки:/ }));
+      await user.click(await screen.findByRole('menuitemradio', { name: 'Принят' }));
+      expect(await screen.findByText('Возврат отправлен на рассмотрение')).toBeInTheDocument();
+    });
+
     it('отметка устаревшего возврата: понятное сообщение и обновление списка вместо «Возврат не найден»', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
