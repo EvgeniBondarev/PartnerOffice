@@ -128,7 +128,7 @@ const plural = (n: number, one: string, few: string, many: string) => {
 };
 
 /** Похоже на код этикетки или отправление: ii…/bx… с цифрами, длинное число (в том числе искажённое сканером) или номер отправления. */
-const looksLikeCode = (value: string) => /^(?:(?:ii|bx)\d{6,}|\d{10,}|\d{6,}-\d{3,}(?:-\d+)?)$/i.test(value);
+const looksLikeCode = (value: string) => /^(?:(?:i{1,2}|bx)\d{6,}|\d{10,}|\d{6,}-\d{3,}(?:-\d+)?)$/i.test(value);
 
 /** Выбираем именно совпавшее поле, чтобы выбор подсказки находил соответствующую строку. */
 function suggestionLabel(row: ReturnRow, query: string): string {

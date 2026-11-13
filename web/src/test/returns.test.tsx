@@ -392,6 +392,19 @@ describe('Возвраты', () => {
     expect(calls.filter(c => c.url.includes('exact=true')).every(c => c.url.includes('search=ii14471039743'))).toBe(true);
   });
 
+  it('скан с одной потерянной i принимается без Enter после точной проверки сервером', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ ...received({ ii_code: 'ii11826954104' }), exact_search: true }),
+      'POST /partner-api/returns/mark': () => json({ mark: 'accepted', review_submitted: true })
+    });
+    renderApp('/returns/received');
+    await userEvent.setup().type(await screen.findByRole('searchbox', { name: 'Поиск возвратов' }), 'i11826954104');
+    expect(await screen.findByText('Возврат отправлен на рассмотрение')).toBeInTheDocument();
+    expect(calls.some(c => c.url.includes('exact=true') && c.url.includes('search=i11826954104'))).toBe(true);
+    expect(calls.filter(c => c.method === 'POST')).toHaveLength(1);
+  });
+
   it('медленно набранный номер не принимается сам: это обычный поиск', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
