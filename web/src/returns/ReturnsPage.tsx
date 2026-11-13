@@ -174,6 +174,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [data, setData] = useState<ReturnPage | null>(initialHit?.data ?? null);
   // Список подгружается при прокрутке: items копится порциями, pagesLoaded — сколько порций уже в нём.
   const [items, setItems] = useState<ReturnRow[]>(initialHit?.items ?? []);
+  const [loadedSearch, setLoadedSearch] = useState(initialHit ? filters.search : '');
   const [supplierNames, setSupplierNames] = useState<string[]>(() => [...new Set((initialHit?.items ?? []).map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value)))]);
   const itemsRef = useRef<ReturnRow[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
@@ -211,7 +212,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     if (!next.delete(key)) next.add(key);
     return next;
   });
-  const [scanResult, setScanResult] = useState<{ kind: 'success' | 'warning' | 'error'; text: string } | null>(null);
+  const [scanResult, setScanResult] = useState<{ kind: 'success' | 'warning' | 'error'; text: string; notFoundCode?: string } | null>(null);
   const [highlighted, setHighlighted] = useState<string | null>(null);
   const scanQueue = useRef<Promise<void>>(Promise.resolve());
   const typing = useRef({ at: 0, fast: 0, length: 0 });
@@ -259,7 +260,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     const quiet = background || !!hit;
     const upto = 1;
     if (hit) {
-      setData(hit.data); setItems(hit.items); pagesRef.current = upto; setPagesLoaded(upto);
+      setData(hit.data); setItems(hit.items); setLoadedSearch(filters.search); pagesRef.current = upto; setPagesLoaded(upto);
       setLoading(false); setError(''); setMoreError(''); setLoadingMore(false);
     } else if (!quiet) { setLoading(true); setError(''); setMoreError(''); setLoadingMore(false); }
     Promise.all(Array.from({ length: upto }, (_, index) => request<ReturnPage>(listUrl(index + 1), { signal: controller.signal })))
@@ -269,6 +270,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         const rows = mergeRows([], results.flatMap(item => item.items));
         rememberList(cacheKey(listUrl(1)), { data: result, items: rows });
         setData(result);
+        setLoadedSearch(filters.search);
         if (result.suppliers) setSupplierNames(result.suppliers);
         setCounts(previous => ({ ...previous, [section]: result.total }));
         setItems(rows);
@@ -481,7 +483,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       if (!result.exact_search) { setScanResult({ kind: 'warning', text: 'Точный поиск недоступен. Проверьте возврат вручную.' }); return false; }
       if (result.partial) { setScanResult({ kind: 'warning', text: 'Данные обновлены не полностью. Проверьте возврат вручную.' }); return false; }
       if (result.total !== 1 || result.items.length !== 1 || !result.items[0].key) {
-        setScanResult(result.total ? { kind: 'warning', text: `Код ${code}: найдено несколько позиций. Выберите нужную вручную.` } : { kind: 'warning', text: `Код ${code}: возврат не найден.` });
+        setScanResult(result.total ? { kind: 'warning', text: `Код ${code}: найдено несколько позиций. Выберите нужную вручную.` } : { kind: 'warning', text: `Код ${code}: возврат не найден.`, notFoundCode: code });
         return false;
       }
       const row = result.items[0];
@@ -517,6 +519,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   // «Найти» и Enter применяют поиск сразу, не дожидаясь паузы; фильтры панели уже применены.
   const apply = (event: FormEvent) => { event.preventDefault(); setSuggestionsOpen(false); setSearch(searchDraft.trim()); };
   const chooseSuggestion = (row: ReturnRow) => {
+    setScanResult(null);
     const chosen = suggestionLabel(row, searchDraft.trim());
     currentSearch.current = chosen;
     suppressedSearch.current = chosen;
@@ -663,7 +666,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     <form ref={formRef} className="pa-list__search" role="search" aria-label="Поиск возвратов" onSubmit={apply}>
       <div className="pa-list__search-field">
         <SearchField label="Поиск возвратов" placeholder={received && canWork ? 'Товар, артикул, коробка, документ 1С или код со сканера' : received || shelf || outbound ? 'Товар, артикул, коробка или документ' : 'Товар, артикул, отправление или коробка'} value={searchDraft}
-          onValueChange={value => { if (value !== autoTried.current) autoTried.current = ''; noteInput(value); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = value.trim(); setSearchDraft(value); }}
+          onValueChange={value => { setScanResult(null); if (value !== autoTried.current) autoTried.current = ''; noteInput(value); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = value.trim(); setSearchDraft(value); }}
           onFocus={() => { focused.current = true; window.clearTimeout(blurTimer.current); if (suggestionSearch.current === searchDraft.trim() && suggestions.length) setSuggestionsOpen(true); }}
           onBlur={() => { focused.current = false; blurTimer.current = window.setTimeout(() => setSuggestionsOpen(false), 150); }}
           onKeyDown={searchKeyDown} aria-autocomplete="list" aria-controls={suggestionsOpen && suggestions.length ? 'return-suggestions' : undefined}
@@ -694,7 +697,9 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     {reviewNotice && <div className="pa-copy-toast" role="status"><span aria-hidden="true">✓</span> Возврат отправлен на рассмотрение</div>}
     {received && !canWork && <Informer kind="info">Для изменения приёмки попросите владельца включить право «Приём возвратов».</Informer>}
         {error && <div className="pa-notice"><Informer kind="error" title="Не удалось загрузить возвраты" action={<Button variant="action-secondary" size={400} onClick={() => setRetry(n => n + 1)}>Повторить</Button>}>{error}</Informer></div>}
-        {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.text}</Informer></div>}
+        {scanResult && <div className="pa-notice"><Informer kind={scanResult.kind}>{scanResult.notFoundCode && loadedSearch === scanResult.notFoundCode && (data?.total ?? 0) > 0
+          ? `Код ${scanResult.notFoundCode}: точное совпадение не найдено. Проверьте найденные позиции вручную — приёмка не выполнена.`
+          : scanResult.text}</Informer></div>}
         {ttnError && <div className="pa-notice"><Informer kind="error" title="Не удалось скачать ТТН">{ttnError}</Informer></div>}
         {markError && <div className="pa-notice"><Informer kind="error" title="Отметка не сохранена">{markError}</Informer></div>}
         {data?.partial && !error && <div className="pa-notice"><Informer kind="warning">Не все кабинеты обновились. Некоторые данные могут быть устаревшими.</Informer></div>}

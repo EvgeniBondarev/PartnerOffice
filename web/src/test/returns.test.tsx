@@ -376,6 +376,25 @@ describe('Возвраты', () => {
     expect(search).toHaveValue('2698514471039743');
   });
 
+  it('не сообщает, что возврат не найден, когда обычный поиск показал совпадение', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': (_init, url) => url?.includes('exact=true')
+        ? json({ ...received(), items: [], total: 0, exact_search: true })
+        : json(received({ ii_code: 'ii11826954104' }))
+    });
+    renderApp('/returns/received');
+    const user = userEvent.setup();
+    const search = await screen.findByRole('searchbox', { name: 'Поиск возвратов' });
+    await user.type(search, '11826954104{Enter}');
+    expect(await screen.findByText(/точное совпадение не найдено.*приёмка не выполнена/i)).toBeInTheDocument();
+    expect(screen.getByText('Товар А')).toBeInTheDocument();
+    expect(screen.queryByText(/возврат не найден/i)).not.toBeInTheDocument();
+    expect(calls.some(c => c.method === 'POST')).toBe(false);
+    await user.clear(search);
+    expect(screen.queryByText(/точное совпадение не найдено/i)).not.toBeInTheDocument();
+  });
+
   it('не принимает возвраты при нескольких совпадениях', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
