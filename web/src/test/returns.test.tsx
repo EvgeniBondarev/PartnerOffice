@@ -97,9 +97,12 @@ describe('Возвраты', () => {
     expect(screen.getByText('88010580-0320-1')).toBeInTheDocument();
     expect(screen.getByText('по заказу FBS')).toBeInTheDocument();
     expect(screen.getByText('повторная продажа')).toBeInTheDocument();
-    // кнопка истории — в колонке приёмки, рядом со статусом
+    // кнопка истории — рядом со статусом Ozon, не в колонке приёмки и не в товаре
     const history = screen.getByRole('button', { name: 'История позиции' });
-    expect(history.closest('.pa-returns__mark-box')).not.toBeNull();
+    const statusBox = history.closest('.pa-returns__status-box');
+    expect(statusBox).not.toBeNull();
+    expect(within(statusBox as HTMLElement).getByText('Получен')).toBeInTheDocument();
+    expect(history.closest('.pa-returns__mark-box')).toBeNull();
     expect(history.closest('.pa-returns__product')).toBeNull();
     await userEvent.click(history);
     const dialog = await screen.findByRole('dialog', { name: 'История позиции' });
@@ -155,6 +158,21 @@ describe('Возвраты', () => {
     await userEvent.unhover(part);
     await userEvent.hover(screen.getByText('по очереди'));
     expect(await screen.findByRole('tooltip')).toHaveTextContent('По очереди: у этого товара в кабинете несколько возвратов из разных заказов');
+  });
+
+  it('на полке колонки «Статус Ozon» нет: кнопка истории остаётся в товаре', async () => {
+    const row = { key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Шрус NAKAYAMA', posting_number: '0104848991-0347-1', qty: 1,
+      decision: { outcome: 'shelf', status: 'on_shelf', status_name: 'На полке', warehouse: 'ГОМЕЛЬ — партнёр' },
+      history: [{ when: '05.03.2026 10:37', kind: 'ozon', text: '**Заказ отменён**' }] };
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [row], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/shelf');
+    expect(await screen.findByText('Шрус NAKAYAMA')).toBeInTheDocument();
+    const history = screen.getByRole('button', { name: 'История позиции' });
+    expect(history.closest('.pa-returns__product')).not.toBeNull();
+    expect(history.closest('.pa-returns__status-box')).toBeNull();
   });
 
   it('строка без новых полей показывается как раньше, без истории', async () => {

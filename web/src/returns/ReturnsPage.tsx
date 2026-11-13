@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ApiError, request } from '../api/client';
 import { API_BASE_URL, apiUrl } from '../config';
@@ -559,8 +559,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   </FilterPanel>;
   const rows = displayedRows(items, expandedUnits);
   const hasMark = !shelf && !outbound && (canWork || received);
+  /** Колонка «Статус Ozon» есть в «Ждёт получения» и «Получено»; на полке и в отправке её нет. */
+  const hasOzonStatus = !shelf && !outbound;
   const searching = activeCount > 0 || !!search;
-  /** Кнопка «История позиции»: в колонке приёмки рядом со статусом, а где колонки нет (полка, отправка) — в товаре. */
+  /** Кнопка «История позиции»: рядом со статусом Ozon, а где такой колонки нет (полка, отправка) — в товаре. */
   const historyButton = (row: ReturnRow) => <HistoryButton title={row.name || 'Товар'} history={row.history} schema={row.schema}
     posting={row.pair?.posting_number || (row.return_type === 'fbo' ? null : row.posting_number)} resalePosting={isResale(row) ? row.posting_number : null}
     box={row.return_type === 'fbo' ? (row.box_barcode || (row.box_id ? `bx${row.box_id}` : null)) : null} />;
@@ -568,7 +570,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     <ProductImage url={row.image_url ?? null} alt={row.name || 'Товар'} onOpen={setImage} />
     <div className="pa-returns__product-info"><div className="pa-product" title={row.name || undefined}>{row.name || '—'}</div><div className="pa-sub pa-returns__sub"><SchemaBadge schema={row.schema} resale={isResale(row)} />{row.offer_id ? <CopyValue value={row.offer_id} label="артикул" /> : '—'}{cabinets.length > 1 && cabinetName(row) !== '—' ? ` · ${cabinetName(row)}` : ''}
         <LinkTag link={row.pair?.link} />
-        {!hasMark && historyButton(row)}</div>
+        {!hasOzonStatus && historyButton(row)}</div>
       {(row.units?.length || row.unitOf) && <button type="button" className="pa-link pa-returns__units-toggle" onClick={() => toggleUnits((row.unitOf || row.key)!)}>{row.unitOf ? 'Свернуть' : `${row.units!.length} шт. · Разобрать по штукам`}</button>}</div></div>;
   const postingCell = (row: ReturnRow) => {
     if (isResale(row) && row.pair?.posting_number) return <>
@@ -583,7 +585,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   };
   const supplierCell = (row: ReturnRow) => row.supplier ? <>{row.supplier}{isResale(row) ? <div className="pa-sub">по заказу FBS</div> : row.return_type === 'fbo' && row.pair ? <div className="pa-sub">по заказу возврата</div> : null}</> : <span className="pa-sub">—</span>;
   const pairReason = (row: ReturnRow) => row.pair?.reason ? <div className="pa-sub" title={row.pair.reason}>{row.pair.reason}</div> : null;
-  const statusBadge = (row: ReturnRow) => <Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>;
+  const statusBadge = (row: ReturnRow) => <div className="pa-returns__status-box"><Badge kind={row.status === 'ArrivedAtReturnPlace' ? 'primary success' : 'secondary info'}>{row.status_name || '—'}</Badge>{historyButton(row)}</div>;
   const placeCell = (row: ReturnRow) => <>{row.target_place || '—'}<div className="pa-sub">{row.target_place_addr}</div></>;
   const outboundDoc = (row: ReturnRow) => {
     const doc = row.decision?.outcome === 'us' ? (row.decision?.onec?.number ? `№${row.decision.onec.number}` : '') : row.decision?.doc_number || '';
@@ -597,7 +599,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
   const shelfStatus = (row: ReturnRow) => <Badge kind="primary success">{row.decision?.status_name || 'На полке'}</Badge>;
-  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} history={historyButton(row)} />;
+  const markCell = (row: ReturnRow) => <MarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={patch => mark(row, patch)} />;
   /** Сканер вводит код в поиск: щелчок мышью по фильтру не должен забирать у него фокус. Текстовые поля и клавиатура работают как обычно. */
   const keepSearchFocus = received && canWork ? (event: MouseEvent<HTMLElement>) => {
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
@@ -783,7 +785,7 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
  * клик по плашке сохраняет сразу. Плашка не меняет основной статус, уход из «Принят» сбрасывает её в ОК.
  * Без права на приёмку — только бейдж и плашка не-ОК результата.
  */
-function MarkCell({ row, canWork, busy, onChange, history }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void; history?: ReactNode }) {
+function MarkCell({ row, canWork, busy, onChange }: { row: ReturnRow; canWork: boolean; busy: boolean; onChange: (patch: MarkPatch) => void }) {
   const status = MARK_STATUSES.find(item => item.value === (row.mark ?? 'pending')) ?? MARK_STATUSES[0];
   const sub = markSub(row);
   const { open, setOpen, close, rootRef, buttonRef } = usePopover();
@@ -829,7 +831,6 @@ function MarkCell({ row, canWork, busy, onChange, history }: { row: ReturnRow; c
           <Badge kind={status.kind} chevron>{status.label}</Badge>
         </button>
       : <Badge kind={status.kind}>{status.label}</Badge>}
-    {history}
     {accepted && (canWork
       ? <div className="pa-subchips" role="radiogroup" aria-label="Результат приёмки">
         {MARK_SUBS.map(option => <Fragment key={option.value}>
