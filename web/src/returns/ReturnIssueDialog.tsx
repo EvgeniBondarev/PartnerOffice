@@ -5,21 +5,27 @@ import { Informer } from '../ui/Informer';
 import { Overlay } from '../ui/Overlay';
 
 interface Photo { key: string; id: string }
+interface PendingPhoto { file: File; url: string }
 interface Props { title: string; keys: string[]; initialComment: string; onClose: () => void; onSave: (comment: string) => Promise<boolean> }
 const credentials: RequestCredentials = API_BASE_URL ? 'include' : 'same-origin';
 const photoPath = (key: string, id = '') => apiUrl(`/partner-api/returns/photos${id ? `/${encodeURIComponent(id)}` : ''}?key=${encodeURIComponent(key)}`);
 
 export function ReturnIssueDialog({ title, keys, initialComment, onClose, onSave }: Props) {
   const uploadRef = useRef<HTMLInputElement>(null);
+  const previewUrls = useRef(new Set<string>());
   const [comment, setComment] = useState(initialComment);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [removed, setRemoved] = useState<Photo[]>([]);
-  const [pending, setPending] = useState<File[]>([]);
+  const [pending, setPending] = useState<PendingPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [reopen, setReopen] = useState(false);
   const [error, setError] = useState('');
   const keyList = JSON.stringify(keys);
+  useEffect(() => () => {
+    previewUrls.current.forEach(url => URL.revokeObjectURL(url));
+    previewUrls.current.clear();
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
@@ -45,7 +51,7 @@ export function ReturnIssueDialog({ title, keys, initialComment, onClose, onSave
       if (!(await onSave(comment))) throw new Error('Не удалось сохранить отметку.');
       markSaved = true;
       // Каждая штука группы получает собственную копию: при разделении строки фото не теряются.
-      for (const file of pending) {
+      for (const { file } of pending) {
         for (const key of keys) {
           const form = new FormData(); form.append('file', file);
           const response = await fetch(photoPath(key), { method: 'POST', credentials, body: form });
@@ -74,17 +80,24 @@ export function ReturnIssueDialog({ title, keys, initialComment, onClose, onSave
       <label htmlFor="return-issue-photos">Фотографии возврата</label>
       <p className="pa-sub">JPEG или PNG, до 10 МБ на фото.</p>
       {loading && <p>Загружаем фотографии…</p>}
-      <div className="pa-return-photos__grid">{photos.map(photo => <div key={`${photo.key}:${photo.id}`} className="pa-return-photos__item">
+      {(photos.length > 0 || pending.length > 0) && <div className="pa-return-photos__grid">{photos.map(photo => <div key={`${photo.key}:${photo.id}`} className="pa-return-photos__item">
         {keys.length > 1 && <span className="pa-sub">Штука {keys.indexOf(photo.key) + 1}</span>}
         <a href={photoPath(photo.key, photo.id)} target="_blank" rel="noreferrer"><img src={photoPath(photo.key, photo.id)} alt="Фото возврата" /></a>
         <Button variant="action-secondary" size={400} disabled={busy} onClick={() => { setPhotos(items => items.filter(x => x !== photo)); setRemoved(items => [...items, photo]); }}>Удалить</Button>
-      </div>)}</div>
-      {pending.map((file, index) => <div key={`${file.name}-${index}`}>{file.name} <Button variant="action-secondary" size={400} disabled={busy} onClick={() => setPending(items => items.filter((_, i) => i !== index))}>Удалить</Button></div>)}
-      <Button variant="action-secondary" size={400} disabled={busy || loading} onClick={() => uploadRef.current?.click()}>Добавить фото</Button>
+      </div>)}{pending.map(photo => <div key={photo.url} className="pa-return-photos__item">
+        <img src={photo.url} alt={`Выбранное фото: ${photo.file.name}`} />
+        <span className="pa-return-photos__name" title={photo.file.name}>{photo.file.name}</span>
+        <Button variant="action-secondary" size={400} disabled={busy} onClick={() => {
+          URL.revokeObjectURL(photo.url); previewUrls.current.delete(photo.url);
+          setPending(items => items.filter(item => item !== photo));
+        }}>Удалить</Button>
+      </div>)}</div>}
+      <div className="pa-return-photos__add"><Button variant="action-secondary" size={400} disabled={busy || loading} onClick={() => uploadRef.current?.click()}>Добавить фото</Button></div>
       <input ref={uploadRef} className="pa-visually-hidden" id="return-issue-photos" type="file" accept="image/jpeg,image/png" multiple disabled={busy || loading} onChange={e => {
         const selected = Array.from(e.target.files || []); e.target.value = '';
         if (selected.some(file => !['image/jpeg', 'image/png'].includes(file.type) || file.size > 10 * 1024 * 1024 || !file.size)) { setError('Выберите фотографии JPEG или PNG размером до 10 МБ.'); return; }
-        setError(''); setPending(items => [...items, ...selected]);
+        const previews = selected.map(file => { const url = URL.createObjectURL(file); previewUrls.current.add(url); return { file, url }; });
+        setError(''); setPending(items => [...items, ...previews]);
       }} />
     </div>
   </Overlay>;

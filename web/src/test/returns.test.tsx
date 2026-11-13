@@ -473,6 +473,9 @@ describe('Возвраты', () => {
     });
 
     it('фото загружается после отметки и повторно показывается в форме', async () => {
+      const revoke = vi.fn();
+      const NativeURL = URL;
+      vi.stubGlobal('URL', class extends NativeURL { static createObjectURL = vi.fn(() => 'blob:preview'); static revokeObjectURL = revoke; });
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', permissions: [4, 5] }),
         '/partner-api/returns?*': () => json(received({ mark: 'accepted' })),
@@ -486,9 +489,16 @@ describe('Возвраты', () => {
       expect(await screen.findByAltText('Фото возврата')).toBeInTheDocument();
       await user.type(screen.getByLabelText('Комментарий'), 'Скол');
       await user.upload(screen.getByLabelText('Фотографии возврата'), new File(['image'], 'return.jpg', { type: 'image/jpeg' }));
+      const preview = screen.getByAltText('Выбранное фото: return.jpg');
+      expect(preview).toHaveAttribute('src', 'blob:preview');
+      await user.click(within(preview.closest('.pa-return-photos__item') as HTMLElement).getByRole('button', { name: 'Удалить' }));
+      expect(screen.queryByAltText('Выбранное фото: return.jpg')).not.toBeInTheDocument();
+      expect(revoke).toHaveBeenCalledWith('blob:preview');
+      await user.upload(screen.getByLabelText('Фотографии возврата'), new File(['image'], 'return.jpg', { type: 'image/jpeg' }));
       await user.click(screen.getByRole('button', { name: 'Сохранить' }));
       await waitFor(() => expect(calls.find(c => c.method === 'POST' && c.url.includes('/photos?'))?.body).toBeInstanceOf(FormData));
       expect(calls.filter(c => c.method === 'POST')[0].url).toContain('/marks');
+      await waitFor(() => expect(revoke).toHaveBeenCalledTimes(2));
     });
 
     it('подстатусы взаимоисключающие; выбираются и с клавиатуры', async () => {
