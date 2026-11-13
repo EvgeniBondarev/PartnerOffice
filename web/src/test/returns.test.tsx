@@ -229,6 +229,24 @@ describe('Возвраты', () => {
     expect(within(region).getByRole('button', { name: 'Статус приёмки: Принят' })).toBeInTheDocument();
   });
 
+  it('в «Получено» фильтрует по поставщику при вводе и предлагает поставщиков из доступных строк', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ ...received({ supplier: 'АвтоДеталь' }), items: [
+        { key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Товар А', status_name: 'Получен', qty: 1, supplier: 'АвтоДеталь' },
+        { key: 'fbs:1:13', return_type: 'fbs', id: 13, client_id: '1', name: 'Товар Б', status_name: 'Получен', qty: 1, supplier: 'Мотор' }
+      ], total: 2 })
+    });
+    renderApp('/returns/received');
+    await screen.findByText('Товар Б');
+    const supplier = await screen.findByLabelText('Название поставщика');
+    expect(document.querySelectorAll('#return-supplier-suggestions option')).toHaveLength(2);
+    const user = userEvent.setup();
+    await user.type(supplier, 'Авто');
+    await waitFor(() => expect(calls.some(call => new URL(call.url, 'http://test').searchParams.get('supplier') === 'Авто')).toBe(true));
+    expect(screen.getByText('Поставщик: Авто')).toBeInTheDocument();
+  });
+
   it('принимает однозначный результат сканирования и выделяет строку', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
@@ -563,7 +581,7 @@ describe('Возвраты', () => {
   it('«Получено»: фильтры панели применяются сразу, без кнопки «Найти»', async () => {
     const calls = setup('/returns/received');
     await screen.findByText('Товар А');
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Название поставщика' })).toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Статус Ozon' })).not.toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(within(screen.getByRole('group', { name: 'Приёмка' })).getByRole('checkbox', { name: 'Принят' }));

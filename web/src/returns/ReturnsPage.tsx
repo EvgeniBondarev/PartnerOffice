@@ -162,7 +162,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const allowed = hasPermission(partner, 'ViewReturns');
   const canWork = hasPermission(partner, 'ReturnsWork');
   const phone = useMediaQuery('(max-width: 767px)', false);
-  const { filters: panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount } = useReturnsQuery(section);
+  const { filters: panelFilters, pvzDraft, setPvzDraft, supplierDraft, setSupplierDraft, change, clear, activeCount } = useReturnsQuery(section);
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ search, ...panelFilters }), [search, panelFilters]);
@@ -541,6 +541,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
+    ...(panelFilters.supplier ? [{ id: 'supplier', label: `Поставщик: ${panelFilters.supplier}`, onRemove: () => change({ supplier: '' }) }] : []),
     ...(panelFilters.pvz ? [{ id: 'pvz', label: `Пункт выдачи: ${panelFilters.pvz}`, onRemove: () => change({ pvz: '' }) }] : []),
     ...(panelFilters.dateFrom || panelFilters.dateTo ? [{ id: 'date', label: `${received ? 'Получено' : 'Возврат'}: ${formatRange(panelFilters.dateFrom, panelFilters.dateTo)}`, onRemove: () => change({ dateFrom: '', dateTo: '' }) }] : [])
   ];
@@ -551,6 +552,12 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
       ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /></FilterSection>
       : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
     {received && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={REVIEW_OPTIONS} onChange={value => change({ review: value })} /></FilterSection>}
+    {received && <FilterSection title="Поставщик" active={!!panelFilters.supplier}>
+      <TextField label="Название поставщика" value={supplierDraft} onValueChange={setSupplierDraft} size={500} maxLength={100} list="return-supplier-suggestions" />
+      <datalist id="return-supplier-suggestions">
+        {[...new Set(items.map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value)))].map(value => <option key={value} value={value} />)}
+      </datalist>
+    </FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
     </FilterSection>}
