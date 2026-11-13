@@ -235,12 +235,13 @@ describe('Возвраты', () => {
       '/partner-api/returns?*': () => json({ ...received({ supplier: 'АвтоДеталь' }), items: [
         { key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Товар А', status_name: 'Получен', qty: 1, supplier: 'АвтоДеталь' },
         { key: 'fbs:1:13', return_type: 'fbs', id: 13, client_id: '1', name: 'Товар Б', status_name: 'Получен', qty: 1, supplier: 'Мотор' }
-      ], total: 2 })
+      ], total: 2, suppliers: ['АвтоДеталь', 'Мотор', 'Другой'] })
     });
     renderApp('/returns/received');
     await screen.findByText('Товар Б');
     const user = userEvent.setup();
     const group = screen.getByRole('group', { name: 'Поставщик' });
+    expect(within(group).getByRole('checkbox', { name: 'Другой' })).toBeInTheDocument();
     await user.click(within(group).getByRole('checkbox', { name: 'АвтоДеталь' }));
     await waitFor(() => expect(calls.some(call => new URL(call.url, 'http://test').searchParams.get('supplier') === 'АвтоДеталь')).toBe(true));
     expect(screen.getByText('Поставщик: АвтоДеталь')).toBeInTheDocument();

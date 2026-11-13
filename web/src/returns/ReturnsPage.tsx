@@ -56,7 +56,7 @@ interface ReturnRow {
 type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'>;
 type MarkPatch = { status?: 'pending' | 'accepted' | 'rejected'; defect?: boolean; missort?: boolean };
 type BatchMarkResult = { key: string; ok: boolean; changes?: ReturnMark; error?: string };
-interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; revision?: string | null; cabinets?: { id: number; name: string; ozonClientId: string }[] }
+interface ReturnPage { items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null; fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; revision?: string | null; suppliers?: string[] | null; cabinets?: { id: number; name: string; ozonClientId: string }[] }
 interface ReturnChanges { revision?: string | null; changed: boolean; reset: boolean; upsert: ReturnRow[]; remove: string[]; counts: Partial<Record<ReturnsSection, number>>; }
 /** Разобранная строка заменяется своими штуками; картинка есть только у строки верхнего уровня. */
 const displayedRows = (items: ReturnRow[], expanded: Set<string>): ReturnRow[] => items.flatMap(row =>
@@ -176,7 +176,10 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [supplierNames, setSupplierNames] = useState<string[]>(() => [...new Set((initialHit?.items ?? []).map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value)))]);
   const itemsRef = useRef<ReturnRow[]>([]);
   useEffect(() => { itemsRef.current = items; }, [items]);
-  useEffect(() => setSupplierNames(previous => [...new Set([...previous, ...items.map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value))])].sort((a, b) => a.localeCompare(b, 'ru'))), [items]);
+  useEffect(() => {
+    if (data?.suppliers) return;
+    setSupplierNames(previous => [...new Set([...previous, ...items.map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value))])].sort((a, b) => a.localeCompare(b, 'ru')));
+  }, [items, data?.suppliers]);
   const [pagesLoaded, setPagesLoaded] = useState(1);
   const pagesRef = useRef(1);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -259,6 +262,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
         const rows = mergeRows([], results.flatMap(item => item.items));
         rememberList(cacheKey(listUrl(1)), { data: result, items: rows });
         setData(result);
+        if (result.suppliers) setSupplierNames(result.suppliers);
         setCounts(previous => ({ ...previous, [section]: result.total }));
         setItems(rows);
         pagesRef.current = upto; setPagesLoaded(upto);
