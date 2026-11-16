@@ -72,13 +72,13 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
         onNotice({
           kind: 'success',
           title: `Заказ ${order.shipmentNumber} ${text.done}`,
-          text: updated.status ? `Статус в Studio2: ${updated.status}.` : undefined
+          text: updated.status ? `Статус: ${updated.status}.` : undefined
         });
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
-          // Статус успели сменить в Studio2: показываем, что есть на самом деле, и перечитываем строку.
+          // Статус успели сменить у владельца или в другой вкладке: показываем, что есть на самом деле, и перечитываем строку.
           const { message, reasons } = describeError(error);
-          onNotice({ kind: 'warning', title: 'Статус уже изменён в Studio2', text: message, reasons });
+          onNotice({ kind: 'warning', title: 'Статус заказа уже изменился', text: message, reasons });
           onChanged(order.id);
         } else fail(`${text.failed} ${order.shipmentNumber}`, error);
       } finally {
@@ -189,7 +189,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
         }
       >
         <p className="pa-lead">
-          Заказ <b>{order.shipmentNumber}</b> получит в Studio2 статус «{text.target}».
+          Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».
           {action === 'ship' && ' В Ozon при этом ничего не отправляется.'}
         </p>
       </Overlay>

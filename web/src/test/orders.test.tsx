@@ -351,6 +351,10 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
     await user.click(within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByRole('button', { name: 'Принят' }));
     const dialog = await screen.findByRole('dialog', { name: 'Принять заказ?' });
     expect(dialog).toHaveTextContent('«Принят на складе»');
+    // Партнёр не видит внутреннюю систему: ни в диалоге, ни на странице, ни в подсказках кнопок.
+    expect(document.body.textContent).not.toMatch(/studio/i);
+    const labels = [...document.body.querySelectorAll('[title], [aria-label]')].map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`);
+    expect(labels.join(' ')).not.toMatch(/studio/i);
 
     await user.click(within(dialog).getByRole('button', { name: 'Отмена' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -369,7 +373,7 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
     await user.click(within(await screen.findByRole('dialog', { name: 'Принять заказ?' })).getByRole('button', { name: 'Принят' }));
 
     expect(await screen.findByText('Заказ 0123-0001-1 принят')).toBeInTheDocument();
-    expect(screen.getByText('Статус в Studio2: Принят на складе.')).toBeInTheDocument();
+    expect(screen.getByText('Статус: Принят на складе.')).toBeInTheDocument();
     expect(within(row(1)).getByText('Принят на складе')).toBeInTheDocument();
 
     await user.click(within(row(1)).getByRole('button', { name: 'Отгрузить' }));
@@ -417,7 +421,7 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
     await user.click(within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByRole('button', { name: 'Принят' }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Принят' }));
 
-    expect(await screen.findByText('Статус уже изменён в Studio2')).toBeInTheDocument();
+    expect(await screen.findByText('Статус заказа уже изменился')).toBeInTheDocument();
     expect(screen.getByText('Заказ уже в статусе «Отгружен реализатором».')).toBeInTheDocument();
     expect(await within(row(1)).findByText('Отгружен реализатором')).toBeInTheDocument();
     expect(within(row(1)).queryByRole('button', { name: /Принят|Отгрузить/ })).not.toBeInTheDocument();
@@ -472,7 +476,7 @@ describe('Живое обновление', () => {
     changed = true;
     window.dispatchEvent(new Event('focus'));
 
-    expect(await screen.findByText('Статус изменён в Studio2: 0123-0001-1 → Отгружен реализатором, 0123-0004-1 → Принят на складе')).toBeInTheDocument();
+    expect(await screen.findByText('Статус заказов изменился: 0123-0001-1 → Отгружен реализатором, 0123-0004-1 → Принят на складе')).toBeInTheDocument();
     expect(within(row(1)).getByText('Отгружен реализатором')).toBeInTheDocument();
     expect(within(row(4)).getByText('Принят на складе')).toBeInTheDocument();
     // обе порции перечитаны, без скелетона: строки остались на месте
@@ -500,7 +504,7 @@ describe('Живое обновление', () => {
     document.dispatchEvent(new Event('visibilitychange'));
 
     expect(
-      await screen.findByText('Статус изменён в Studio2: 0123-0001-1 → Принят на складе, 0123-0002-1 → Принят на складе, 0123-0003-1 → Принят на складе и ещё 2')
+      await screen.findByText('Статус заказов изменился: 0123-0001-1 → Принят на складе, 0123-0002-1 → Принят на складе, 0123-0003-1 → Принят на складе и ещё 2')
     ).toBeInTheDocument();
   });
 });
