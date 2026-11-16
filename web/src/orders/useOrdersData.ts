@@ -21,6 +21,12 @@ const INITIAL: State = { items: [], total: 0, pages: 0, loading: true, loadingMo
 
 const messageOf = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback);
 
+/** Заказ, у которого после тихого перечитывания сменился статус Studio2. */
+export interface StatusChange {
+  order: OrderListItem;
+  previous: string | null;
+}
+
 /**
  * Заказы с подгрузкой: первая порция при смене фильтров, следующие по мере прокрутки.
  * Устаревший ответ не перезаписывает свежий; строки, пришедшие дважды (список сдвинулся), не дублируются.
@@ -103,23 +109,66 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
     }
   }, []);
 
+  /** Сервер вернул обновлённую строку (смена статуса): подставляем её как есть. */
+  const replaceOrder = useCallback((order: OrderListItem) => {
+    setState((previous) => ({ ...previous, items: previous.items.map((item) => (item.id === order.id ? order : item)) }));
+  }, []);
+
+  /**
+   * Тихо перечитать уже загруженные порции: без скелетона, прокрутка и число порций сохраняются.
+   * Если за это время сменились фильтры или подгрузилась ещё порция, ответ отбрасывается (следующий опрос повторит).
+   * Возвращает заказы, у которых сменился статус Studio2; null — перечитать не удалось или ответ устарел.
+   */
+  const refreshQuietly = useCallback(async (): Promise<StatusChange[] | null> => {
+    const snapshot = stateRef.current;
+    if (inFlight.current || snapshot.loading || snapshot.error || snapshot.pages === 0) return null;
+    const current = generation.current;
+    const pages = snapshot.pages;
+    const query = JSON.parse(key) as OrdersQuery;
+    let results;
+    try {
+      results = await Promise.all(Array.from({ length: pages }, (_, index) => listOrders({ ...query, page: index + 1, pageSize })));
+    } catch {
+      return null; // сеть моргнула: список остаётся как был, следующий опрос попробует снова
+    }
+    const latest = stateRef.current;
+    if (generation.current !== current || latest.pages !== pages || inFlight.current) return null;
+
+    const seen = new Set<number>();
+    const items = results.flatMap((page) => page.items).filter((item) => (seen.has(item.id) ? false : (seen.add(item.id), true)));
+    const before = new Map(latest.items.map((item) => [item.id, item]));
+    const changes: StatusChange[] = [];
+    for (const item of items) {
+      const old = before.get(item.id);
+      if (old && (old.statusId !== item.statusId || old.status !== item.status)) changes.push({ order: item, previous: old.status });
+    }
+    const total = results.at(-1)?.total ?? latest.total;
+    setState((previous) => ({ ...previous, items, total, moreError: null }));
+    return changes;
+  }, [key, pageSize]);
+
   const reload = useCallback(() => setReloadKey((value) => value + 1), []);
 
-  return { ...state, hasMore, loadMore, refreshOrder, reload };
+  return { ...state, hasMore, loadMore, refreshOrder, replaceOrder, refreshQuietly, reload };
 }
 
-/** Значения для фильтров: только статусы, склады, клиенты и поставщики среди видимых партнёру заказов. */
-export function useOrderFilters() {
+/**
+ * Значения для фильтров: только статусы, склады, клиенты и поставщики среди видимых партнёру заказов.
+ * refreshKey меняется при смене ревизии заказов: счётчики статусов перечитываются, прежние значения остаются на экране.
+ */
+export function useOrderFilters(refreshKey = 0) {
   const [filters, setFilters] = useState<OrderFilters | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     getOrderFilters(controller.signal)
       .then(setFilters)
-      // Без справочников фильтры просто пустые: поиск и таблица продолжают работать.
-      .catch(() => setFilters({ statuses: [], ozonStatuses: [], warehouses: [], clients: [], suppliers: [] }));
+      // Без справочников фильтры просто пустые: поиск и таблица продолжают работать. Уже загруженные при сбое не стираем.
+      .catch(() => {
+        if (!controller.signal.aborted) setFilters((previous) => previous ?? { statuses: [], warehouses: [], clients: [], suppliers: [] });
+      });
     return () => controller.abort();
-  }, []);
+  }, [refreshKey]);
 
   return filters;
 }

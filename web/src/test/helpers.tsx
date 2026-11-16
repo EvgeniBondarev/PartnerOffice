@@ -88,7 +88,7 @@ export function order(id: number, patch: Partial<OrderListItem> = {}): OrderList
 export const ordersPage = (items: OrderListItem[], total = items.length, page = 1) => json({ items, total, page, pageSize: 50 });
 
 export const EMPTY_FILTERS_RESPONSE = json({
-  statuses: [{ id: 1, name: 'Новый' }, { id: 2, name: 'Отгружен' }],
+  statuses: [{ id: 1, name: 'Новый', count: 3 }, { id: 21, name: 'Принят на складе', count: 2 }, { id: 24, name: 'Отгружен реализатором', count: 0 }],
   ozonStatuses: ['Ожидает сборки', 'Доставляется'],
   warehouses: [{ id: 1, name: 'Москва' }],
   clients: [{ id: 1, name: 'Interparts RU' }],

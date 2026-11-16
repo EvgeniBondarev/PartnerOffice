@@ -73,8 +73,6 @@ export function formatRange(from: string | null | undefined, to: string | null |
 
 /** Статусы Ozon, в которых заказ ещё не собран и не отгружен: по ним считается просрочка. */
 const NOT_SHIPPED = ['ожидает сборки', 'ожидает упаковки', 'ожидает отгрузки', 'ожидает комплектации', 'ожидает регистрации'];
-/** /v4/posting/fbs/ship принимает отправление только в статусе Ozon awaiting_packaging («Ожидает сборки»). */
-const READY_TO_SHIP = ['ожидает сборки', 'awaiting_packaging'];
 
 export function isOverdue(shippingDate: string | null | undefined, ozonStatus: string | null | undefined, now: Date = new Date()): boolean {
   const date = parseDate(shippingDate);
@@ -82,26 +80,24 @@ export function isOverdue(shippingDate: string | null | undefined, ozonStatus: s
   return date.getTime() < now.getTime() && NOT_SHIPPED.includes(ozonStatus.trim().toLowerCase());
 }
 
-/** Фронтенд не предлагает отгрузку в статусах, которые Seller API всё равно отклонит. Сервер остаётся источником истины. */
-export function canShipOzonOrder(ozonStatus: string | null | undefined): boolean {
-  return READY_TO_SHIP.includes((ozonStatus ?? '').trim().toLowerCase());
-}
-
 export type Tone = 'negative' | 'success' | 'warning' | 'neutral';
 export type StatusBadgeKind = 'primary negative' | 'primary success' | 'secondary warning' | 'secondary neutral';
 
-/** Цвет подписи статуса Ozon: отмена красным, доставка зелёным, ожидание жёлтым. Всегда вместе с текстом. */
-export function ozonStatusTone(ozonStatus: string | null | undefined): Tone {
-  const text = (ozonStatus ?? '').trim().toLowerCase();
-  if (/^отмен|невыкуп|утерян/.test(text)) return 'negative';
-  if (/^(доставлен|получен|заказ выполнен|заказ получен)/.test(text)) return 'success';
-  if (/^ожидает|^в обработке|^новый/.test(text)) return 'warning';
+/**
+ * Цвет статуса Studio2 по группам: отгружен и доставлен — зелёный, отмена и утеря — красный,
+ * принят и заказан (заказ в работе) — жёлтый, остальное — нейтральный. Всегда вместе с текстом.
+ */
+export function orderStatusTone(status: string | null | undefined): Tone {
+  const text = (status ?? '').trim().toLowerCase();
+  if (/отмен|утерян/.test(text)) return 'negative';
+  if (/отгружен|доставлен/.test(text)) return 'success';
+  if (/принят|заказан/.test(text)) return 'warning';
   return 'neutral';
 }
 
-/** Семантический бейдж для статуса Ozon: используем только публичный статус, не внутренний статус Studio2. */
-export function ozonStatusBadgeKind(ozonStatus: string | null | undefined): StatusBadgeKind {
-  switch (ozonStatusTone(ozonStatus)) {
+/** Семантический бейдж статуса Studio2. */
+export function orderStatusBadgeKind(status: string | null | undefined): StatusBadgeKind {
+  switch (orderStatusTone(status)) {
     case 'negative': return 'primary negative';
     case 'success': return 'primary success';
     case 'warning': return 'secondary warning';
