@@ -4,6 +4,7 @@ import { acceptOrder, getRequirements, printLabel, shipOrderStatus, type OrderLi
 import { describeError } from '../lib/errors';
 import { Button } from '../ui/Button';
 import { Overlay } from '../ui/Overlay';
+import { isOzonOrder } from '../lib/permissions';
 import { STATUS_ACTION_LABEL, type ActionKind } from './OrderRowActions';
 import { needsInput, RequirementsDialog } from './RequirementsDialog';
 
@@ -69,11 +70,12 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
       try {
         const updated = await (action === 'accept' ? acceptOrder(order.id) : shipOrderStatus(order.id));
         onUpdated(updated);
-        onNotice({
-          kind: 'success',
-          title: `Заказ ${order.shipmentNumber} ${text.done}`,
-          text: updated.status ? `Статус: ${updated.status}.` : undefined
-        });
+        // После «Отгрузить» отправление собрано в Ozon: показываем и его новый статус.
+        const details = [
+          updated.status ? `Статус: ${updated.status}.` : '',
+          action === 'ship' && isOzonOrder(updated.marketplace) && updated.ozonStatus ? `Статус Ozon: ${updated.ozonStatus}.` : ''
+        ].filter(Boolean).join(' ');
+        onNotice({ kind: 'success', title: `Заказ ${order.shipmentNumber} ${text.done}`, text: details || undefined });
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
           // Статус успели сменить у владельца или в другой вкладке: показываем, что есть на самом деле, и перечитываем строку.
@@ -115,12 +117,13 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
   );
 
   /**
-   * Перед печатью новой этикетки спрашиваем у Ozon, чего ему не хватает (страна, маркировка). Если не хватает — форма.
-   * Сбой самого запроса требований не блокирует: ответ на печати всё равно скажет, чего нет. Отказ доступа и «не найден» — блокируют.
+   * Перед печатью новой этикетки и перед «Отгрузить» (оно собирает отправление в Ozon) спрашиваем у Ozon, чего ему не хватает
+   * (страна, маркировка). Если не хватает — форма. Сбой самого запроса требований не блокирует: ответ сборки всё равно скажет,
+   * чего нет. Отказ доступа и «не найден» — блокируют.
    */
   const prepare = useCallback(
-    async (order: OrderListItem, then: () => Promise<void>) => {
-      setBusy({ id: order.id, kind: 'print' });
+    async (order: OrderListItem, then: () => Promise<void>, failTitle: string, kind: ActionKind) => {
+      setBusy({ id: order.id, kind });
       try {
         const requirements = await getRequirements(order.id);
         if (needsInput(requirements)) {
@@ -131,7 +134,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
       } catch (error) {
         if (error instanceof ApiError && [400, 403, 404, 409].includes(error.status)) {
           setBusy(null);
-          fail(`Не удалось получить этикетку заказа ${order.shipmentNumber}`, error);
+          fail(failTitle, error);
           return;
         }
       }
@@ -155,7 +158,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
       onNotice(null);
       // Готовая этикетка уже в хранилище: данных для Ozon не нужно, печатаем сразу.
       if (order.hasLabel) void runPrint(order);
-      else void prepare(order, () => runPrint(order));
+      else void prepare(order, () => runPrint(order), `Не удалось получить этикетку заказа ${order.shipmentNumber}`, 'print');
     },
     [onNotice, prepare, runPrint]
   );
@@ -177,7 +180,10 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
               size={500}
               onClick={() => {
                 setFlow(null);
-                void runStatus(order, action);
+                // «Отгрузить» у заказа Ozon собирает отправление: сначала данные, которых Ozon может не хватать.
+                if (action === 'ship' && isOzonOrder(order.marketplace))
+                  void prepare(order, () => runStatus(order, action), `${text.failed} ${order.shipmentNumber}`, 'status');
+                else void runStatus(order, action);
               }}
             >
               {STATUS_ACTION_LABEL[action]}
@@ -190,7 +196,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
       >
         <p className="pa-lead">
           Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».
-          {action === 'ship' && ' В Ozon при этом ничего не отправляется.'}
+          {action === 'ship' && isOzonOrder(order.marketplace) && ' Отправление будет собрано в Ozon.'}
         </p>
       </Overlay>
     );
