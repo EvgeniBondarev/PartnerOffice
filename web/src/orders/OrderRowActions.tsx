@@ -1,15 +1,17 @@
 import type { OrderListItem } from '../api/orders';
 import { Button } from '../ui/Button';
-import { Icon } from '../ui/Icon';
-import { Tooltip } from '../ui/Tooltip';
-import { canShipOzonOrder } from '../lib/format';
 import { isOzonOrder } from '../lib/permissions';
 
-export type ActionKind = 'ship' | 'print';
+/** status — смена статуса Studio2 («Принят» или «Отгрузить»), print — печать этикетки. */
+export type ActionKind = 'status' | 'print';
+
+/** Подпись кнопки статуса Studio2 по тому, что разрешил сервер. */
+export const STATUS_ACTION_LABEL = { accept: 'Принят', ship: 'Отгрузить' } as const;
 
 interface OrderRowActionsProps {
   order: OrderListItem;
-  canShip: boolean;
+  /** Право «Сборка» (Assemble): партнёр ведёт статус заказа в Studio2. */
+  canChangeStatus: boolean;
   canPrint: boolean;
   /** Какое действие над этим заказом сейчас выполняется: оно показывает индикатор, второе блокируется. */
   busy: ActionKind | null;
@@ -17,40 +19,35 @@ interface OrderRowActionsProps {
   size?: 400 | 500;
   /** В панели главная кнопка — основная синяя; в таблице все второстепенные (на экране одна основная — «Найти»). */
   primary?: boolean;
-  onShip: (order: OrderListItem) => void;
+  onStatus: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
 }
 
-/** Действия над заказом: отгрузка и печать этикетки. Только для заказов Ozon и только то, что разрешил владелец. */
-export function OrderRowActions({ order, canShip, canPrint, busy, size = 400, primary = false, onShip, onPrint }: OrderRowActionsProps) {
-  if (!isOzonOrder(order.marketplace)) return null;
-  if (!canShip && !canPrint) return null;
-  const canShipNow = canShipOzonOrder(order.ozonStatus);
-  const shipBlockedHint = 'Отгрузить заказ можно только из статуса Ozon «Ожидает сборки».';
+/**
+ * Действия над заказом: кнопка статуса Studio2 («Принят», затем «Отгрузить») и печать этикетки Ozon.
+ * Какую кнопку статуса показать, решает сервер (statusAction); этикетка — только у заказов Ozon.
+ */
+export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size = 400, primary = false, onStatus, onPrint }: OrderRowActionsProps) {
+  const action = canChangeStatus && order.statusAction ? order.statusAction : null;
+  const label = isOzonOrder(order.marketplace) && canPrint;
+  if (!action && !label) return null;
 
   return (
     <div className="pa-actions">
-      {canShip && (
-        <div className="pa-action-with-hint">
-          <Button
-            variant={primary ? 'primary' : 'action-secondary'}
-            size={size}
-            icon="ui-package"
-            loading={busy === 'ship'}
-            disabled={busy !== null || !canShipNow}
-            onClick={() => onShip(order)}
-            title={canShipNow ? 'Отгрузить заказ: передать отправление в Ozon' : undefined}
-          >
-            Отгрузить
-          </Button>
-          {!canShipNow && (
-            <Tooltip text={shipBlockedHint}>
-              <Icon name="ui-info" size={16} />
-            </Tooltip>
-          )}
-        </div>
+      {action && (
+        <Button
+          variant={primary ? 'primary' : 'action-secondary'}
+          size={size}
+          icon={action === 'accept' ? 'ui-check' : 'ui-package'}
+          loading={busy === 'status'}
+          disabled={busy !== null}
+          onClick={() => onStatus(order)}
+          title={action === 'accept' ? 'Отметить в Studio2, что заказ принят на складе' : 'Отметить в Studio2, что заказ отгружен'}
+        >
+          {STATUS_ACTION_LABEL[action]}
+        </Button>
       )}
-      {canPrint && (
+      {label && (
         <Button
           variant={order.hasLabel ? 'primary-success' : 'action-secondary'}
           size={size}

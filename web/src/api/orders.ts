@@ -3,12 +3,15 @@ import { request, requestFile } from './client';
 export interface FilterOption {
   id: number;
   name: string;
+  /** Сколько видимых партнёру заказов в этом значении (для статусов). Старый сервер поле не отдаёт. */
+  count?: number;
 }
 
 export interface OrderFilters {
+  /** Статусы Studio2 среди видимых партнёру заказов, со счётчиками. */
   statuses: FilterOption[];
-  /** Статусы, которые партнёр реально видит в колонке Ozon. */
-  ozonStatuses: string[];
+  /** Статусы Ozon: фильтр по ним больше не показывается, поле оставлено для совместимости. */
+  ozonStatuses?: string[];
   warehouses: FilterOption[];
   clients: FilterOption[];
   /** Поставщики среди видимых партнёру заказов. Старый сервер поле не отдаёт. */
@@ -35,9 +38,13 @@ export interface OrderListItem {
   quantity: number | null;
   price: number | null;
   imageUrl: string | null;
+  /** Статус Studio2: id и человекочитаемое имя («Принят на складе», «Отгружен реализатором»…). */
   statusId: number | null;
   status: string | null;
+  /** Статус Ozon: только для справки в карточке заказа. */
   ozonStatus: string | null;
+  /** Какую кнопку статуса Studio2 показать: «Принят» (accept), «Отгрузить» (ship) или никакой. */
+  statusAction?: 'accept' | 'ship' | null;
   warehouseId: number | null;
   warehouse: string | null;
   clientId: number | null;
@@ -73,7 +80,8 @@ export interface OrderDetails {
 
 export interface OrderQuery {
   search?: string;
-  ozonStatus?: string;
+  /** Статусы Studio2: одно число или несколько через запятую («21,24»). */
+  statusId?: number | string;
   /** Несколько значений — строка через запятую: «1,2». */
   warehouseId?: number | string;
   clientId?: number | string;
@@ -138,7 +146,7 @@ const base = '/partner-api/orders';
 export function buildOrdersQuery(query: OrderQuery): string {
   const params = new URLSearchParams();
   if (query.search?.trim()) params.set('search', query.search.trim());
-  if (query.ozonStatus) params.set('ozonStatus', query.ozonStatus);
+  if (query.statusId) params.set('statusId', String(query.statusId));
   if (query.warehouseId) params.set('warehouseId', String(query.warehouseId));
   if (query.clientId) params.set('clientId', String(query.clientId));
   if (query.supplierId) params.set('supplierId', String(query.supplierId));
@@ -170,8 +178,14 @@ export const saveCountries = (id: number, selections: Array<{ productId: number;
 export const saveExemplars = (id: number, exemplars: ExemplarInput[]) =>
   request<ActionResult>(`${base}/${id}/ozon/exemplars`, { method: 'PUT', body: JSON.stringify({ exemplars }) });
 
-/** Отгрузка: вызов Ozon API по заказу. */
-export const shipOrder = (id: number) => request<ActionResult>(`${base}/${id}/ship`, { method: 'POST' });
+/** «Принят»: статус Studio2 → «Принят на складе». Ответ — обновлённая строка списка. */
+export const acceptOrder = (id: number) => request<OrderListItem>(`${base}/${id}/status/accept`, { method: 'POST' });
+
+/** «Отгрузить»: статус Studio2 → «Отгружен реализатором». В Ozon ничего не уходит. */
+export const shipOrderStatus = (id: number) => request<OrderListItem>(`${base}/${id}/status/ship`, { method: 'POST' });
+
+/** Ревизия видимых партнёру заказов: меняется при любом их изменении, по ней список тихо перечитывается. */
+export const getOrdersRevision = (signal?: AbortSignal) => request<{ revision: string }>(`${base}/revision`, { signal });
 
 /** Печать этикетки: PDF, готовая из хранилища либо полученная у Ozon. */
 export async function printLabel(id: number): Promise<{ blob: Blob; generated: boolean; autoShipped: boolean }> {

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
-import { getRequirements, printLabel, shipOrder, type OrderListItem, type ShipRequirements } from '../api/orders';
+import { acceptOrder, getRequirements, printLabel, shipOrderStatus, type OrderListItem, type ShipRequirements } from '../api/orders';
 import { describeError } from '../lib/errors';
 import { Button } from '../ui/Button';
 import { Overlay } from '../ui/Overlay';
-import type { ActionKind } from './OrderRowActions';
+import { STATUS_ACTION_LABEL, type ActionKind } from './OrderRowActions';
 import { needsInput, RequirementsDialog } from './RequirementsDialog';
 
 export interface Notice {
@@ -15,23 +15,33 @@ export interface Notice {
   link?: { href: string; label: string; download?: string };
 }
 
+type StatusAction = 'accept' | 'ship';
+
 type Flow =
-  | { kind: 'confirm-ship'; order: OrderListItem }
+  | { kind: 'confirm-status'; order: OrderListItem; action: StatusAction }
   | { kind: 'requirements'; order: OrderListItem; requirements: ShipRequirements; then: () => Promise<void> };
 
 interface Options {
   onNotice: (notice: Notice | null) => void;
-  /** Заказ изменился (отгружен, получена этикетка): список и карточка перечитываются. */
+  /** Заказ изменился (получена этикетка, статус сменили в Studio2): строка и карточка перечитываются. */
   onChanged: (orderId: number) => void;
+  /** Сервер вернул обновлённую строку после смены статуса: она подставляется в список без перечитывания. */
+  onUpdated: (order: OrderListItem) => void;
 }
+
+/** Текст диалога подтверждения и сообщений для каждой кнопки статуса Studio2. */
+const STATUS_TEXT: Record<StatusAction, { title: string; target: string; done: string; failed: string }> = {
+  accept: { title: 'Принять заказ?', target: 'Принят на складе', done: 'принят', failed: 'Не удалось принять заказ' },
+  ship: { title: 'Отгрузить заказ?', target: 'Отгружен реализатором', done: 'отгружен', failed: 'Не удалось отгрузить заказ' }
+};
 
 const BLOB_LIFETIME_MS = 10 * 60 * 1000;
 
 /**
- * Действия над заказом Ozon, как в Studio2: [данные экземпляров и страна] → отгрузка → печать этикетки.
+ * Действия над заказом: смена статуса Studio2 («Принят» → «Отгрузить») и печать этикетки Ozon ([данные экземпляров и страна] → печать).
  * Хук держит диалоги и состояние «выполняется»; страница показывает результат в сообщении над таблицей.
  */
-export function useOrderActions({ onNotice, onChanged }: Options) {
+export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
   const [busy, setBusy] = useState<{ id: number; kind: ActionKind } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const urls = useRef<string[]>([]);
@@ -52,24 +62,30 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
     [onNotice]
   );
 
-  const runShip = useCallback(
-    async (order: OrderListItem) => {
-      setBusy({ id: order.id, kind: 'ship' });
+  const runStatus = useCallback(
+    async (order: OrderListItem, action: StatusAction) => {
+      const text = STATUS_TEXT[action];
+      setBusy({ id: order.id, kind: 'status' });
       try {
-        const result = await shipOrder(order.id);
+        const updated = await (action === 'accept' ? acceptOrder(order.id) : shipOrderStatus(order.id));
+        onUpdated(updated);
         onNotice({
           kind: 'success',
-          title: `Заказ ${order.shipmentNumber} отгружен`,
-          text: [result.message, result.ozonStatusName ? `Статус Ozon: ${result.ozonStatusName}.` : ''].filter(Boolean).join(' ')
+          title: `Заказ ${order.shipmentNumber} ${text.done}`,
+          text: updated.status ? `Статус в Studio2: ${updated.status}.` : undefined
         });
-        onChanged(order.id);
       } catch (error) {
-        fail(`Не удалось отгрузить заказ ${order.shipmentNumber}`, error);
+        if (error instanceof ApiError && error.status === 409) {
+          // Статус успели сменить в Studio2: показываем, что есть на самом деле, и перечитываем строку.
+          const { message, reasons } = describeError(error);
+          onNotice({ kind: 'warning', title: 'Статус уже изменён в Studio2', text: message, reasons });
+          onChanged(order.id);
+        } else fail(`${text.failed} ${order.shipmentNumber}`, error);
       } finally {
         setBusy(null);
       }
     },
-    [fail, onChanged, onNotice]
+    [fail, onChanged, onNotice, onUpdated]
   );
 
   const runPrint = useCallback(
@@ -99,12 +115,12 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
   );
 
   /**
-   * Перед отгрузкой и печатью спрашиваем у Ozon, чего ему не хватает (страна, маркировка). Если не хватает — форма.
-   * Сбой самого запроса требований не блокирует: ответ на отгрузке всё равно скажет, чего нет. Отказ доступа и «не найден» — блокируют.
+   * Перед печатью новой этикетки спрашиваем у Ozon, чего ему не хватает (страна, маркировка). Если не хватает — форма.
+   * Сбой самого запроса требований не блокирует: ответ на печати всё равно скажет, чего нет. Отказ доступа и «не найден» — блокируют.
    */
   const prepare = useCallback(
-    async (order: OrderListItem, kind: ActionKind, then: () => Promise<void>) => {
-      setBusy({ id: order.id, kind });
+    async (order: OrderListItem, then: () => Promise<void>) => {
+      setBusy({ id: order.id, kind: 'print' });
       try {
         const requirements = await getRequirements(order.id);
         if (needsInput(requirements)) {
@@ -115,7 +131,7 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
       } catch (error) {
         if (error instanceof ApiError && [400, 403, 404, 409].includes(error.status)) {
           setBusy(null);
-          fail(kind === 'ship' ? `Не удалось отгрузить заказ ${order.shipmentNumber}` : `Не удалось получить этикетку заказа ${order.shipmentNumber}`, error);
+          fail(`Не удалось получить этикетку заказа ${order.shipmentNumber}`, error);
           return;
         }
       }
@@ -124,28 +140,34 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
     [fail]
   );
 
-  const requestShip = useCallback((order: OrderListItem) => {
-    onNotice(null);
-    setFlow({ kind: 'confirm-ship', order });
-  }, [onNotice]);
+  /** Кнопка статуса: какую смену статуса предложить, говорит сервер (statusAction); перед сменой — короткое подтверждение. */
+  const requestStatus = useCallback(
+    (order: OrderListItem) => {
+      if (!order.statusAction) return;
+      onNotice(null);
+      setFlow({ kind: 'confirm-status', order, action: order.statusAction });
+    },
+    [onNotice]
+  );
 
   const requestPrint = useCallback(
     (order: OrderListItem) => {
       onNotice(null);
       // Готовая этикетка уже в хранилище: данных для Ozon не нужно, печатаем сразу.
       if (order.hasLabel) void runPrint(order);
-      else void prepare(order, 'print', () => runPrint(order));
+      else void prepare(order, () => runPrint(order));
     },
     [onNotice, prepare, runPrint]
   );
 
   let dialogs: ReactNode = null;
-  if (flow?.kind === 'confirm-ship') {
-    const { order } = flow;
+  if (flow?.kind === 'confirm-status') {
+    const { order, action } = flow;
+    const text = STATUS_TEXT[action];
     dialogs = (
       <Overlay
         kind="dialog"
-        title="Отгрузить заказ?"
+        title={text.title}
         width={480}
         onClose={() => setFlow(null)}
         footer={
@@ -155,10 +177,10 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
               size={500}
               onClick={() => {
                 setFlow(null);
-                void prepare(order, 'ship', () => runShip(order));
+                void runStatus(order, action);
               }}
             >
-              Отгрузить
+              {STATUS_ACTION_LABEL[action]}
             </Button>
             <Button variant="action-secondary" size={500} onClick={() => setFlow(null)}>
               Отмена
@@ -167,8 +189,8 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
         }
       >
         <p className="pa-lead">
-          Заказ <b>{order.shipmentNumber}</b> будет отгружен: отправление уйдёт в Ozon. Отменить отгрузку отсюда нельзя.
-          Если Ozon попросит страну-изготовителя или данные маркировки, мы покажем форму.
+          Заказ <b>{order.shipmentNumber}</b> получит в Studio2 статус «{text.target}».
+          {action === 'ship' && ' В Ozon при этом ничего не отправляется.'}
         </p>
       </Overlay>
     );
@@ -187,5 +209,5 @@ export function useOrderActions({ onNotice, onChanged }: Options) {
     );
   }
 
-  return { busy, requestShip, requestPrint, dialogs };
+  return { busy, requestStatus, requestPrint, dialogs };
 }

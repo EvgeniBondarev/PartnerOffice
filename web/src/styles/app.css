@@ -986,10 +986,13 @@ button.pa-subchip--active:not(:disabled) { cursor: pointer; }
 /* «Заказы»: 8 колонок с «Поставщиком» — свои ширины вместо общих 7 колонок списка */
 .pa-list .pa-table--orders .pa-col-product { width: 18%; }
 .pa-list .pa-table--orders th:nth-child(2), .pa-list .pa-table--orders td:nth-child(2) { width: 13%; }
-.pa-list .pa-table--orders th:nth-child(3), .pa-list .pa-table--orders td:nth-child(3) { width: 10%; }
+.pa-list .pa-table--orders th:nth-child(3), .pa-list .pa-table--orders td:nth-child(3) { width: 13%; }  /* статус Studio2: «Отгружен реализатором» */
 .pa-list .pa-table--orders th:nth-child(4), .pa-list .pa-table--orders td:nth-child(4) { width: 10%; }
 .pa-list .pa-table--orders th:nth-child(5), .pa-list .pa-table--orders td:nth-child(5) { width: 10%; }
 .pa-list .pa-table--orders th:nth-child(6), .pa-list .pa-table--orders td:nth-child(6) { width: 12%; }   /* «18 ноября, 11:00» не обрезается */
 .pa-list .pa-table--orders th:nth-child(7), .pa-list .pa-table--orders td:nth-child(7) { width: 8%; }    /* «1 252,00 ₽» */
-.pa-list .pa-table--orders th:nth-child(8), .pa-list .pa-table--orders td:nth-child(8) { width: 19%; }
+.pa-list .pa-table--orders th:nth-child(8), .pa-list .pa-table--orders td:nth-child(8) { width: 16%; }
+/* Имена статусов Studio2 длинные: бейдж переносится на вторую строку, а не обрезается. */
+.pa-list .pa-table--orders .pa-col-status .po-badge__badge { height: auto; min-height: var(--height); padding-top: 4px; padding-bottom: 4px; }
+.pa-list .pa-table--orders .pa-col-status .po-badge__label { white-space: normal; overflow-wrap: break-word; }
 .pa-col-supplier { overflow-wrap: anywhere; }

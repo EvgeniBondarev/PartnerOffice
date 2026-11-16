@@ -1,6 +1,6 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import type { OrderListItem } from '../api/orders';
-import { formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, isOverdue, ozonStatusBadgeKind } from '../lib/format';
+import { formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, isOverdue, orderStatusBadgeKind } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import type { PartnerProfile } from '../api/auth';
 import { Badge } from '../ui/Badge';
@@ -21,7 +21,7 @@ interface OrdersTableProps {
   onOpen: (order: OrderListItem) => void;
   /** Открыть просмотр фото товара. */
   onImage: (image: { url: string; alt: string }) => void;
-  onShip: (order: OrderListItem) => void;
+  onStatus: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
 }
 
@@ -80,12 +80,9 @@ export function ProductImage({ url, alt, size = 48, onOpen }: { url: string | nu
   );
 }
 
+/** Статус Studio2: его партнёр ведёт кнопками «Принят» и «Отгрузить». Статус Ozon — только в карточке заказа. */
 function Status({ order }: { order: OrderListItem }) {
-  return (
-    <>
-      {order.ozonStatus ? <Badge kind={ozonStatusBadgeKind(order.ozonStatus)}>{order.ozonStatus}</Badge> : <span className="pa-muted">—</span>}
-    </>
-  );
+  return order.status ? <Badge kind={orderStatusBadgeKind(order.status)} title={order.status}>{order.status}</Badge> : <span className="pa-muted">—</span>;
 }
 
 function ShipBy({ order }: { order: OrderListItem }) {
@@ -120,11 +117,11 @@ function skeletonRows(count: number, showActions: boolean) {
 }
 
 /** Таблица заказов по брендбуку (table.css): шапка, строки с подстрочником, hover и клик по строке открывают карточку. */
-export function OrdersTable({ items, loading, loadingMore = false, partner, busy, onOpen, onImage, onShip, onPrint }: OrdersTableProps) {
+export function OrdersTable({ items, loading, loadingMore = false, partner, busy, onOpen, onImage, onStatus, onPrint }: OrdersTableProps) {
   const [sort, setSort] = useState<{ field: 'shippingDate' | 'processingDate'; desc: boolean }>({ field: 'shippingDate', desc: true });
-  const canShip = hasPermission(partner, 'Assemble');
+  const canChangeStatus = hasPermission(partner, 'Assemble');
   const canPrint = hasPermission(partner, 'LabelPrint');
-  const showActions = canShip || canPrint;
+  const showActions = canChangeStatus || canPrint;
   const sortedItems = useMemo(() => [...items].sort((a, b) => {
     const left = new Date(a[sort.field] ?? 0).getTime();
     const right = new Date(b[sort.field] ?? 0).getTime();
@@ -153,7 +150,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
               Номер отправления<div className="pa-sub">ScanIt</div>
             </th>
             <th className={`${TH} ${align('left')}`}>
-              Статус Ozon
+              Статус
             </th>
             <th className={`${TH} ${align('left')}`}>
               Склад<div className="pa-sub">Клиент</div>
@@ -218,7 +215,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                   </td>
                   {showActions && (
                     <td className={`${TD} ${align('left')} pa-col-actions`} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                      <OrderRowActions order={order} canShip={canShip} canPrint={canPrint} busy={busy?.id === order.id ? busy.kind : null} onShip={onShip} onPrint={onPrint} />
+                      <OrderRowActions order={order} canChangeStatus={canChangeStatus} canPrint={canPrint} busy={busy?.id === order.id ? busy.kind : null} onStatus={onStatus} onPrint={onPrint} />
                     </td>
                   )}
                 </tr>

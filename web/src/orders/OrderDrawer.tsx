@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { PartnerProfile } from '../api/auth';
 import { ApiError } from '../api/client';
 import { getOrder, type OrderDetails, type OrderListItem } from '../api/orders';
-import { formatDateTime, formatMoney, formatQuantity, isOverdue, ozonStatusBadgeKind } from '../lib/format';
+import { formatDateTime, formatMoney, formatQuantity, isOverdue, orderStatusBadgeKind } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
 import { Badge } from '../ui/Badge';
 import { CopyValue } from '../ui/CopyValue';
@@ -20,7 +20,7 @@ interface OrderDrawerProps {
   busy: { id: number; kind: ActionKind } | null;
   onClose: () => void;
   onImage: (image: { url: string; alt: string }) => void;
-  onShip: (order: OrderListItem) => void;
+  onStatus: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
 }
 
@@ -36,7 +36,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 const dash = (value: string | null | undefined) => (value && value.trim() ? value : '—');
 
 /** Карточка заказа в боковой панели (drawer.css): всё, что API отдаёт партнёру, и действия над заказом. */
-export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage, onShip, onPrint }: OrderDrawerProps) {
+export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage, onStatus, onPrint }: OrderDrawerProps) {
   const [details, setDetails] = useState<OrderDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +55,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
   // Пока карточка грузится, показываем то, что уже есть в строке списка.
   const current = details?.order ?? order;
   const overdue = isOverdue(current.shippingDate, current.ozonStatus);
-  const canShip = hasPermission(partner, 'Assemble');
+  const canChangeStatus = hasPermission(partner, 'Assemble');
   const canPrint = hasPermission(partner, 'LabelPrint');
 
   return (
@@ -67,12 +67,12 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
       footer={
         <OrderRowActions
           order={current}
-          canShip={canShip}
+          canChangeStatus={canChangeStatus}
           canPrint={canPrint}
           busy={busy?.id === current.id ? busy.kind : null}
           size={500}
           primary
-          onShip={onShip}
+          onStatus={onStatus}
           onPrint={onPrint}
         />
       }
@@ -86,7 +86,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
             {current.brand && <span className="pa-sub pa-sub--inline">{current.brand}</span>}
           </div>
           <div className="pa-drawer__status">
-            {current.ozonStatus && <Badge kind={ozonStatusBadgeKind(current.ozonStatus)}>{current.ozonStatus}</Badge>}
+            {current.status && <Badge kind={orderStatusBadgeKind(current.status)}>{current.status}</Badge>}
             {overdue && <span className="pa-tone pa-tone--negative">Просрочено</span>}
           </div>
         </div>
@@ -111,6 +111,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
           <Row label="Склад">{dash(current.warehouse)}</Row>
           <Row label="Клиент">{dash(current.client)}</Row>
           <Row label="Поставщик">{dash(current.supplier)}</Row>
+          <Row label="Статус Ozon">{dash(current.ozonStatus)}</Row>
           <Row label="Маркетплейс">{dash(current.marketplace)}</Row>
           <Row label="Город доставки">{dash(details?.deliveryCity)}</Row>
           <Row label="Принят">{formatDateTime(current.processingDate)}</Row>

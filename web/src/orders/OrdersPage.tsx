@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { OrderListItem } from '../api/orders';
+import { getOrdersRevision, type OrderListItem } from '../api/orders';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
@@ -23,7 +23,7 @@ import { CheckboxGroup } from '../ui/CheckboxGroup';
 import { splitList, toggleValue } from '../lib/multi';
 import type { FilterChip } from '../ui/FilterChips';
 import { formatRange } from '../lib/format';
-import { useOrderFilters, useOrders } from './useOrdersData';
+import { useOrderFilters, useOrders, type StatusChange } from './useOrdersData';
 import { useOrderActions, type Notice } from './useOrderActions';
 
 /** «1 заказ, 2 заказа, 5 заказов». */
@@ -34,6 +34,16 @@ const plural = (n: number) => {
 
 /** За сколько пикселей до конца списка начинаем подгружать следующую порцию. */
 const LOAD_AHEAD_PX = 400;
+
+/** Как часто спрашивать ревизию заказов: статус могут сменить в Studio2, пока страница открыта. */
+const REVISION_POLL_MS = 15_000;
+
+/** «Статус изменён в Studio2: 0123-0001-1 → Принят на складе, … и ещё 2». */
+function statusChangeNotice(changes: StatusChange[]): Notice {
+  const shown = changes.slice(0, 3).map(({ order }) => `${order.shipmentNumber ?? order.id} → ${order.status ?? '—'}`);
+  const rest = changes.length - shown.length;
+  return { kind: 'info', title: `Статус изменён в Studio2: ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}` };
+}
 
 /**
  * Страница «Заказы» по шаблону брендбука: заголовок, фильтры, «Найдено: N», таблица.
@@ -54,7 +64,8 @@ export function OrdersPage() {
   // «Назад» и «Вперёд» в браузере меняют адрес: поля фильтров подстраиваются под него.
   useEffect(() => setSearchDraft(applied.search), [applied.search]);
 
-  const filterOptions = useOrderFilters();
+  const [filtersKey, setFiltersKey] = useState(0);
+  const filterOptions = useOrderFilters(filtersKey);
   const orders = useOrders(toQuery(applied), PAGE_SIZE);
 
   const actions = useOrderActions({
@@ -62,19 +73,71 @@ export function OrdersPage() {
     onChanged: (id) => {
       void orders.refreshOrder(id);
       setRefreshKey((value) => value + 1);
+      setFiltersKey((value) => value + 1);
+    },
+    onUpdated: (order) => {
+      orders.replaceOrder(order);
+      setRefreshKey((value) => value + 1);
+      setFiltersKey((value) => value + 1);
     }
   });
+
+  // Живое обновление: статус могут сменить в Studio2. Раз в 15 с и при возврате на вкладку спрашиваем ревизию;
+  // если она сменилась — тихо перечитываем загруженные порции (без скелетона, прокрутка на месте) и счётчики фильтра.
+  const refreshQuietly = orders.refreshQuietly;
+  const busyRef = useRef(actions.busy);
+  busyRef.current = actions.busy;
+  const revision = useRef<string | null>(null);
+  useEffect(() => {
+    let controller = new AbortController();
+    let checking = false;
+    const check = async () => {
+      if (checking || document.visibilityState === 'hidden' || busyRef.current) return;
+      checking = true;
+      controller = new AbortController();
+      try {
+        const { revision: next } = await getOrdersRevision(controller.signal);
+        const previous = revision.current;
+        if (!next || next === previous) return;
+        if (previous === null) {
+          revision.current = next; // первый ответ: список только что загружен, перечитывать нечего
+          return;
+        }
+        const changes = await refreshQuietly();
+        if (changes === null) return; // не удалось или ответ устарел: ревизию не запоминаем, повторим на следующем опросе
+        revision.current = next;
+        setFiltersKey((value) => value + 1);
+        setRefreshKey((value) => value + 1);
+        if (changes.length > 0) setNotice(statusChangeNotice(changes));
+      } catch {
+        // Старый сервер без ревизии или сеть моргнула: список просто не обновляется сам.
+      } finally {
+        checking = false;
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), REVISION_POLL_MS);
+    const onWake = () => void check();
+    document.addEventListener('visibilitychange', onWake);
+    window.addEventListener('focus', onWake);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onWake);
+      controller.abort();
+    };
+  }, [refreshQuietly]);
 
   // Поиск и фильтры панели применяются сразу, без «Найти»; «Очистить всё» поиск не трогает.
   const applySearch = useCallback((search: string) => setParams(writeParams({ ...applied, search })), [applied, setParams]);
   const pick = (patch: Partial<OrderFilterState>) => setParams(writeParams({ ...applied, ...patch }));
   const clearFilters = () => setParams(writeParams({ ...EMPTY_FILTERS, search: applied.search }));
-  const activeCount = [applied.ozonStatus, applied.warehouseId, applied.clientId, applied.supplierId, applied.from || applied.to].filter(Boolean).length;
+  const activeCount = [applied.statusId, applied.warehouseId, applied.clientId, applied.supplierId, applied.from || applied.to].filter(Boolean).length;
   const nameOf = (items: Array<{ id: number; name: string }> | undefined, id: string) => items?.find((item) => String(item.id) === id)?.name ?? id;
-  const valueChips = (id: 'ozonStatus' | 'warehouseId' | 'clientId' | 'supplierId', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'statusId' | 'warehouseId' | 'clientId' | 'supplierId', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(applied[id]).map((value) => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => pick({ [id]: toggleValue(applied[id], value) }) }));
   const chips: FilterChip[] = [
-    ...valueChips('ozonStatus', 'Статус Ozon', (value) => value),
+    ...valueChips('statusId', 'Статус', (value) => nameOf(filterOptions?.statuses, value)),
     ...valueChips('warehouseId', 'Склад', (value) => nameOf(filterOptions?.warehouses, value)),
     ...valueChips('clientId', 'Клиент', (value) => nameOf(filterOptions?.clients, value)),
     ...valueChips('supplierId', 'Поставщик', (value) => nameOf(filterOptions?.suppliers, value)),
@@ -83,9 +146,15 @@ export function OrdersPage() {
   const toRadio = (items: Array<{ id: number; name: string }> = []) => items.map((item) => ({ value: String(item.id), label: item.name }));
   const renderPanel = (hideTitle: boolean) => (
     <FilterPanel activeCount={activeCount} hideTitle={hideTitle} onClear={clearFilters}>
-      <FilterSection title="Статус Ozon" active={!!applied.ozonStatus}>
-        <CheckboxGroup value={applied.ozonStatus} options={(filterOptions?.ozonStatuses ?? []).map((name) => ({ value: name, label: name }))} onChange={(ozonStatus) => pick({ ozonStatus })} />
-      </FilterSection>
+      {(filterOptions?.statuses.length ?? 0) > 0 && (
+        <FilterSection title="Статус" active={!!applied.statusId}>
+          <CheckboxGroup
+            value={applied.statusId}
+            options={(filterOptions?.statuses ?? []).map((item) => ({ value: String(item.id), label: item.name, count: item.count }))}
+            onChange={(statusId) => pick({ statusId })}
+          />
+        </FilterSection>
+      )}
       {(filterOptions?.warehouses.length ?? 0) > 0 && (
         <FilterSection title="Склад" active={!!applied.warehouseId}>
           <CheckboxGroup value={applied.warehouseId} options={toRadio(filterOptions?.warehouses)} onChange={(warehouseId) => pick({ warehouseId })} />
@@ -211,7 +280,7 @@ export function OrdersPage() {
               busy={actions.busy}
               onOpen={(order: OrderListItem) => setOpenedId(order.id)}
               onImage={setImage}
-              onShip={actions.requestShip}
+              onStatus={actions.requestStatus}
               onPrint={actions.requestPrint}
             />
             <div ref={sentinelRef} className="pa-scroll__end" aria-hidden="true" />
@@ -256,7 +325,7 @@ export function OrdersPage() {
           busy={actions.busy}
           onClose={() => setOpenedId(null)}
           onImage={setImage}
-          onShip={actions.requestShip}
+          onStatus={actions.requestStatus}
           onPrint={actions.requestPrint}
         />
       )}
