@@ -38,11 +38,11 @@ const LOAD_AHEAD_PX = 400;
 /** Как часто спрашивать ревизию заказов: статус могут сменить в Studio2, пока страница открыта. */
 const REVISION_POLL_MS = 15_000;
 
-/** «Статус изменён в Studio2: 0123-0001-1 → Принят на складе, … и ещё 2». */
+/** «Статус заказа изменился: 0123-0001-1 → Принят на складе, … и ещё 2». Откуда пришло изменение, партнёру не показываем. */
 function statusChangeNotice(changes: StatusChange[]): Notice {
   const shown = changes.slice(0, 3).map(({ order }) => `${order.shipmentNumber ?? order.id} → ${order.status ?? '—'}`);
   const rest = changes.length - shown.length;
-  return { kind: 'info', title: `Статус изменён в Studio2: ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}` };
+  return { kind: 'info', title: `${changes.length > 1 ? 'Статус заказов изменился' : 'Статус заказа изменился'}: ${shown.join(', ')}${rest > 0 ? ` и ещё ${rest}` : ''}` };
 }
 
 /**

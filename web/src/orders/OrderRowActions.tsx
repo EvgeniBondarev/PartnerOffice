@@ -42,7 +42,7 @@ export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size =
           loading={busy === 'status'}
           disabled={busy !== null}
           onClick={() => onStatus(order)}
-          title={action === 'accept' ? 'Отметить в Studio2, что заказ принят на складе' : 'Отметить в Studio2, что заказ отгружен'}
+          title={action === 'accept' ? 'Отметить, что заказ принят на складе' : 'Отметить, что заказ отгружен'}
         >
           {STATUS_ACTION_LABEL[action]}
         </Button>
