@@ -157,6 +157,31 @@ describe('Фильтры и подгрузка', () => {
     expect(last().get('search')).toBe('BX1=HSH');
   });
 
+  it('поставщик: колонка в строке, строка в карточке и фильтр в панели (несколько значений через запятую)', async () => {
+    const user = userEvent.setup();
+    const calls = ordersApi(PARTNER_FULL, [order(1, { supplier: 'Автоевро' }), order(2, { supplier: null })], {
+      '/partner-api/orders/1': () => json({ order: order(1, { supplier: 'Автоевро' }), deliveryCity: null, barcode: null, comment: null, lastStatusChangeDate: null, scanit: null })
+    });
+    renderApp('/orders');
+    const last = () => new URLSearchParams(calls.filter((c) => c.url.startsWith('/partner-api/orders?')).at(-1)!.url.split('?')[1]);
+
+    await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(screen.getByRole('columnheader', { name: 'Поставщик' })).toBeInTheDocument();
+    expect(within(row(1)).getByText('Автоевро')).toBeInTheDocument();
+    expect(within(row(2)).getByText('—')).toBeInTheDocument();
+
+    const group = screen.getByRole('group', { name: 'Поставщик' });
+    await user.click(within(group).getByRole('checkbox', { name: 'Автоевро' }));
+    await user.click(within(group).getByRole('checkbox', { name: 'Берг' }));
+    await waitFor(() => expect(last().get('supplierId')).toBe('5,7'));
+    expect(within(screen.getByRole('list', { name: 'Выбранные фильтры' })).getByText('Поставщик: Берг')).toBeInTheDocument();
+
+    await user.click(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ }));
+    const drawer = await screen.findByRole('complementary', { name: /Заказ 0123-0001-1/ });
+    expect(await within(drawer).findByText('Поставщик')).toBeInTheDocument();
+    expect(within(drawer).getByText('Автоевро')).toBeInTheDocument();
+  });
+
   it('«Найти» и Enter применяют поиск сразу, без паузы', async () => {
     const user = userEvent.setup();
     const calls = ordersApi(PARTNER_FULL, [order(1)]);

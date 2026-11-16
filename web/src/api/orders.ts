@@ -11,6 +11,8 @@ export interface OrderFilters {
   ozonStatuses: string[];
   warehouses: FilterOption[];
   clients: FilterOption[];
+  /** Поставщики среди видимых партнёру заказов. Старый сервер поле не отдаёт. */
+  suppliers?: FilterOption[];
 }
 
 export interface OrderSuggestion {
@@ -23,7 +25,7 @@ export interface OrderSuggestion {
   ozonStatus: string | null;
 }
 
-/** Строка списка заказов. Закупочные цены, поставщик, себестоимость и прибыль партнёру не отдаются. */
+/** Строка списка заказов. Из данных поставщика — только название; закупочные цены, себестоимость и прибыль партнёру не отдаются. */
 export interface OrderListItem {
   id: number;
   shipmentNumber: string | null;
@@ -48,6 +50,8 @@ export interface OrderListItem {
   hasLabel: boolean;
   /** Штрихкод ScanIt новой этикетки FBS Ozon; null, пока Ozon его не отдал. */
   scanit: string | null;
+  /** Поставщик заказа в Studio2 (название), как в возвратах; null — не назначен. */
+  supplier?: string | null;
 }
 
 export interface OrderPage {
@@ -73,6 +77,7 @@ export interface OrderQuery {
   /** Несколько значений — строка через запятую: «1,2». */
   warehouseId?: number | string;
   clientId?: number | string;
+  supplierId?: number | string;
   from?: string;
   to?: string;
   page: number;
@@ -136,6 +141,7 @@ export function buildOrdersQuery(query: OrderQuery): string {
   if (query.ozonStatus) params.set('ozonStatus', query.ozonStatus);
   if (query.warehouseId) params.set('warehouseId', String(query.warehouseId));
   if (query.clientId) params.set('clientId', String(query.clientId));
+  if (query.supplierId) params.set('supplierId', String(query.supplierId));
   if (query.from) params.set('from', query.from);
   if (query.to) params.set('to', query.to);
   params.set('page', String(query.page));

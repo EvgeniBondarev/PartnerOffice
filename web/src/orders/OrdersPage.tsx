@@ -69,14 +69,15 @@ export function OrdersPage() {
   const applySearch = useCallback((search: string) => setParams(writeParams({ ...applied, search })), [applied, setParams]);
   const pick = (patch: Partial<OrderFilterState>) => setParams(writeParams({ ...applied, ...patch }));
   const clearFilters = () => setParams(writeParams({ ...EMPTY_FILTERS, search: applied.search }));
-  const activeCount = [applied.ozonStatus, applied.warehouseId, applied.clientId, applied.from || applied.to].filter(Boolean).length;
+  const activeCount = [applied.ozonStatus, applied.warehouseId, applied.clientId, applied.supplierId, applied.from || applied.to].filter(Boolean).length;
   const nameOf = (items: Array<{ id: number; name: string }> | undefined, id: string) => items?.find((item) => String(item.id) === id)?.name ?? id;
-  const valueChips = (id: 'ozonStatus' | 'warehouseId' | 'clientId', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'ozonStatus' | 'warehouseId' | 'clientId' | 'supplierId', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(applied[id]).map((value) => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => pick({ [id]: toggleValue(applied[id], value) }) }));
   const chips: FilterChip[] = [
     ...valueChips('ozonStatus', 'Статус Ozon', (value) => value),
     ...valueChips('warehouseId', 'Склад', (value) => nameOf(filterOptions?.warehouses, value)),
     ...valueChips('clientId', 'Клиент', (value) => nameOf(filterOptions?.clients, value)),
+    ...valueChips('supplierId', 'Поставщик', (value) => nameOf(filterOptions?.suppliers, value)),
     ...(applied.from || applied.to ? [{ id: 'date', label: `Дата заказа: ${formatRange(applied.from, applied.to)}`, onRemove: () => pick({ from: '', to: '' }) }] : [])
   ];
   const toRadio = (items: Array<{ id: number; name: string }> = []) => items.map((item) => ({ value: String(item.id), label: item.name }));
@@ -93,6 +94,11 @@ export function OrdersPage() {
       {(filterOptions?.clients.length ?? 0) > 0 && (
         <FilterSection title="Клиент" active={!!applied.clientId}>
           <CheckboxGroup value={applied.clientId} options={toRadio(filterOptions?.clients)} onChange={(clientId) => pick({ clientId })} />
+        </FilterSection>
+      )}
+      {(filterOptions?.suppliers?.length ?? 0) > 0 && (
+        <FilterSection title="Поставщик" active={!!applied.supplierId}>
+          <CheckboxGroup value={applied.supplierId} options={toRadio(filterOptions?.suppliers)} onChange={(supplierId) => pick({ supplierId })} />
         </FilterSection>
       )}
       <DateFilterSection title="Дата заказа" from={applied.from} to={applied.to} onChange={(from, to) => pick({ from, to })} />
