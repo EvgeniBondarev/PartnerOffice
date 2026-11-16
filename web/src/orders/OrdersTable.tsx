@@ -111,6 +111,7 @@ function skeletonRows(count: number, showActions: boolean) {
       <td className={`${TD} ${align('left')}`}><Skeleton width={150} height={20} /></td>
       <td className={`${TD} ${align('left')}`}><Skeleton width={120} height={24} /></td>
       <td className={`${TD} ${align('left')}`}><Skeleton width={110} height={20} /></td>
+      <td className={`${TD} ${align('left')}`}><Skeleton width={90} height={20} /></td>
       <td className={`${TD} ${align('left')}`}><Skeleton width={130} height={20} /></td>
       <td className={`${TD} ${align('right')}`}><Skeleton width={70} height={20} /></td>
       {showActions && <td className={`${TD} ${align('left')}`}><Skeleton width={120} height={32} /></td>}
@@ -141,7 +142,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
   };
 
   return (
-    <div className="pa-table" aria-busy={loading}>
+    <div className="pa-table pa-table--orders" aria-busy={loading}>
       <table className={`po-table__table pa-orders-table${showActions ? ' pa-orders-table--actions' : ''}`}>
         <thead>
           <tr className="po-table-row__row">
@@ -156,6 +157,9 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
             </th>
             <th className={`${TH} ${align('left')}`}>
               Склад<div className="pa-sub">Клиент</div>
+            </th>
+            <th className={`${TH} ${align('left')}`}>
+              Поставщик
             </th>
             <th className={`${TH} ${align('left')}`}>
               <button type="button" className="pa-sort" onClick={() => toggleSort('shippingDate')} aria-label="Сортировать по дате отгрузки">
@@ -203,6 +207,9 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                   <td className={`${TD} ${align('left')}`}>
                     <div>{order.warehouse ?? '—'}</div>
                     <div className="pa-sub">{order.client ?? '—'}</div>
+                  </td>
+                  <td className={`${TD} ${align('left')} pa-col-supplier`}>
+                    {order.supplier ? <div title={order.supplier}>{order.supplier}</div> : <span className="pa-sub">—</span>}
                   </td>
                   <td className={`${TD} ${align('left')} pa-col-date`}><ShipBy order={order} /></td>
                   <td className={`${TD} ${align('right')} pa-nowrap`}>

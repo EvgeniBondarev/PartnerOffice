@@ -110,6 +110,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
           <Row label="Цена">{formatMoney(current.price)}</Row>
           <Row label="Склад">{dash(current.warehouse)}</Row>
           <Row label="Клиент">{dash(current.client)}</Row>
+          <Row label="Поставщик">{dash(current.supplier)}</Row>
           <Row label="Маркетплейс">{dash(current.marketplace)}</Row>
           <Row label="Город доставки">{dash(details?.deliveryCity)}</Row>
           <Row label="Принят">{formatDateTime(current.processingDate)}</Row>

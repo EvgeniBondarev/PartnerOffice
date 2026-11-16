@@ -9,17 +9,19 @@ export interface OrderFilterState {
   ozonStatus: string;
   warehouseId: string;
   clientId: string;
+  supplierId: string;
   from: string;
   to: string;
 }
 
-export const EMPTY_FILTERS: OrderFilterState = { search: '', ozonStatus: '', warehouseId: '', clientId: '', from: '', to: '' };
+export const EMPTY_FILTERS: OrderFilterState = { search: '', ozonStatus: '', warehouseId: '', clientId: '', supplierId: '', from: '', to: '' };
 
 const KEYS: Array<[keyof OrderFilterState, string]> = [
   ['search', 'search'],
   ['ozonStatus', 'ozonStatus'],
   ['warehouseId', 'warehouse'],
   ['clientId', 'client'],
+  ['supplierId', 'supplier'],
   ['from', 'from'],
   ['to', 'to']
 ];
@@ -52,6 +54,7 @@ export function toQuery(filters: OrderFilterState): Omit<OrderQuery, 'page' | 'p
     ozonStatus: filters.ozonStatus.trim() || undefined,
     warehouseId: toId(filters.warehouseId),
     clientId: toId(filters.clientId),
+    supplierId: toId(filters.supplierId),
     from: filters.from || undefined,
     to: filters.to || undefined
   };

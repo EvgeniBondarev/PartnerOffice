@@ -108,7 +108,7 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
   return { ...state, hasMore, loadMore, refreshOrder, reload };
 }
 
-/** Значения для фильтров: только статусы, склады и клиенты среди видимых партнёру заказов. */
+/** Значения для фильтров: только статусы, склады, клиенты и поставщики среди видимых партнёру заказов. */
 export function useOrderFilters() {
   const [filters, setFilters] = useState<OrderFilters | null>(null);
 
@@ -117,7 +117,7 @@ export function useOrderFilters() {
     getOrderFilters(controller.signal)
       .then(setFilters)
       // Без справочников фильтры просто пустые: поиск и таблица продолжают работать.
-      .catch(() => setFilters({ statuses: [], ozonStatuses: [], warehouses: [], clients: [] }));
+      .catch(() => setFilters({ statuses: [], ozonStatuses: [], warehouses: [], clients: [], suppliers: [] }));
     return () => controller.abort();
   }, []);
 

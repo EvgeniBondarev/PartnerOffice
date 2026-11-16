@@ -91,7 +91,8 @@ export const EMPTY_FILTERS_RESPONSE = json({
   statuses: [{ id: 1, name: 'Новый' }, { id: 2, name: 'Отгружен' }],
   ozonStatuses: ['Ожидает сборки', 'Доставляется'],
   warehouses: [{ id: 1, name: 'Москва' }],
-  clients: [{ id: 1, name: 'Interparts RU' }]
+  clients: [{ id: 1, name: 'Interparts RU' }],
+  suppliers: [{ id: 5, name: 'Автоевро' }, { id: 7, name: 'Берг' }]
 });
 
 /** Минимальный набор ответов для открытой страницы заказов под партнёром с заданными правами. */
