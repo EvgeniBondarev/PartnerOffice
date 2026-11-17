@@ -588,7 +588,7 @@ describe('Возвраты', () => {
         '/partner-api/returns?*': () => json(received({ mark: 'accepted' })),
         '/partner-api/returns/photos?*': () => json([{ id: 'photo.jpg' }]),
         'POST /partner-api/returns/marks': () => json({ results: [{ key: 'fbs:1:12', ok: true, changes: accepted({ defect: true, comment: 'Скол' }) }] }),
-        'POST /partner-api/returns/photos?*': () => json({ id: 'new.jpg' })
+        'PUT /partner-api/returns/photos/*': () => json({ id: 'new.jpg', created: true })
       });
       renderApp('/returns/received');
       const user = userEvent.setup();
@@ -603,7 +603,7 @@ describe('Возвраты', () => {
       expect(revoke).toHaveBeenCalledWith('blob:preview');
       await user.upload(screen.getByLabelText('Фотографии возврата'), new File(['image'], 'return.jpg', { type: 'image/jpeg' }));
       await user.click(screen.getByRole('button', { name: 'Сохранить' }));
-      await waitFor(() => expect(calls.find(c => c.method === 'POST' && c.url.includes('/photos?'))?.body).toBeInstanceOf(FormData));
+      await waitFor(() => expect(calls.find(c => c.method === 'PUT' && c.url.includes('/photos/'))?.body).toBeInstanceOf(FormData));
       expect(calls.filter(c => c.method === 'POST')[0].url).toContain('/marks');
       await waitFor(() => expect(revoke).toHaveBeenCalledTimes(2));
     });
@@ -704,7 +704,7 @@ describe('Возвраты', () => {
     mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
       '/partner-api/returns?*': () => json(received()),
-      'POST /partner-api/returns/mark': () => json({ error: 'Сервис возвратов временно недоступен.' }, 503)
+      'POST /partner-api/returns/marks': () => json({ error: 'Сервис возвратов временно недоступен.' }, 503)
     });
     renderApp('/returns/received');
     const user = userEvent.setup();
@@ -985,7 +985,7 @@ describe('Возвраты', () => {
       mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
         '/partner-api/returns?*': () => json(received({ mark: 'accepted', review: 'queue' })),
-        'POST /partner-api/returns/mark': () => json({ error: 'По возврату уже принято решение: отметку изменить нельзя.' }, 409)
+        'POST /partner-api/returns/marks': () => json({ error: 'По возврату уже принято решение: отметку изменить нельзя.' }, 409)
       });
       renderApp('/returns/received');
       const user = userEvent.setup();

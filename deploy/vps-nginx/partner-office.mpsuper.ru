@@ -38,7 +38,26 @@ server {
 
     add_header Strict-Transport-Security "max-age=31536000" always;
     include /etc/nginx/snippets/errorpages.conf;
-    client_max_body_size 2M;
+    # Фото возврата до 10 МБ + multipart; то же значение (11m) стоит в контейнере partner-office (web/nginx).
+    client_max_body_size 11M;
+    client_body_timeout 120s;
+
+    # Поток событий возвратов (SSE): без буферизации и сжатия, с длинным таймаутом чтения (чуть больше, чем в контейнере).
+    # add_header здесь нет намеренно: HSTS наследуется с уровня server, Cache-Control выставляет контейнер.
+    location = /partner-api/returns/events {
+        proxy_pass http://partner_office_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 3630s;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+    }
 
     location / {
         proxy_pass http://partner_office_backend;
@@ -51,5 +70,7 @@ server {
         proxy_connect_timeout 5s;
         # Отгрузка и печать этикетки ждут ответа Ozon.
         proxy_read_timeout 330s;
+        # Загрузка фото: тело уходит в контейнер не дольше двух минут между порциями.
+        proxy_send_timeout 120s;
     }
 }
