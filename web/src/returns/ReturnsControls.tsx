@@ -95,8 +95,8 @@ export function ReturnsControls({ section, canWork, counts, data, supplierNames,
       top={
     <div className="pa-list__topbar">
     <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
-      <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
       <ReturnsTab to="/returns/transit" label="В пути" count={counts.transit} />
+      <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
       <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
       <ReturnsTab to="/returns/shelf" label="Полка" count={counts.shelf} />
       <ReturnsTab to="/returns/supplier" label="Возврат поставщику" count={counts.supplier} />
