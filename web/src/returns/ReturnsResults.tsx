@@ -66,6 +66,7 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
   const highlightedCard = useRef<HTMLLIElement>(null);
   useEffect(() => { if (highlighted) (highlightedRow.current ?? highlightedCard.current)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [highlighted, items]);
   const received = section === 'received';
+  const pickable = section === 'waiting' || received;
   const shelf = section === 'shelf';
   const supplier = section === 'supplier';
   const warehouse = section === 'warehouse';
@@ -73,7 +74,7 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
   const cabinets = data?.cabinets ?? [];
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const rows = displayedRows(items, expandedUnits);
-  const hasMark = !shelf && !outbound && (canWork || received);
+  const hasMark = pickable && (canWork || received);
   /** Колонка «Статус Ozon» есть в «Ждёт получения» и «Получено»; на полке и в отправке её нет. */
   const hasOzonStatus = !shelf && !outbound;
   /** Кнопка «История позиции»: рядом со статусом Ozon, а где такой колонки нет (полка, отправка) — в товаре. */

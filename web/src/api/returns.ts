@@ -45,7 +45,7 @@ export function listReturns(section: ReturnsSection, { page = 1, pageSize = 50, 
 }
 
 /** Supplier and warehouse are returned as `supplier` and `us` by the aggregate endpoint. */
-export interface ReturnCounts { counts: Partial<Record<'waiting' | 'received' | 'shelf' | 'supplier' | 'us' | 'outbound', number>> }
+export interface ReturnCounts { counts: Partial<Record<'waiting' | 'transit' | 'received' | 'shelf' | 'supplier' | 'us' | 'outbound', number>> }
 export function getReturnCounts(signal?: AbortSignal): Promise<ReturnCounts> {
   return request<ReturnCounts>(`${ROOT}/counts`, { signal });
 }

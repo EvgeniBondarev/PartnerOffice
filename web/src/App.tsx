@@ -8,11 +8,11 @@ import { HomePage } from './pages/HomePage';
 
 const RETURNS_SECTION_KEY = 'partner-office.returns-section';
 
-function lastReturnsSection(): 'waiting' | 'received' | 'shelf' | 'supplier' | 'warehouse' {
+function lastReturnsSection(): 'waiting' | 'transit' | 'received' | 'shelf' | 'supplier' | 'warehouse' {
   try {
     const saved = window.localStorage.getItem(RETURNS_SECTION_KEY);
     if (saved === 'outbound') return 'supplier';   // прежняя вкладка «К отправке»
-    return saved === 'received' || saved === 'shelf' || saved === 'supplier' || saved === 'warehouse' ? saved : 'waiting';
+    return saved === 'transit' || saved === 'received' || saved === 'shelf' || saved === 'supplier' || saved === 'warehouse' ? saved : 'waiting';
   } catch {
     return 'waiting';
   }
@@ -33,6 +33,7 @@ export function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/returns" element={<Navigate to={`/returns/${lastReturnsSection()}`} replace />} />
           <Route path="/returns/waiting" element={<ReturnsPage key="waiting" section="waiting" />} />
+          <Route path="/returns/transit" element={<ReturnsPage key="transit" section="transit" />} />
           <Route path="/returns/received" element={<ReturnsPage key="received" section="received" />} />
           <Route path="/returns/shelf" element={<ReturnsPage key="shelf" section="shelf" />} />
           <Route path="/returns/supplier" element={<ReturnsPage key="supplier" section="supplier" />} />

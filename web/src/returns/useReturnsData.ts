@@ -13,8 +13,8 @@ type Options = {
   setActiveSuggestion: Dispatch<SetStateAction<number>>; setSuggestionsOpen: Dispatch<SetStateAction<boolean>>;
 };
 const COUNTS_REFRESH_MS = 60_000;
-const EMPTY_COUNTS: Record<ReturnsSection, number | null> = { waiting: null, received: null, shelf: null, supplier: null, warehouse: null };
-const ALL_SECTIONS: ReturnsSection[] = ['waiting', 'received', 'shelf', 'supplier', 'warehouse'];
+const EMPTY_COUNTS: Record<ReturnsSection, number | null> = { waiting: null, transit: null, received: null, shelf: null, supplier: null, warehouse: null };
+const ALL_SECTIONS: ReturnsSection[] = ['waiting', 'transit', 'received', 'shelf', 'supplier', 'warehouse'];
 /** Ключ кэша списка: партнёр, раздел, порция и фильтры. Адреса запросов знает только api/returns.ts. */
 const listKeyFor = (partnerId: number, section: ReturnsSection, filters: Record<string, string>, page: number) =>
   `${partnerId}|${section}|${page}|${PAGE_SIZE}|${new URLSearchParams(filters)}`;
@@ -180,7 +180,7 @@ export function useReturnsData({ allowed, section, filters, partnerId, phone, cu
           if (!all) return;
           setCounts(previous => ({
             ...previous,
-            ...Object.fromEntries((['waiting', 'received', 'shelf'] as const).filter(name => all[name] !== undefined).map(name => [name, all[name]])),
+            ...Object.fromEntries((['waiting', 'transit', 'received', 'shelf'] as const).filter(name => all[name] !== undefined).map(name => [name, all[name]])),
             // «Возврат поставщику» и «Возврат на склад» — части раздела outbound по адресату (`supplier` и `us` в ответе)
             ...(all.supplier !== undefined ? { supplier: all.supplier } : {}),
             ...(all.us !== undefined ? { warehouse: all.us } : {})

@@ -61,7 +61,7 @@ describe('счётчики вкладок', () => {
     expect(countCalls(calls)).toHaveLength(0);            // список ещё грузится
     await act(async () => list.open());
     await screen.findByText('Товар 1', {}, { timeout: 4000 });
-    await waitFor(() => expect(countCalls(calls).length).toBe(4));
+    await waitFor(() => expect(countCalls(calls).length).toBe(5));
   });
 
   it('404 от /counts и 503 основного списка: тяжёлые запросы на счётчики не запускаются', async () => {
@@ -90,7 +90,7 @@ describe('счётчики вкладок', () => {
     failing = false;
     await userEvent.setup().click(screen.getByRole('button', { name: 'Повторить' }));
     await screen.findByText('Товар 1', {}, { timeout: 4000 });
-    await waitFor(() => expect(countCalls(calls)).toHaveLength(4));
+    await waitFor(() => expect(countCalls(calls)).toHaveLength(5));
   });
 });
 

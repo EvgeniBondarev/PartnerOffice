@@ -10,7 +10,7 @@ export interface ListEntry<Page, Row> {
   items: Row[];
   pagesLoaded: number;
 }
-type Counts = Record<'waiting' | 'received' | 'shelf' | 'supplier' | 'warehouse', number | null>;
+type Counts = Record<'waiting' | 'transit' | 'received' | 'shelf' | 'supplier' | 'warehouse', number | null>;
 
 const LIST_CACHE_LIMIT = 40;
 const listCache = new Map<string, ListEntry<never, never>>();

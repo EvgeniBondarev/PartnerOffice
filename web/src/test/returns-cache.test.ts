@@ -6,7 +6,7 @@ import {
 type Row = { key?: string; name?: string; units?: Row[] };
 const row = (key: string, name = key): Row => ({ key, name });
 const entry = (items: Row[], pagesLoaded = 1) => ({ data: { revision: 'r1' }, items, pagesLoaded });
-const counts = { waiting: 1, received: null, shelf: null, supplier: null, warehouse: null };
+const counts = { waiting: 1, transit: null, received: null, shelf: null, supplier: null, warehouse: null };
 
 describe('кэш возвратов', () => {
   beforeEach(() => clearReturnsCache());

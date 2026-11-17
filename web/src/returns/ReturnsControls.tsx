@@ -15,8 +15,7 @@ import { plural, rowKey, suggestionLabel } from './returnsModel';
 import type { ReturnsSection } from './useReturnsQuery';
 
 const STATUS_OPTIONS = [
-  { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' },
-  { value: 'MovingToSeller', label: 'В пути к продавцу' }, { value: 'WaitingShipment', label: 'Ожидает отправки' }
+  { value: 'ArrivedAtReturnPlace', label: 'В пункте выдачи' }, { value: 'CheckAtPickupPoint', label: 'Проверка на ПВЗ' }
 ];
 const MARK_OPTIONS = [{ value: 'pending', label: 'Ожидает' }, { value: 'accepted', label: 'Принят' }, { value: 'rejected', label: 'Не принят' }];
 /** Уточнение внутри «Принят». На сервер уходит вместо «accepted»: defect / missort / ok — принятые с этим подстатусом. */
@@ -39,6 +38,7 @@ type Props = {
 };
 export function ReturnsControls({ section, canWork, counts, data, supplierNames, query: { panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount }, search, searchDraft, formRef, suggestions, suggestionsOpen, activeSuggestion, onSearchValue, onSearchFocus, onSearchBlur, onSuggestionHover, chooseSuggestion, apply, searchKeyDown, keepSearchFocus, children }: Props) {
   const received = section === 'received';
+  const transit = section === 'transit';
   const shelf = section === 'shelf';
   const supplier = section === 'supplier';
   const warehouse = section === 'warehouse';
@@ -81,7 +81,9 @@ export function ReturnsControls({ section, canWork, counts, data, supplierNames,
       heading={<>
     <h1 className="pa-visually-hidden">Возвраты</h1>
     <p className="pa-returns__description">{section === 'waiting'
-      ? 'В списке есть возвраты в пути и ожидающие отправки. Проверяйте статус перед поездкой на ПВЗ.'
+      ? 'Возвраты, которые уже можно забрать в пункте выдачи.'
+      : transit
+        ? 'Возвраты, которые Ozon ещё везёт к вам или ожидает отправки. Забирать на ПВЗ их пока не нужно.'
       : supplier
         ? 'Возвраты, которые по решению сотрудников нужно отправить поставщику. Скачайте ТТН и передайте товар вместе с ней.'
         : warehouse
@@ -94,6 +96,7 @@ export function ReturnsControls({ section, canWork, counts, data, supplierNames,
     <div className="pa-list__topbar">
     <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы возвратов">
       <ReturnsTab to="/returns/waiting" label="Ждёт получения" count={counts.waiting} />
+      <ReturnsTab to="/returns/transit" label="В пути" count={counts.transit} />
       <ReturnsTab to="/returns/received" label="Получено" count={counts.received} />
       <ReturnsTab to="/returns/shelf" label="Полка" count={counts.shelf} />
       <ReturnsTab to="/returns/supplier" label="Возврат поставщику" count={counts.supplier} />
@@ -137,7 +140,7 @@ export function ReturnsControls({ section, canWork, counts, data, supplierNames,
 /** Вкладка раздела по брендбуку (tabs.css); количество серым, чтобы не спорить с названием и активным цветом. */
 function ReturnsTab({ to, label, count }: { to: string; label: string; count: number | null }) {
   return <NavLink to={to} className="po-tab__tab" onClick={() => {
-    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/received') ? 'received' : to.endsWith('/shelf') ? 'shelf' : to.endsWith('/supplier') ? 'supplier' : to.endsWith('/warehouse') ? 'warehouse' : 'waiting'); } catch { /* storage may be unavailable */ }
+    try { window.localStorage.setItem('partner-office.returns-section', to.endsWith('/transit') ? 'transit' : to.endsWith('/received') ? 'received' : to.endsWith('/shelf') ? 'shelf' : to.endsWith('/supplier') ? 'supplier' : to.endsWith('/warehouse') ? 'warehouse' : 'waiting'); } catch { /* storage may be unavailable */ }
   }}>
     {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
       <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500">

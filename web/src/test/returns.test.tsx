@@ -788,8 +788,19 @@ describe('Возвраты', () => {
     await screen.findByText('Товар А');
     expect(screen.queryByRole('group', { name: 'Приёмка' })).not.toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(within(screen.getByRole('group', { name: 'Статус Ozon' })).getByRole('checkbox', { name: 'Ожидает отправки' }));
-    await waitFor(() => expect(param(listing(calls).url, 'status')).toBe('WaitingShipment'));
+    await user.click(within(screen.getByRole('group', { name: 'Статус Ozon' })).getByRole('checkbox', { name: 'В пункте выдачи' }));
+    await waitFor(() => expect(param(listing(calls).url, 'status')).toBe('ArrivedAtReturnPlace'));
+  });
+
+  it('«В пути» запрашивает отдельный раздел и не показывает приёмку', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+      '/partner-api/returns?*': () => json({ items: [{ key: 'fbs:1:12', id: 12, client_id: '1', name: 'Едет к вам', status: 'MovingToSeller', status_name: 'Едет к вам', qty: 1 }], total: 1, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/transit');
+    expect((await screen.findAllByText('Едет к вам')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('group', { name: 'Приёмка' })).not.toBeInTheDocument();
+    expect(calls.some(call => new URL(call.url, 'http://test').searchParams.get('section') === 'transit')).toBe(true);
   });
 
   it('выбранные фильтры видны тегами: крестик убирает один, «Очистить всё» — все, кроме поиска', async () => {
@@ -1121,7 +1132,7 @@ describe('Возвраты', () => {
       expect(within(row).queryByRole('button', { name: 'Скачать ТТН' })).not.toBeInTheDocument();
     });
 
-    it('вкладки: Ждёт получения, Получено, Полка, Возврат поставщику, Возврат на склад; «К отправке» больше нет', async () => {
+    it('вкладки: Ждёт получения, В пути, Получено, Полка, Возврат поставщику, Возврат на склад; «К отправке» больше нет', async () => {
       mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
         '/partner-api/returns?*': () => json(outboundPage())
@@ -1130,7 +1141,7 @@ describe('Возвраты', () => {
       await screen.findByText('NAKAYAMA NJ1694NY - Шрус');
       const nav = screen.getByRole('navigation', { name: 'Разделы возвратов' });
       expect(within(nav).getAllByRole('link').map(link => [link.textContent?.replace(/\d[\d\s\u00a0]*$/, '').trim(), link.getAttribute('href')])).toEqual([
-        ['Ждёт получения', '/returns/waiting'], ['Получено', '/returns/received'], ['Полка', '/returns/shelf'],
+        ['Ждёт получения', '/returns/waiting'], ['В пути', '/returns/transit'], ['Получено', '/returns/received'], ['Полка', '/returns/shelf'],
         ['Возврат поставщику', '/returns/supplier'], ['Возврат на склад', '/returns/warehouse']]);
       expect(within(nav).queryByText(/К отправке/)).not.toBeInTheDocument();
     });

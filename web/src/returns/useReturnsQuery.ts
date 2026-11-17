@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { joinList, splitList } from '../lib/multi';
 
-export type ReturnsSection = 'waiting' | 'received' | 'shelf' | 'supplier' | 'warehouse';
+export type ReturnsSection = 'waiting' | 'transit' | 'received' | 'shelf' | 'supplier' | 'warehouse';
 export interface ReturnFilters { pvz: string; supplier: string; status: string; clientId: string; mark: string; review: string; dateFrom: string; dateTo: string }
 
 export const NO_FILTERS: ReturnFilters = { pvz: '', supplier: '', status: '', clientId: '', mark: '', review: '', dateFrom: '', dateTo: '' };
-export const STATUS_VALUES = ['ArrivedAtReturnPlace', 'CheckAtPickupPoint', 'MovingToSeller', 'WaitingShipment'];
+/** На вкладке получения остаются только статусы, когда возврат уже можно забрать. */
+export const STATUS_VALUES = ['ArrivedAtReturnPlace', 'CheckAtPickupPoint'];
 export const MARK_VALUES = ['pending', 'accepted', 'rejected', 'ok', 'defect', 'missort'];
 export const PVZ_DELAY_MS = 350;
 
