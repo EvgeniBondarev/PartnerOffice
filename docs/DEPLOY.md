@@ -62,6 +62,42 @@ systemctl --user restart actions-runner-partner-office
 - `/etc/nginx/stream.conf`: строка `partner-office.mpsuper.ru 127.0.0.1:8454;` в `map $ssl_preread_server_name`.
 - Сертификат certbot (webroot `/var/www/certbot`), автообновление `certbot.timer`; после обновления nginx перечитывается хуками из `/etc/letsencrypt/renewal-hooks/deploy`.
 
+Лимиты и потоки (должны совпадать на обоих слоях nginx):
+
+- **Фото возврата.** Файл до 10 МБ + multipart ⇒ `client_max_body_size 11M` и на VPS (`server`), и в контейнере (`web/nginx/default.conf.template`, `server` и `/partner-api/`), `client_body_timeout 120s`, `proxy_send_timeout 120s`. Если менять лимит, то в обоих местах и во фронтенде (`ReturnIssueDialog.tsx`), иначе верхний слой отдаст 413 раньше приложения.
+- **SSE `/partner-api/returns/events`.** Отдельный `location =` на обоих слоях: `proxy_buffering off`, `proxy_cache off`, `gzip off`, `proxy_read_timeout` 3600s в контейнере и 3630s на VPS. При обрыве `EventSource` переподключается сам, а список опрашивается раз в 15 с.
+- **Заголовки безопасности** вынесены в `web/nginx/security-headers.inc` (в образе: `/etc/nginx/snippets/`). nginx не наследует `add_header` в location со своим `add_header`, поэтому файл подключён в каждом таком location. `Cache-Control` в каждом location задаётся один раз; свой `Cache-Control` Studio2 в `/partner-api/` скрывается (`proxy_hide_header`), остаётся `no-store`.
+- **Путь `/partner-api`.** `proxy_pass` передаёт Studio2 исходный `$request_uri` без нормализации, поэтому небезопасный **путь** отсекается ранним фильтром уровня `server` контейнера (`if ($partner_api_block) { return 400; }` в `web/nginx/default.conf.template`). Он срабатывает в rewrite-фазе, до выбора `location`: проверка внутри `location /partner-api/` пропускала бы пути, которые nginx нормализует за его пределы (`/partner-api/a/%2e%2e/%2e%2e/admin` → `/admin` → SPA 200). Фильтр действует, если исходный путь начинается с `/partner-api` или нормализованный путь приводит к нему (`/x/%2e%2e/partner-api/...`), и даёт 400 для:
+  - `%2f`, `%5c`, `%00`, `%2e%2e`, `%2e.`, `.%2e`, одиночного `%2e`, сегментов `.` и `..`, буквального `\`;
+  - многослойного кодирования: `%25` + любое число `25` + `2e`/`2f`/`5c`/`00` (`%252e`, `%25252f`, `%2525252e`...) и закодированных цифр следующего слоя (`%25%32%65`, `%252%65`);
+  - overlong UTF-8 (`%c0%ae`, `%c0%af`, `%e0%80%ae`) и `%u`-кодирования.
+
+  Ограничение: регулярка не раскодирует слои, а ищет известные формы, поэтому правило консервативно: после `%25` запрещён любой `%`. Буквальный процент в пути (`/partner-api/orders/100%25`) проходит. Кодировки в **query** (`?q=a%2Fb`, `?key=..%2f`, `?q=%252e%252e`) не проверяются и проходят как есть. Пути вне `/partner-api` (SPA) не блокируются. VPS-слой запрос не фильтрует, а передаёт как есть: защита стоит в контейнере.
+
+### Проверка конфигов без сервера
+
+```bash
+bash web/nginx/test/run.sh                                  # шаблон из рабочей копии + эталон VPS
+WEB_IMAGE=partner-office:<тег> bash web/nginx/test/run.sh   # то же на собранном образе
+```
+
+Нужен docker. Скрипт поднимает фейковый Studio2, контейнер partner-office и VPS-слой (без TLS) и проверяет лимиты 11M на обоих слоях, заголовки, `Cache-Control`, SSE без буферизации и блокировку путей (фактический ответ 400 для одно- и многослойного обхода, включая `/partner-api/a/%2e%2e/%2e%2e/admin`, и 200 для query-кодировок). Эталон VPS целиком (с TLS) проверяется на сервере: `nginx -t`.
+
+### Выкладка изменений VPS (вручную)
+
+1. Скопировать `deploy/vps-nginx/partner-office.mpsuper.ru` в `/etc/nginx/sites-available/`, `nginx -t && systemctl reload nginx`.
+2. Порядок: сначала VPS (11M и SSE-location безвредны без нового контейнера), затем деплой контейнера пушем в `main`. Обратный порядок даёт 413 на фото до обновления VPS.
+3. Проверка снаружи: `curl -sN -H 'Accept: text/event-stream' https://partner-office.mpsuper.ru/partner-api/returns/events` (под сессией партнёра) — события приходят сразу, а не пачкой по таймауту; загрузка фото ~10 МБ проходит; `curl -si --path-as-is 'https://partner-office.mpsuper.ru/partner-api/x%2f..%2fy'`, `.../partner-api/a/%2e%2e/%2e%2e/admin` и `.../partner-api/a/%252e%252e/%252e%252e/admin` → 400 (без `--path-as-is` curl сам нормализует `..`).
+
+### Не сделано: реальный адрес клиента (PROXY protocol)
+
+Не внедрялось: нужен доступ к общему `/etc/nginx/stream.conf` на VPS и подтверждённый доверенный адрес источника, этого в репозитории нет. Перед выкладкой проверить на VPS:
+
+1. `nginx -V 2>&1 | tr ' ' '\n' | grep -E 'with-stream|ssl_preread|http_realip'` — есть `--with-stream`, `--with-stream_ssl_preread_module` (уже используется) и `--with-http_realip_module` (нужен для `real_ip_header proxy_protocol`).
+2. Точно знать, какие `server` в `stream.conf` попадают в `map $ssl_preread_server_name` и каким `server` отдаётся TCP: `proxy_protocol on;` включается на уровне stream-`server`, общего для **всех** сайтов (Studio2 и остальных). Включить его только для partner-office нельзя, пока upstream не разделён отдельным `server`/`listen`; иначе остальные TLS-серверы получат строку `PROXY ...` вместо ClientHello и сломаются.
+3. Для partner-office: `listen 127.0.0.1:8454 ssl http2 proxy_protocol;` + `set_real_ip_from 127.0.0.1; real_ip_header proxy_protocol;` (доверять только адресу stream-слоя; после этого `$remote_addr` в существующем `proxy_set_header X-Real-IP $remote_addr` уже клиентский). Нельзя оставлять `proxy_protocol` в `listen` без включения на стороне stream (и наоборот): в обоих случаях соединение рвётся.
+4. Проверка после включения (в окне обслуживания, `nginx -t` недостаточно): `curl -I https://partner-office.mpsuper.ru/healthz` и по одному запросу к остальным сайтам за тем же `stream`; в логе контейнера `docker logs partner-office` в `X-Real-IP`/`X-Forwarded-For` должен быть адрес клиента, а не `127.0.0.1`. Откат: вернуть прежние `stream.conf` и файл сайта, `nginx -t && systemctl reload nginx`.
+
 Первая выдача сертификата:
 
 ```bash

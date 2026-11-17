@@ -9,6 +9,35 @@ map $http_x_real_ip $client_ip {
     ""      $remote_addr;
 }
 
+# Небезопасный путь: закодированные "/", "\", NUL и ".", сегменты "." и "..", обратный слэш, любое число слоёв "%25"
+# (%252e, %25252f, %25%32%65 ...), overlong UTF-8 для "." и "/" (%c0%ae) и %u-кодирование.
+# Проверяется только путь (до "?"): кодировки в query (q=a%2Fb, key=..%2f) легальны и проходят как есть.
+# Нужно потому, что proxy_pass отдаёт Studio2 исходный $request_uri без нормализации.
+# Регулярка не расшифровывает вложенность, поэтому консервативна: после "%25" (и любого числа "25") запрещены
+# "%" (закодированная цифра), одна цифра и "%", а также 2e/2f/5c/00. Буквальный "%" в пути (%25 + буквы/цифры) проходит.
+map $request_uri $partner_api_unsafe_path {
+    default 0;
+    "~*^[^?]*(%2f|%5c|%00|%2e%2e|%2e[.]|[.]%2e|%25(25)*([0-9a-f]?%|2e|2f|5c|00)|%c0%[ab][ef]|%e0%80%[ab][ef]|%u00|\\\\|(^|/)%2e(/|$|[?])|(^|/)[.]{1,2}(/|$|[?]))" 1;
+}
+
+# Запрос адресован /partner-api: исходный путь начинается с него ИЛИ после нормализации nginx ($uri) приводит к нему
+# (/x/%2e%2e/partner-api/..., /partner-api%2f...). Регистр важен: location'ы nginx регистрозависимы.
+map $request_uri $partner_api_raw_target {
+    default 0;
+    "~^/partner-api(/|[?]|$)" 1;
+}
+map $uri $partner_api_norm_target {
+    default 0;
+    "~^/partner-api(/|$)" 1;
+}
+
+# Блокировка = небезопасный путь И запрос адресован /partner-api (по исходному или нормализованному адресу).
+# Ключ "<unsafe><raw><norm>": первая цифра 1 и хотя бы одна из двух других 1.
+map "$partner_api_unsafe_path$partner_api_raw_target$partner_api_norm_target" $partner_api_block {
+    default 0;
+    "~^1(10|01|11)$" 1;
+}
+
 server {
     listen 80;
     server_name _;
@@ -20,15 +49,20 @@ server {
     resolver 127.0.0.11 valid=10s ipv6=off;
 
     server_tokens off;
+
+    # Ранний защитный фильтр. rewrite-фаза уровня server выполняется ДО выбора location, поэтому и нормализованный обход
+    # (/partner-api/a/%2e%2e/%2e%2e/admin -> /admin -> SPA 200) получает 400. Проверка внутри блока проксирования его бы не увидела.
+    if ($partner_api_block) { return 400; }
     gzip on;
     gzip_types text/css application/javascript image/svg+xml application/json;
     gzip_min_length 1024;
 
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header X-Frame-Options "DENY" always;
-    # Картинки товаров приходят с серверов Ozon; этикетки открываются как blob: из PDF.
-    add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https://*.ozone.ru; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+    # Заголовки безопасности. add_header в location отключает наследование с уровня server,
+    # поэтому каждый location со своим add_header подключает этот файл заново.
+    include /etc/nginx/snippets/security-headers.inc;
+
+    # Загрузка фото возврата: файл до 10 МБ + multipart. То же значение (11M) стоит на VPS (deploy/vps-nginx).
+    client_max_body_size 11m;
 
     location = /healthz {
         access_log off;
@@ -37,33 +71,53 @@ server {
     }
 
     # Файлы с хешем в имени не меняются: кэшируем на год.
+    # Cache-Control задаётся один раз (expires добавил бы второй заголовок).
     location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        include /etc/nginx/snippets/security-headers.inc;
         try_files $uri =404;
     }
 
     # В mime.types образа nginx нет .webmanifest: без этого манифест приложения уходит как octet-stream.
     location = /site.webmanifest {
         default_type application/manifest+json;
-        expires 1d;
-        add_header Cache-Control "public";
-        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "public, max-age=86400";
+        include /etc/nginx/snippets/security-headers.inc;
     }
 
     location /brand/ {
-        expires 7d;
-        add_header Cache-Control "public";
+        add_header Cache-Control "public, max-age=604800";
+        include /etc/nginx/snippets/security-headers.inc;
         try_files $uri =404;
     }
 
     # index.html не кэшируем: после выкладки браузер сразу берёт новые файлы.
     location = /index.html {
         add_header Cache-Control "no-cache";
-        add_header X-Content-Type-Options "nosniff" always;
-        add_header X-Frame-Options "DENY" always;
-        add_header Content-Security-Policy "default-src 'self'; img-src 'self' data: blob: https://*.ozone.ru; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+        include /etc/nginx/snippets/security-headers.inc;
+    }
+
+    # Поток событий возвратов (SSE). Точное совпадение имеет приоритет над /partner-api/.
+    # Без буферизации и сжатия события доходят сразу; таймаут чтения большой, чтобы поток не рвался между событиями
+    # (EventSource переподключается сам, а при обрыве остаётся опрос раз в 15 с).
+    location = /partner-api/returns/events {
+        set $studio2 "${STUDIO2_UPSTREAM}";
+        proxy_pass $studio2$request_uri;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host "${STUDIO2_HOST}";
+        proxy_set_header X-Real-IP $client_ip;
+        proxy_set_header X-Forwarded-For $client_ip;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 3600s;
+        proxy_buffering off;
+        proxy_cache off;
+        gzip off;
+        # Свой Cache-Control приложения скрываем, иначе в ответе их два.
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control "no-store" always;
+        include /etc/nginx/snippets/security-headers.inc;
     }
 
     location /partner-api/ {
@@ -78,9 +132,14 @@ server {
         proxy_connect_timeout 5s;
         # Отгрузка и печать этикетки ждут ответа Ozon (повторы и опрос), это может занять больше минуты.
         proxy_read_timeout 300s;
-        client_max_body_size 1m;
-        # Ответы API с личными данными не кэшируем нигде.
+        # Загрузка фото (до 10 МБ): между порциями тела не дольше двух минут.
+        client_max_body_size 11m;
+        client_body_timeout 120s;
+        proxy_send_timeout 120s;
+        # Ответы API с личными данными не кэшируем нигде; свой Cache-Control приложения скрываем (иначе их два).
+        proxy_hide_header Cache-Control;
         add_header Cache-Control "no-store" always;
+        include /etc/nginx/snippets/security-headers.inc;
     }
 
     # SPA: любой другой адрес отдаёт index.html, дальше маршрутизирует React.

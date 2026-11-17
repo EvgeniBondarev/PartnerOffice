@@ -24,18 +24,16 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => {
 
 const NETWORK_MESSAGE = 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.';
 
-/**
- * Запрос к API партнёра. Сессия живёт в cookie (HttpOnly, SameSite=Strict), поэтому токены в браузере не хранятся.
- * Тело ошибки сервера вида { error: "…" } превращается в ApiError с понятным текстом.
- */
+// Shared transport for JSON and file requests (including FormData uploads).
 async function send(path: string, init: RequestInit): Promise<Response> {
   let response: Response;
   try {
     response = await fetch(apiUrl(path), {
-      // Другой origin (прод: API на studio2.mpsuper.ru) — cookie сессии нужно отправлять явно.
+      // Явно отправляем доступные браузеру cookie при заданном API origin; SameSite по-прежнему применяется.
       credentials: API_BASE_URL ? 'include' : 'same-origin',
       ...init,
-      headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers }
+      // Browser must supply the multipart boundary; JSON bodies retain their existing header.
+      headers: { ...(init.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...init.headers }
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error;

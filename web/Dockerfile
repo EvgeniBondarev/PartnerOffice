@@ -13,6 +13,8 @@ FROM nginx:1.27-alpine
 COPY --from=build /app/web/dist /usr/share/nginx/html
 # Шаблон рендерится при старте контейнера (envsubst только по переменным окружения, $-переменные nginx не трогаются).
 COPY web/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+# Общий набор заголовков безопасности: подключается из шаблона (не *.template, поэтому envsubst его не трогает).
+COPY web/nginx/security-headers.inc /etc/nginx/snippets/security-headers.inc
 ENV STUDIO2_UPSTREAM=http://studio2-web-1:5002 \
     STUDIO2_HOST=studio2.mpsuper.ru
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

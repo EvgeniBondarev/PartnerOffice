@@ -1,39 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
-import { apiUrl, API_BASE_URL } from '../config';
+import { ApiError } from '../api/client';
+import { deleteReturnPhoto, listReturnPhotos, returnPhotoUrl, uploadReturnPhoto } from '../api/returns';
 import { Button } from '../ui/Button';
 import { Informer } from '../ui/Informer';
 import { Overlay } from '../ui/Overlay';
 
 interface Photo { key: string; id: string }
-interface PendingPhoto { file: File; url: string }
-interface Props { title: string; keys: string[]; initialComment: string; onClose: () => void; onSave: (comment: string) => Promise<boolean> }
-const credentials: RequestCredentials = API_BASE_URL ? 'include' : 'same-origin';
-const photoPath = (key: string, id = '') => apiUrl(`/partner-api/returns/photos${id ? `/${encodeURIComponent(id)}` : ''}?key=${encodeURIComponent(key)}`);
+/** Выбранный файл получает id один раз: все повторы сохранения шлют его под тем же id, сервер не плодит дубли. */
+interface PendingFile { file: File; id: string; url: string }
+interface Props {
+  title: string; keys: string[]; initialComment: string; onClose: () => void;
+  /** operationId стабилен для повторов одной и той же отметки: родитель обязан передать его в markReturns. */
+  onSave: (comment: string, operationId: string) => Promise<boolean>;
+}
+/** Studio2 принимает id вида ^[0-9a-f]{32}\.(jpg|png)$, расширение должно совпадать с реальным типом файла. */
+const newPhotoId = (file: File) => `${crypto.randomUUID().replace(/-/g, '')}.${file.type === 'image/png' ? 'png' : 'jpg'}`;
+const stored = (photo: Photo) => `${photo.key}\n${photo.id}`;
+const isUncertain = (error: unknown) => error instanceof ApiError && (error.status === 0 || error.status >= 500);
 
 export function ReturnIssueDialog({ title, keys, initialComment, onClose, onSave }: Props) {
   const uploadRef = useRef<HTMLInputElement>(null);
-  const previewUrls = useRef(new Set<string>());
   const [comment, setComment] = useState(initialComment);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [removed, setRemoved] = useState<Photo[]>([]);
-  const [pending, setPending] = useState<PendingPhoto[]>([]);
+  const [pending, setPending] = useState<PendingFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [reopen, setReopen] = useState(false);
   const [error, setError] = useState('');
+  // Состояние незавершённого сохранения живёт в ref: повтор в том же окне не повторяет то, что уже выполнено.
+  const mark = useRef<{ comment: string; operationId: string; done: boolean } | null>(null);
+  const uploaded = useRef(new Set<string>());
+  const deleted = useRef(new Set<string>());
+  /** Адреса предпросмотра выбранных файлов: освобождаем при удалении и при закрытии окна. */
+  const previewUrls = useRef(new Set<string>());
   const keyList = JSON.stringify(keys);
-  useEffect(() => () => {
-    previewUrls.current.forEach(url => URL.revokeObjectURL(url));
-    previewUrls.current.clear();
-  }, []);
+  useEffect(() => () => { previewUrls.current.forEach(url => URL.revokeObjectURL(url)); previewUrls.current.clear(); }, []);
   useEffect(() => {
     const controller = new AbortController();
     const load = async () => {
       try {
         const all = await Promise.all((JSON.parse(keyList) as string[]).map(async key => {
-          const response = await fetch(photoPath(key), { credentials, signal: controller.signal });
-          if (!response.ok) throw new Error();
-          const items: { id: string }[] = await response.json();
+          const items = await listReturnPhotos(key, controller.signal);
           return items.map(item => ({ key, id: item.id }));
         }));
         setPhotos(all.flat());
@@ -44,33 +51,50 @@ export function ReturnIssueDialog({ title, keys, initialComment, onClose, onSave
     return () => controller.abort();
   }, [keyList]);
 
+  const dropPending = (item: PendingFile) => {
+    setPending(items => items.filter(x => x !== item));
+    URL.revokeObjectURL(item.url); previewUrls.current.delete(item.url);
+    // Уже загруженные в прошлой попытке копии нужно удалить: иначе на сервере останется фото, которое пользователь убрал.
+    const orphans = keys.map(key => ({ key, id: item.id })).filter(photo => uploaded.current.has(stored(photo)));
+    orphans.forEach(photo => uploaded.current.delete(stored(photo)));
+    if (orphans.length) setRemoved(items => [...items, ...orphans]);
+  };
+
   const save = async () => {
     setBusy(true); setError('');
-    let markSaved = false;
     try {
-      if (!(await onSave(comment))) throw new Error('Не удалось сохранить отметку.');
-      markSaved = true;
-      // Каждая штука группы получает собственную копию: при разделении строки фото не теряются.
-      for (const { file } of pending) {
-        for (const key of keys) {
-          const form = new FormData(); form.append('file', file);
-          const response = await fetch(photoPath(key), { method: 'POST', credentials, body: form });
-          if (!response.ok) { setReopen(true); throw new Error('Отметка сохранена, но не все фотографии загружены. Откройте окно снова и проверьте их.'); }
-        }
+      // Новый текст — новая отметка (другое тело нельзя слать под прежним operationId); тот же текст — повтор с тем же id.
+      if (mark.current?.comment !== comment) mark.current = { comment, operationId: crypto.randomUUID(), done: false };
+      const current = mark.current;
+      if (!current.done) {
+        let saved = false;
+        try { saved = await onSave(comment, current.operationId); } catch { saved = false; }
+        if (!saved) { setError('Не удалось сохранить отметку.'); return; }
+        current.done = true;
       }
+      // Каждая штука группы получает собственную копию под тем же id: при разделении строки фото не теряются.
+      const wanted = pending.flatMap(item => keys.map(key => ({ photo: { key, id: item.id }, file: item.file })));
+      let failed = 0, uncertain = false;
+      for (const { photo, file } of wanted) {
+        if (uploaded.current.has(stored(photo))) continue;
+        try { await uploadReturnPhoto(photo.key, file, photo.id); uploaded.current.add(stored(photo)); }
+        catch (e) { failed++; uncertain ||= isUncertain(e); }
+      }
+      let notRemoved = 0;
       for (const photo of removed) {
-        const response = await fetch(photoPath(photo.key, photo.id), { method: 'DELETE', credentials });
-        if (!response.ok) { setReopen(true); throw new Error('Отметка сохранена, но не все фотографии удалены. Откройте окно снова и проверьте их.'); }
+        if (deleted.current.has(stored(photo))) continue;
+        try { await deleteReturnPhoto(photo.key, photo.id); deleted.current.add(stored(photo)); }
+        catch (e) { notRemoved++; uncertain ||= isUncertain(e); }
       }
-      onClose();
-    } catch (e) {
-      if (markSaved) { setReopen(true); setError('Отметка сохранена, но фотографии могли сохраниться не полностью. Откройте окно снова и проверьте их.'); }
-      else setError(e instanceof Error ? e.message : 'Не удалось сохранить данные.');
-    }
-    finally { setBusy(false); }
+      if (!failed && !notRemoved) { onClose(); return; }
+      const done = wanted.length - failed;
+      setError(`Отметка сохранена, но фотографии загружены не полностью${failed ? ` (${done} из ${wanted.length})` : ''}${notRemoved ? `, не удалено: ${notRemoved}` : ''}. `
+        + (uncertain ? 'Связь с сервером прервалась, часть данных могла сохраниться. ' : '')
+        + 'Нажмите «Сохранить», чтобы повторить: уже сохранённое повторно не отправляется.');
+    } finally { setBusy(false); }
   };
   return <Overlay kind="dialog" title={title} width={560} busy={busy} onClose={onClose}
-    footer={<><Button loading={busy} disabled={loading || reopen || !!error && error.startsWith('Не удалось загрузить')} onClick={save}>Сохранить</Button><Button variant="action-secondary" disabled={busy} onClick={onClose}>Отмена</Button></>}>
+    footer={<><Button loading={busy} disabled={loading || !!error && error.startsWith('Не удалось загрузить')} onClick={save}>Сохранить</Button><Button variant="action-secondary" disabled={busy} onClick={onClose}>Отмена</Button></>}>
     {error && <Informer kind="error">{error}</Informer>}
     <label className="po-textarea__label po-textarea__labelOutside ozi-body-500" htmlFor="return-issue-comment">Комментарий</label>
     <div className="po-textarea__root po-textarea__size-500"><div className="po-textarea__container">
@@ -82,22 +106,21 @@ export function ReturnIssueDialog({ title, keys, initialComment, onClose, onSave
       {loading && <p>Загружаем фотографии…</p>}
       {(photos.length > 0 || pending.length > 0) && <div className="pa-return-photos__grid">{photos.map(photo => <div key={`${photo.key}:${photo.id}`} className="pa-return-photos__item">
         {keys.length > 1 && <span className="pa-sub">Штука {keys.indexOf(photo.key) + 1}</span>}
-        <a href={photoPath(photo.key, photo.id)} target="_blank" rel="noreferrer"><img src={photoPath(photo.key, photo.id)} alt="Фото возврата" /></a>
+        <a href={returnPhotoUrl(photo.key, photo.id)} target="_blank" rel="noreferrer"><img src={returnPhotoUrl(photo.key, photo.id)} alt="Фото возврата" /></a>
         <Button variant="action-secondary" size={400} disabled={busy} onClick={() => { setPhotos(items => items.filter(x => x !== photo)); setRemoved(items => [...items, photo]); }}>Удалить</Button>
-      </div>)}{pending.map(photo => <div key={photo.url} className="pa-return-photos__item">
-        <img src={photo.url} alt={`Выбранное фото: ${photo.file.name}`} />
-        <span className="pa-return-photos__name" title={photo.file.name}>{photo.file.name}</span>
-        <Button variant="action-secondary" size={400} disabled={busy} onClick={() => {
-          URL.revokeObjectURL(photo.url); previewUrls.current.delete(photo.url);
-          setPending(items => items.filter(item => item !== photo));
-        }}>Удалить</Button>
+      </div>)}{pending.map(item => <div key={item.url} className="pa-return-photos__item">
+        <img src={item.url} alt={`Выбранное фото: ${item.file.name}`} />
+        <span className="pa-return-photos__name" title={item.file.name}>{item.file.name}</span>
+        <Button variant="action-secondary" size={400} disabled={busy} onClick={() => dropPending(item)}>Удалить</Button>
       </div>)}</div>}
       <div className="pa-return-photos__add"><Button variant="action-secondary" size={400} disabled={busy || loading} onClick={() => uploadRef.current?.click()}>Добавить фото</Button></div>
       <input ref={uploadRef} className="pa-visually-hidden" id="return-issue-photos" type="file" accept="image/jpeg,image/png" multiple disabled={busy || loading} onChange={e => {
         const selected = Array.from(e.target.files || []); e.target.value = '';
         if (selected.some(file => !['image/jpeg', 'image/png'].includes(file.type) || file.size > 10 * 1024 * 1024 || !file.size)) { setError('Выберите фотографии JPEG или PNG размером до 10 МБ.'); return; }
-        const previews = selected.map(file => { const url = URL.createObjectURL(file); previewUrls.current.add(url); return { file, url }; });
-        setError(''); setPending(items => [...items, ...previews]);
+        setError(''); setPending(items => [...items, ...selected.map(file => {
+          const url = URL.createObjectURL(file); previewUrls.current.add(url);
+          return { file, id: newPhotoId(file), url };
+        })]);
       }} />
     </div>
   </Overlay>;

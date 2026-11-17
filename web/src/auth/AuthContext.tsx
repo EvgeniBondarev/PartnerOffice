@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { ApiError, setUnauthorizedHandler } from '../api/client';
 import * as authApi from '../api/auth';
 import type { PartnerProfile } from '../api/auth';
+import { clearReturnsCache } from '../returns/returnsCache';
 
 type Status = 'loading' | 'anonymous' | 'authenticated';
 
@@ -42,6 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Сессия закончилась посреди работы (любой метод API ответил 401): показываем форму входа.
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      // Кэш списков возвратов принадлежит закончившейся сессии: очищаем до показа формы входа
+      clearReturnsCache();
       setPartner(null);
       setStatus('anonymous');
     });
@@ -63,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Сессия уже могла истечь: тогда выходить не из чего, а локально выйти всё равно нужно.
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
     }
+    clearReturnsCache();
     setPartner(null);
     setStatus('anonymous');
   }, []);
