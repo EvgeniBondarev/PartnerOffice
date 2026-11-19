@@ -996,3 +996,11 @@ button.pa-subchip--active:not(:disabled) { cursor: pointer; }
 .pa-list .pa-table--orders .pa-col-status .po-badge__badge { height: auto; min-height: var(--height); padding-top: 4px; padding-bottom: 4px; }
 .pa-list .pa-table--orders .pa-col-status .po-badge__label { white-space: normal; overflow-wrap: break-word; }
 .pa-col-supplier { overflow-wrap: anywhere; }
+
+.pa-giveout-thumb { border: 1px solid #dbe1e8; border-radius: 6px; background: white; padding: 3px; cursor: pointer; }
+.pa-giveout-thumb img { display: block; width: 100px; height: 44px; object-fit: contain; }
+.pa-giveout-dialog { padding: 24px; max-width: min(540px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }
+.pa-giveout-dialog h2 { margin: 0; }
+.pa-giveout-image { display: block; max-width: 100%; max-height: 240px; margin: 16px auto 0; object-fit: contain; }
+.pa-giveout-code { font-weight: 700; text-align: center; }
+.pa-giveout-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }

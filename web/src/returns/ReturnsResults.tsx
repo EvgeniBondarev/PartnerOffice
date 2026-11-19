@@ -15,6 +15,7 @@ import { ReturnMarkCell } from './ReturnMarkCell';
 import { displayedRows, isResale, rowKey } from './returnsModel';
 import type { ScanResult } from './useReturnActions';
 import type { ReturnsSection } from './useReturnsQuery';
+import { GiveoutDialog, GiveoutThumbnail, useGiveouts } from './Giveout';
 import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
@@ -74,6 +75,13 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
   const cabinets = data?.cabinets ?? [];
   const cabinetName = (row: ReturnRow) => cabinets.find(c => c.ozonClientId === row.client_id)?.name || '—';
   const rows = displayedRows(items, expandedUnits);
+  const giveoutIds = section === 'waiting' ? cabinets.filter(c => items.some(row => row.client_id === c.ozonClientId)).map(c => c.id) : [];
+  const giveouts = useGiveouts(giveoutIds);
+  const [giveoutId, setGiveoutId] = useState<number | null>(null);
+  const giveoutCell = (row: ReturnRow) => {
+    const cabinet = cabinets.find(c => c.ozonClientId === row.client_id);
+    return cabinet ? <GiveoutThumbnail data={giveouts.items[cabinet.id]} onClick={() => setGiveoutId(cabinet.id)} /> : <span className="pa-sub">—</span>;
+  };
   const hasMark = pickable && (canWork || received);
   /** Колонка «Статус Ozon» есть в «Ждёт получения» и «Получено»; на полке и в отправке её нет. */
   const hasOzonStatus = !shelf && !outbound;
@@ -161,6 +169,7 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
                   <dt>Поставщик</dt><dd>{supplierCell(row)}</dd>
                   <dt>Статус Ozon</dt><dd>{statusBadge(row)}{pairReason(row)}</dd>
                   <dt>Пункт выдачи</dt><dd>{placeCell(row)}</dd>
+                  {section === 'waiting' && <><dt>Штрихкод получения</dt><dd>{giveoutCell(row)}</dd></>}
                   <dt>Кабинет</dt><dd>{cabinetName(row)}</dd>
                   <dt>Дата возврата</dt><dd>{formatDate(row.return_date)}</dd>
                   <dt>Количество</dt><dd>{formatQuantity(row.qty)}</dd></>}
@@ -168,7 +177,7 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
                 {supplier && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ' pa-table--main'}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Поставщик', 'Статус Ozon', 'Пункт выдачи', 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ' pa-table--main'}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Поставщик', 'Статус Ozon', 'Пункт выдачи', ...(section === 'waiting' ? ['Штрихкод получения'] : []), 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
                 <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
                 <td className={TD}>{postingCell(row)}</td>
@@ -184,11 +193,13 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
                 <td className={TD}>{supplierCell(row)}</td>
                 <td className={TD}>{statusBadge(row)}{pairReason(row)}</td>
                 <td className={TD}>{placeCell(row)}</td>
+                {section === 'waiting' && <td className={TD}>{giveoutCell(row)}</td>}
                 <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
                 {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
                 </>}
               </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
         {phone && !loading && items.length > 0 && listEnd}
+    {giveoutId !== null && giveouts.items[giveoutId]?.enabled && <GiveoutDialog id={giveoutId} name={cabinets.find(c => c.id === giveoutId)?.name ?? 'Ozon'} data={giveouts.items[giveoutId]!} canWork={canWork} reload={giveouts.reload} onClose={() => setGiveoutId(null)} />}
     {image && <Lightbox src={ozonImage(image.url, 800) ?? image.url} fallbackSrc={image.url} alt={image.alt} onClose={() => setImage(null)} />}
   </>;
 }
