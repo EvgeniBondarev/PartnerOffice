@@ -195,7 +195,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
         }
       >
         <p className="pa-lead">
-          {action === 'ship' ? <>Подтвердить отгрузку заказа <b>{order.shipmentNumber}</b>? Статус Studio2 останется «{order.status}».</> : <>Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».</>}
+          {action === 'ship' ? <>Подтвердить отгрузку заказа <b>{order.shipmentNumber}</b>? Статус останется «{order.status}».</> : <>Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».</>}
           {action === 'ship' && isOzonOrder(order.marketplace) && ' Отправление будет собрано в Ozon.'}
         </p>
       </Overlay>

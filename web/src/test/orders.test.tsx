@@ -350,7 +350,7 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 
     await user.click(within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByRole('button', { name: 'Принят' }));
     const dialog = await screen.findByRole('dialog', { name: 'Принять заказ?' });
-    expect(dialog).toHaveTextContent('Статус Studio2 останется «Принят на складе»');
+    expect(dialog).toHaveTextContent('получит статус «Принят на складе»');
     // Партнёр не видит внутреннюю систему: ни в диалоге, ни на странице, ни в подсказках кнопок.
     expect(document.body.textContent).not.toMatch(/studio/i);
     const labels = [...document.body.querySelectorAll('[title], [aria-label]')].map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`);
@@ -380,7 +380,7 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 
     await user.click(within(row(1)).getByRole('button', { name: 'Отгрузить' }));
     const dialog = await screen.findByRole('dialog', { name: 'Отгрузить заказ?' });
-    expect(dialog).toHaveTextContent('«Принят на складе»');
+    expect(dialog).toHaveTextContent('Статус останется «Принят на складе»');
     expect(dialog).toHaveTextContent('Отправление будет собрано в Ozon.');
     await user.click(within(dialog).getByRole('button', { name: 'Отгрузить' }));
 
