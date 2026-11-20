@@ -30,10 +30,11 @@ interface OrderRowActionsProps {
 export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size = 400, primary = false, onStatus, onPrint }: OrderRowActionsProps) {
   const action = canChangeStatus && order.statusAction ? order.statusAction : null;
   const label = isOzonOrder(order.marketplace) && canPrint;
-  if (!action && !label) return null;
+  if (!action && !label && !order.partnerShipmentConfirmed) return null;
 
   return (
     <div className="pa-actions">
+      {order.partnerShipmentConfirmed && <span>Отгружен партнёром</span>}
       {action && (
         <Button
           variant={primary ? 'primary' : 'action-secondary'}

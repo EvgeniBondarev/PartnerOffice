@@ -350,7 +350,7 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 
     await user.click(within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByRole('button', { name: 'Принят' }));
     const dialog = await screen.findByRole('dialog', { name: 'Принять заказ?' });
-    expect(dialog).toHaveTextContent('«Принят на складе»');
+    expect(dialog).toHaveTextContent('Статус Studio2 останется «Принят на складе»');
     // Партнёр не видит внутреннюю систему: ни в диалоге, ни на странице, ни в подсказках кнопок.
     expect(document.body.textContent).not.toMatch(/studio/i);
     const labels = [...document.body.querySelectorAll('[title], [aria-label]')].map((el) => `${el.getAttribute('title') ?? ''} ${el.getAttribute('aria-label') ?? ''}`);
@@ -367,7 +367,7 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
       'POST /partner-api/orders/1/status/accept': () => json(order(1, { statusId: 21, status: 'Принят на складе', statusAction: 'ship' })),
       '/partner-api/orders/1/ozon/requirements': () => json({ countries: [], exemplars: [] }),
       'POST /partner-api/orders/1/status/ship': () =>
-        json(order(1, { statusId: 24, status: 'Отгружен реализатором', statusAction: null, ozonStatus: 'Ожидает отгрузки' }))
+        json(order(1, { statusId: 21, status: 'Принят на складе', statusAction: null, partnerShipmentConfirmed: true, ozonStatus: 'Ожидает отгрузки' }))
     });
     renderApp('/orders');
 
@@ -380,13 +380,13 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 
     await user.click(within(row(1)).getByRole('button', { name: 'Отгрузить' }));
     const dialog = await screen.findByRole('dialog', { name: 'Отгрузить заказ?' });
-    expect(dialog).toHaveTextContent('«Отгружен реализатором»');
+    expect(dialog).toHaveTextContent('«Принят на складе»');
     expect(dialog).toHaveTextContent('Отправление будет собрано в Ozon.');
     await user.click(within(dialog).getByRole('button', { name: 'Отгрузить' }));
 
     expect(await screen.findByText('Заказ 0123-0001-1 отгружен')).toBeInTheDocument();
-    expect(screen.getByText('Статус: Отгружен реализатором. Статус Ozon: Ожидает отгрузки.')).toBeInTheDocument();
-    expect(within(row(1)).getByText('Отгружен реализатором').closest('.po-badge__badge')).toHaveClass('po-badge__success');
+    expect(screen.getByText('Статус: Принят на складе. Статус Ozon: Ожидает отгрузки.')).toBeInTheDocument();
+    expect(within(row(1)).getByText('Отгружен партнёром')).toBeInTheDocument();
     expect(within(row(1)).queryByRole('button', { name: /Принят|Отгрузить/ })).not.toBeInTheDocument();
 
     const posts = calls.filter((c) => c.method === 'POST').map((c) => c.url);

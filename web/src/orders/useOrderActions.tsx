@@ -33,7 +33,7 @@ interface Options {
 /** Текст диалога подтверждения и сообщений для каждой кнопки статуса Studio2. */
 const STATUS_TEXT: Record<StatusAction, { title: string; target: string; done: string; failed: string }> = {
   accept: { title: 'Принять заказ?', target: 'Принят на складе', done: 'принят', failed: 'Не удалось принять заказ' },
-  ship: { title: 'Отгрузить заказ?', target: 'Отгружен реализатором', done: 'отгружен', failed: 'Не удалось отгрузить заказ' }
+  ship: { title: 'Отгрузить заказ?', target: 'Принят на складе', done: 'отгружен', failed: 'Не удалось отгрузить заказ' }
 };
 
 const BLOB_LIFETIME_MS = 10 * 60 * 1000;
@@ -195,7 +195,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
         }
       >
         <p className="pa-lead">
-          Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».
+          {action === 'ship' ? <>Подтвердить отгрузку заказа <b>{order.shipmentNumber}</b>? Статус Studio2 останется «{order.status}».</> : <>Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».</>}
           {action === 'ship' && isOzonOrder(order.marketplace) && ' Отправление будет собрано в Ozon.'}
         </p>
       </Overlay>
