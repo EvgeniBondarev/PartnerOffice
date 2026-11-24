@@ -44,6 +44,7 @@ export interface OrderListItem {
   status: string | null;
   /** Статус Ozon для списка и карточки заказа. */
   ozonStatus: string | null;
+  ozonStatusColor?: string | null;
   /** Какую кнопку статуса Studio2 показать: «Принят» (accept), «Отгрузить» (ship) или никакой. */
   statusAction?: 'accept' | 'ship' | null;
   partnerShipmentConfirmed?: boolean;

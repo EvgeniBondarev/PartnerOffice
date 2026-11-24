@@ -62,7 +62,7 @@ describe('Список заказов', () => {
     expect(within(nav).getByRole('link', { name: /Отправлено/ })).toHaveAttribute('aria-current', 'page');
   });
   it('показывает строки: товар с артикулом и кодом бренда, номер и ScanIt, бейдж статуса Studio2 и сумму с ₽', async () => {
-    ordersApi(PARTNER_FULL, [order(1, { article: '122RU19=HSH', productName: 'HOSHI Ремень ГРМ', status: 'Принят на складе', ozonStatus: 'Ожидает сборки' })]);
+    ordersApi(PARTNER_FULL, [order(1, { article: '122RU19=HSH', productName: 'HOSHI Ремень ГРМ', status: 'Принят на складе', ozonStatus: 'Ожидает сборки', ozonStatusColor: '#123456' })]);
     renderApp('/orders');
 
     expect(await screen.findByRole('heading', { name: 'Заказы' })).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('Список заказов', () => {
     expect(within(r).getByText('ii50014310001')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Статус' })).toBeInTheDocument();
     expect(within(r).getByText('Принят на складе').closest('.po-badge__badge')).toHaveClass('po-badge__warning');
-    expect(within(r).getByText('Ожидает сборки')).toBeInTheDocument();
+    expect(within(r).getByText('Ожидает сборки')).toHaveStyle({ backgroundColor: '#123456', color: '#fff' });
     expect(within(r).getByText('Ozon:')).toHaveClass('pa-muted');
     expect(within(r).getByText('Наш:')).toHaveClass('pa-muted');
     expect(within(r).getByText(/1\s250,00\s₽/)).toBeInTheDocument();

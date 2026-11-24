@@ -82,8 +82,11 @@ export function ProductImage({ url, alt, size = 48, onOpen }: { url: string | nu
 
 /** Статус маркетплейса и статус Studio2. */
 function Status({ order }: { order: OrderListItem }) {
+  const color = order.ozonStatusColor;
+  const validColor = color && /^#[\da-f]{6}$/i.test(color) ? color : null;
+  const brightness = validColor ? (0.299 * parseInt(validColor.slice(1, 3), 16) + 0.587 * parseInt(validColor.slice(3, 5), 16) + 0.114 * parseInt(validColor.slice(5, 7), 16)) / 255 : 1;
   return <div>
-    {order.marketplace?.toUpperCase() === 'OZON' && <div><span className="pa-muted">Ozon: </span>{order.ozonStatus || '—'}</div>}
+    {order.marketplace?.toUpperCase() === 'OZON' && <div><span className="pa-muted">Ozon: </span>{order.ozonStatus ? <span className="pa-ozon-status" style={validColor ? { backgroundColor: validColor, color: brightness > 0.72 ? '#020617' : brightness > 0.5 ? '#0f172a' : '#fff', borderColor: brightness > 0.72 ? 'rgba(2, 6, 23, 0.3)' : brightness > 0.5 ? 'rgba(15, 23, 42, 0.26)' : 'rgba(255, 255, 255, 0.38)' } : undefined}>{order.ozonStatus}</span> : '—'}</div>}
     <div><span className="pa-muted">Наш: </span>{order.status ? <Badge kind={orderStatusBadgeKind(order.status)} title={order.status}>{order.status}</Badge> : <span className="pa-muted">—</span>}</div>
   </div>;
 }
