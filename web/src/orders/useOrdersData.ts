@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getOrder, getOrderFilters, listOrders, type OrderFilters, type OrderListItem, type OrderQuery } from '../api/orders';
 import { ApiError } from '../api/client';
+import { ordersCacheEpoch, readOrderFilters, readOrders, rememberOrderFilters, rememberOrders } from './ordersCache';
 
 export type OrdersQuery = Omit<OrderQuery, 'page' | 'pageSize'>;
 
 interface State {
+  cacheKey: string;
   items: OrderListItem[];
   total: number;
   /** Сколько страниц уже загружено. */
@@ -17,7 +19,7 @@ interface State {
   moreError: string | null;
 }
 
-const INITIAL: State = { items: [], total: 0, pages: 0, loading: true, loadingMore: false, error: null, moreError: null };
+const INITIAL: State = { cacheKey: '', items: [], total: 0, pages: 0, loading: true, loadingMore: false, error: null, moreError: null };
 
 const messageOf = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback);
 
@@ -31,10 +33,17 @@ export interface StatusChange {
  * Заказы с подгрузкой: первая порция при смене фильтров, следующие по мере прокрутки.
  * Устаревший ответ не перезаписывает свежий; строки, пришедшие дважды (список сдвинулся), не дублируются.
  */
-export function useOrders(query: OrdersQuery, pageSize: number) {
-  const [state, setState] = useState<State>(INITIAL);
-  const [reloadKey, setReloadKey] = useState(0);
+export function useOrders(query: OrdersQuery, pageSize: number, partnerId: number) {
   const key = JSON.stringify(query);
+  const cacheKey = JSON.stringify([partnerId, pageSize, key]);
+  const session = useRef(ordersCacheEpoch());
+  const fromCache = (id: string): State => {
+    const hit = readOrders(id);
+    return hit ? { ...INITIAL, ...hit, cacheKey: id, loading: false } : { ...INITIAL, cacheKey: id };
+  };
+  const [storedState, setState] = useState<State>(() => fromCache(cacheKey));
+  const state = storedState.cacheKey === cacheKey ? storedState : fromCache(cacheKey);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -43,25 +52,35 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
   const moreController = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    if (!storedState.loading && storedState.pages > 0 && !storedState.error)
+      rememberOrders(session.current, storedState.cacheKey, { items: storedState.items, total: storedState.total, pages: storedState.pages });
+  }, [storedState]);
+
+  useEffect(() => {
     moreController.current?.abort();
     const controller = new AbortController();
     const current = ++generation.current;
     inFlight.current = true;
-    setState(INITIAL);
-    listOrders({ ...(JSON.parse(key) as OrdersQuery), page: 1, pageSize }, controller.signal)
-      .then((page) => {
-        if (generation.current !== current) return;
-        setState({ items: page.items, total: page.total, pages: 1, loading: false, loadingMore: false, error: null, moreError: null });
+    const hit = readOrders(cacheKey);
+    setState(fromCache(cacheKey));
+    const pages = hit?.pages ?? 1;
+    Promise.all(Array.from({ length: pages }, (_, index) =>
+      listOrders({ ...(JSON.parse(key) as OrdersQuery), page: index + 1, pageSize }, controller.signal)))
+      .then((results) => {
+        if (controller.signal.aborted || generation.current !== current || session.current !== ordersCacheEpoch()) return;
+        const seen = new Set<number>();
+        const items = results.flatMap(page => page.items).filter(item => !seen.has(item.id) && !!seen.add(item.id));
+        setState({ cacheKey, items, total: results[0].total, pages, loading: false, loadingMore: false, error: null, moreError: null });
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted || generation.current !== current) return;
-        setState({ ...INITIAL, loading: false, error: messageOf(error, 'Не удалось загрузить заказы. Попробуйте ещё раз.') });
+        if (controller.signal.aborted || generation.current !== current || session.current !== ordersCacheEpoch()) return;
+        if (!hit) setState({ ...INITIAL, cacheKey, loading: false, error: messageOf(error, 'Не удалось загрузить заказы. Попробуйте ещё раз.') });
       })
       .finally(() => {
         if (generation.current === current) inFlight.current = false;
       });
     return () => { controller.abort(); moreController.current?.abort(); generation.current++; };
-  }, [key, reloadKey, pageSize]);
+  }, [cacheKey, key, reloadKey, pageSize]);
 
   const hasMore = state.items.length < state.total;
 
@@ -98,13 +117,15 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
 
   /** Заказ изменился (отгрузка, этикетка): перечитываем только его строку, прокрутка и подгруженные страницы остаются. */
   const refreshOrder = useCallback(async (id: number) => {
+    const current = generation.current;
     try {
       const details = await getOrder(id);
+      if (generation.current !== current || session.current !== ordersCacheEpoch()) return null;
       setState((previous) => ({ ...previous, items: previous.items.map((item) => (item.id === id ? details.order : item)) }));
       return details.order;
     } catch (error) {
       // Заказ больше не подходит под правила (или в архиве): убираем его из списка.
-      if (error instanceof ApiError && error.status === 404) {
+      if (generation.current === current && session.current === ordersCacheEpoch() && error instanceof ApiError && error.status === 404) {
         setState((previous) => ({ ...previous, items: previous.items.filter((item) => item.id !== id), total: Math.max(0, previous.total - 1) }));
       }
       return null;
@@ -158,19 +179,25 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
  * Значения для фильтров: только статусы, склады, клиенты и поставщики среди видимых партнёру заказов.
  * refreshKey меняется при смене ревизии заказов: счётчики статусов перечитываются, прежние значения остаются на экране.
  */
-export function useOrderFilters(refreshKey = 0) {
-  const [filters, setFilters] = useState<OrderFilters | null>(null);
+export function useOrderFilters(partnerId: number, refreshKey = 0) {
+  const session = useRef(ordersCacheEpoch());
+  const [stored, setStored] = useState<{ partnerId: number; value: OrderFilters | null }>(() => ({ partnerId, value: readOrderFilters(partnerId) ?? null }));
+  const filters = stored.partnerId === partnerId ? stored.value : readOrderFilters(partnerId) ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
     getOrderFilters(controller.signal)
-      .then(setFilters)
+      .then(value => {
+        if (controller.signal.aborted || session.current !== ordersCacheEpoch()) return;
+        rememberOrderFilters(session.current, partnerId, value);
+        setStored({ partnerId, value });
+      })
       // Без справочников фильтры просто пустые: поиск и таблица продолжают работать. Уже загруженные при сбое не стираем.
       .catch(() => {
-        if (!controller.signal.aborted) setFilters((previous) => previous ?? { statuses: [], warehouses: [], clients: [], suppliers: [] });
+        if (!controller.signal.aborted && session.current === ordersCacheEpoch()) setStored((previous) => previous.partnerId === partnerId && previous.value ? previous : { partnerId, value: readOrderFilters(partnerId) ?? { statuses: [], warehouses: [], clients: [], suppliers: [] } });
       });
     return () => controller.abort();
-  }, [refreshKey]);
+  }, [partnerId, refreshKey]);
 
   return filters;
 }

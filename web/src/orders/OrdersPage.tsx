@@ -66,8 +66,8 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
   useEffect(() => setSearchDraft(applied.search), [applied.search]);
 
   const [filtersKey, setFiltersKey] = useState(0);
-  const filterOptions = useOrderFilters(filtersKey);
-  const orders = useOrders({ ...toQuery(applied), group }, PAGE_SIZE);
+  const filterOptions = useOrderFilters(partner?.id ?? 0, filtersKey);
+  const orders = useOrders({ ...toQuery(applied), group }, PAGE_SIZE, partner?.id ?? 0);
 
   const actions = useOrderActions({
     onNotice: setNotice,

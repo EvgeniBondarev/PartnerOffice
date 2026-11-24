@@ -1,9 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { clearOrdersCache } from '../orders/ordersCache';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_FILTERS_RESPONSE, json, mockApi, order, ordersApi, ordersPage, PARTNER_FULL, PARTNER_VIEW_ONLY, renderApp } from './helpers';
 
+beforeEach(() => clearOrdersCache());
 afterEach(() => {
+  clearOrdersCache();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -483,6 +486,63 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
     expect(await screen.findByText('Не удалось отгрузить заказ 0123-0001-1')).toBeInTheDocument();
     expect(screen.getByText('0123-0001-1: Ozon ждёт данные экземпляров.')).toBeInTheDocument();
     expect(within(row(1)).getByRole('button', { name: 'Отгрузить' })).toBeInTheDocument();
+  });
+});
+
+describe('Кэш заказов', () => {
+  it('показывает загруженные страницы и счётчики сразу, затем обновляет их в фоне', async () => {
+    let delayed = false;
+    let finishList!: () => void;
+    let finishFilters!: () => void;
+    const listWait = new Promise<void>(resolve => { finishList = resolve; });
+    const filtersWait = new Promise<void>(resolve => { finishFilters = resolve; });
+    mockApi({
+      '/partner-api/auth/me': () => json(PARTNER_FULL),
+      '/partner-api/orders/filters': async () => { if (delayed) await filtersWait; return json({ statuses: [], warehouses: [], clients: [], groupCounts: delayed ? { work: 1, sent: 3, ready: 0 } : { work: 2, sent: 0, ready: 0 } }); },
+      '/partner-api/orders?*': async (_init, url) => {
+        if (delayed) await listWait;
+        return url!.includes('page=2') ? ordersPage(delayed ? [] : [order(2)], delayed ? 1 : 2, 2) : ordersPage([order(1, { productName: delayed ? 'Обновлённый товар' : 'Исходный товар' })], delayed ? 1 : 2);
+      }
+    });
+    renderApp('/orders');
+    await screen.findByText('Исходный товар');
+    await userEvent.click(screen.getByRole('button', { name: 'Показать ещё' }));
+    await screen.findByText('Товар 2');
+    await screen.findByRole('link', { name: /В работе\s*2/ });
+    cleanup();
+    delayed = true;
+    renderApp('/orders');
+    expect(await screen.findByText('Исходный товар')).toBeInTheDocument();
+    expect(screen.getByText('Товар 2')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /В работе\s*2/ })).toBeInTheDocument();
+    finishList(); finishFilters();
+    expect(await screen.findByText('Обновлённый товар')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Товар 2')).not.toBeInTheDocument());
+    expect(await screen.findByRole('link', { name: /Отправлено\s*3/ })).toBeInTheDocument();
+  });
+
+  it('разделяет кэш партнёров и не восстанавливает его после очистки сессии', async () => {
+    let partner = PARTNER_FULL;
+    let pending = false;
+    mockApi({
+      '/partner-api/auth/me': () => json(partner),
+      '/partner-api/orders/filters': () => EMPTY_FILTERS_RESPONSE,
+      '/partner-api/orders?*': () => pending ? new Promise(() => {}) : ordersPage([order(1, { productName: 'Личные данные партнёра' })])
+    });
+    renderApp('/orders');
+    await screen.findByText('Личные данные партнёра');
+    cleanup();
+    pending = true;
+    partner = { ...PARTNER_FULL, id: 2 };
+    renderApp('/orders');
+    await screen.findByRole('heading', { name: 'Заказы' });
+    expect(screen.queryByText('Личные данные партнёра')).not.toBeInTheDocument();
+    cleanup();
+    clearOrdersCache();
+    partner = PARTNER_FULL;
+    renderApp('/orders');
+    await screen.findByRole('heading', { name: 'Заказы' });
+    expect(screen.queryByText('Личные данные партнёра')).not.toBeInTheDocument();
   });
 });
 
