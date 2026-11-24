@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { getOrdersRevision, type OrderListItem } from '../api/orders';
+import { NavLink, useSearchParams } from 'react-router-dom';
+import type { CSSProperties } from 'react';
+import { getOrdersRevision, type OrderGroup, type OrderListItem } from '../api/orders';
 import { useAuth } from '../auth/AuthContext';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
@@ -49,7 +50,7 @@ function statusChangeNotice(changes: StatusChange[]): Notice {
  * Страница «Заказы» по шаблону брендбука: заголовок, фильтры, «Найдено: N», таблица.
  * Таблица прокручивается внутри страницы с закреплённой шапкой, заказы подгружаются по мере прокрутки.
  */
-export function OrdersPage() {
+export function OrdersPage({ group }: { group: OrderGroup }) {
   const { partner } = useAuth();
   const [params, setParams] = useSearchParams();
   const paramsKey = params.toString();
@@ -66,17 +67,22 @@ export function OrdersPage() {
 
   const [filtersKey, setFiltersKey] = useState(0);
   const filterOptions = useOrderFilters(filtersKey);
-  const orders = useOrders(toQuery(applied), PAGE_SIZE);
+  const orders = useOrders({ ...toQuery(applied), group }, PAGE_SIZE);
 
   const actions = useOrderActions({
     onNotice: setNotice,
     onChanged: (id) => {
-      void orders.refreshOrder(id);
+      const previous = orders.items.find((item) => item.id === id);
+      void orders.refreshOrder(id).then((updated) => {
+        if (updated && previous && updated.ozonStatus !== previous.ozonStatus) void orders.refreshQuietly();
+      });
       setRefreshKey((value) => value + 1);
       setFiltersKey((value) => value + 1);
     },
     onUpdated: (order) => {
+      const previous = orders.items.find((item) => item.id === order.id);
       orders.replaceOrder(order);
+      if (previous && previous.ozonStatus !== order.ozonStatus) void orders.refreshQuietly();
       setRefreshKey((value) => value + 1);
       setFiltersKey((value) => value + 1);
     }
@@ -209,7 +215,17 @@ export function OrdersPage() {
     <div className="pa-orders pa-list">
       <FilterLayout
         heading={<h1 className="po-page__title">Заказы</h1>}
-        search={<OrdersSearch value={searchDraft} onValueChange={setSearchDraft} applied={applied.search} onApply={applySearch} />}
+        top={<div className="pa-list__topbar">
+          <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы заказов">
+            {([['work', '/orders', 'В работе'], ['sent', '/orders/sent', 'Отправлено'], ['ready', '/orders/ready', 'Готовые']] as const).map(([key, path, label]) =>
+              <NavLink key={key} to={{ pathname: path, search: paramsKey ? `?${paramsKey}` : '' }} end className="po-tab__tab">
+                {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
+                  <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500"><div className="po-data-content__label po-data-content__label-size-500 ozi-table-500">{label}{filterOptions?.groupCounts && <span className="pa-returns__tab-count">{filterOptions.groupCounts[key].toLocaleString('ru-RU')}</span>}</div></div></div>
+                </div>}
+              </NavLink>)}
+          </nav>
+          <OrdersSearch group={group} value={searchDraft} onValueChange={setSearchDraft} applied={applied.search} onApply={applySearch} />
+        </div>}
         panel={renderPanel}
         chips={chips}
         activeCount={activeCount}

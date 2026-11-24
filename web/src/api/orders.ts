@@ -10,6 +10,7 @@ export interface FilterOption {
 export interface OrderFilters {
   /** Статусы Studio2 среди видимых партнёру заказов, со счётчиками. */
   statuses: FilterOption[];
+  groupCounts?: { work: number; sent: number; ready: number };
   /** Статусы Ozon: фильтр по ним больше не показывается, поле оставлено для совместимости. */
   ozonStatuses?: string[];
   warehouses: FilterOption[];
@@ -79,7 +80,10 @@ export interface OrderDetails {
   scanit: string | null;
 }
 
+export type OrderGroup = 'work' | 'sent' | 'ready';
+
 export interface OrderQuery {
+  group?: OrderGroup;
   search?: string;
   /** Статусы Studio2: одно число или несколько через запятую («21,24»). */
   statusId?: number | string;
@@ -146,6 +150,7 @@ const base = '/partner-api/orders';
 
 export function buildOrdersQuery(query: OrderQuery): string {
   const params = new URLSearchParams();
+  if (query.group) params.set('group', query.group);
   if (query.search?.trim()) params.set('search', query.search.trim());
   if (query.statusId) params.set('statusId', String(query.statusId));
   if (query.warehouseId) params.set('warehouseId', String(query.warehouseId));
@@ -163,8 +168,8 @@ export const listOrders = (query: OrderQuery, signal?: AbortSignal) =>
 
 export const getOrderFilters = (signal?: AbortSignal) => request<OrderFilters>(`${base}/filters`, { signal });
 
-export const getOrderSuggestions = (query: string, signal?: AbortSignal) =>
-  request<OrderSuggestion[]>(`${base}/suggestions?q=${encodeURIComponent(query)}&limit=10`, { signal });
+export const getOrderSuggestions = (query: string, signal?: AbortSignal, group?: OrderGroup) =>
+  request<OrderSuggestion[]>(`${base}/suggestions?q=${encodeURIComponent(query)}&limit=10${group ? `&group=${group}` : ''}`, { signal });
 
 export const getOrder = (id: number, signal?: AbortSignal) => request<OrderDetails>(`${base}/${id}`, { signal });
 

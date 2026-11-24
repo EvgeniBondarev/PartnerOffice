@@ -101,11 +101,13 @@ export function useOrders(query: OrdersQuery, pageSize: number) {
     try {
       const details = await getOrder(id);
       setState((previous) => ({ ...previous, items: previous.items.map((item) => (item.id === id ? details.order : item)) }));
+      return details.order;
     } catch (error) {
       // Заказ больше не подходит под правила (или в архиве): убираем его из списка.
       if (error instanceof ApiError && error.status === 404) {
         setState((previous) => ({ ...previous, items: previous.items.filter((item) => item.id !== id), total: Math.max(0, previous.total - 1) }));
       }
+      return null;
     }
   }, []);
 

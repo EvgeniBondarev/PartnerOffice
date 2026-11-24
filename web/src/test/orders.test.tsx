@@ -11,6 +11,17 @@ afterEach(() => {
 const row = (n: number) => screen.getByRole('row', { name: new RegExp(`Заказ 0123-${String(n).padStart(4, '0')}-1`) });
 
 describe('Список заказов', () => {
+  it('показывает счётчики и запрашивает выбранную группу с сохранением фильтров', async () => {
+    const calls = ordersApi(PARTNER_FULL, [], {
+      '/partner-api/orders/filters': () => json({ statuses: [], warehouses: [], clients: [], groupCounts: { work: 4, sent: 2, ready: 7 } })
+    });
+    renderApp('/orders?search=ABC');
+    const nav = await screen.findByRole('navigation', { name: 'Разделы заказов' });
+    expect(await within(nav).findByRole('link', { name: /В работе\s*4/ })).toHaveAttribute('aria-current', 'page');
+    await userEvent.click(within(nav).getByRole('link', { name: /Отправлено\s*2/ }));
+    await waitFor(() => expect(calls.some(c => c.url.includes('group=sent') && c.url.includes('search=ABC'))).toBe(true));
+    expect(within(nav).getByRole('link', { name: /Отправлено/ })).toHaveAttribute('aria-current', 'page');
+  });
   it('показывает строки: товар с артикулом и кодом бренда, номер и ScanIt, бейдж статуса Studio2 и сумму с ₽', async () => {
     ordersApi(PARTNER_FULL, [order(1, { article: '122RU19=HSH', productName: 'HOSHI Ремень ГРМ', status: 'Принят на складе', ozonStatus: 'Ожидает сборки' })]);
     renderApp('/orders');
@@ -363,11 +374,13 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 
   it('цепочка: «Принят» → «Отгрузить» (собирает отправление в Ozon) → кнопки нет; ответ сервера сразу в строке', async () => {
     const user = userEvent.setup();
-    const calls = ordersApi(PARTNER_FULL, [order(1, { statusAction: 'accept' })], {
-      'POST /partner-api/orders/1/status/accept': () => json(order(1, { statusId: 21, status: 'Принят на складе', statusAction: 'ship' })),
+    let current = order(1, { statusAction: 'accept' });
+    const calls = ordersApi(PARTNER_FULL, [current], {
+      '/partner-api/orders?*': () => ordersPage([current]),
+      'POST /partner-api/orders/1/status/accept': () => json(current = order(1, { statusId: 21, status: 'Принят на складе', statusAction: 'ship' })),
       '/partner-api/orders/1/ozon/requirements': () => json({ countries: [], exemplars: [] }),
       'POST /partner-api/orders/1/status/ship': () =>
-        json(order(1, { statusId: 21, status: 'Принят на складе', statusAction: null, partnerShipmentConfirmed: true, ozonStatus: 'Ожидает отгрузки' }))
+        json(current = order(1, { statusId: 21, status: 'Принят на складе', statusAction: null, partnerShipmentConfirmed: true, ozonStatus: 'Ожидает отгрузки' }))
     });
     renderApp('/orders');
 
@@ -474,6 +487,26 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 });
 
 describe('Живое обновление', () => {
+  it('перемещает заказ в новую группу и обновляет счётчики без перезагрузки', async () => {
+    let changed = false;
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json(PARTNER_FULL),
+      '/partner-api/orders/revision': () => json({ revision: changed ? 'r2' : 'r1' }),
+      '/partner-api/orders/filters': () => json({ statuses: [], warehouses: [], clients: [], groupCounts: changed ? { work: 0, sent: 1, ready: 0 } : { work: 1, sent: 0, ready: 0 } }),
+      '/partner-api/orders?*': (_init, url) => ordersPage((url!.includes('group=work') ? !changed : url!.includes('group=sent') && changed) ? [order(1, { ozonStatus: changed ? 'Доставляется' : 'Ожидает упаковки' })] : [])
+    });
+    renderApp('/orders');
+    await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    await waitFor(() => expect(calls.some(c => c.url === '/partner-api/orders/revision')).toBe(true));
+    await screen.findByRole('link', { name: /В работе\s*1/ });
+    changed = true;
+    window.dispatchEvent(new Event('focus'));
+    await waitFor(() => expect(screen.queryByRole('row', { name: /Заказ 0123-0001-1/ })).not.toBeInTheDocument());
+    const sent = await screen.findByRole('link', { name: /Отправлено\s*1/ });
+    await userEvent.click(sent);
+    expect(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).toBeInTheDocument();
+  });
+
   it('при смене ревизии тихо перечитывает загруженные порции и сообщает о смене статуса', async () => {
     let revision = 'r1';
     let changed = false;

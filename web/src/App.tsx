@@ -30,7 +30,9 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/orders" element={<OrdersPage group="work" />} />
+          <Route path="/orders/sent" element={<OrdersPage group="sent" />} />
+          <Route path="/orders/ready" element={<OrdersPage group="ready" />} />
           <Route path="/returns" element={<Navigate to={`/returns/${lastReturnsSection()}`} replace />} />
           <Route path="/returns/waiting" element={<ReturnsPage key="waiting" section="waiting" />} />
           <Route path="/returns/transit" element={<ReturnsPage key="transit" section="transit" />} />

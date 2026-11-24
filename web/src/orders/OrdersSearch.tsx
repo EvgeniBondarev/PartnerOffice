@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { getOrderSuggestions, type OrderSuggestion } from '../api/orders';
+import { getOrderSuggestions, type OrderGroup, type OrderSuggestion } from '../api/orders';
 import { Button } from '../ui/Button';
 import { SearchField } from '../ui/SearchField';
 
 interface OrdersSearchProps {
+  group: OrderGroup;
   /** Текст в поле: он может опережать применённый поиск на время паузы. */
   value: string;
   onValueChange: (value: string) => void;
@@ -16,7 +17,7 @@ const suggestionLabel = (item: OrderSuggestion) => item.shipmentNumber ?? item.a
 const suggestionDetails = (item: OrderSuggestion) => [item.productName, item.article, item.scanit ?? item.trackingNumber].filter(Boolean).join(' · ');
 
 /** Поиск по заказам сверху на всю ширину (капсула по брендбуку): применяется при вводе с паузой, по Enter и «Найти»; подсказки по номеру, товару, артикулу. */
-export function OrdersSearch({ value, onValueChange, applied, onApply }: OrdersSearchProps) {
+export function OrdersSearch({ group, value, onValueChange, applied, onApply }: OrdersSearchProps) {
   const [suggestions, setSuggestions] = useState<OrderSuggestion[]>([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -42,10 +43,12 @@ export function OrdersSearch({ value, onValueChange, applied, onApply }: OrdersS
       setSuggestions([]);
       return;
     }
+    setSuggestions([]);
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      getOrderSuggestions(search, controller.signal)
+      getOrderSuggestions(search, controller.signal, group)
         .then((items) => {
+          if (controller.signal.aborted) return;
           setSuggestions(items);
           setActiveSuggestion(-1);
           setSuggestionsOpen(true);
@@ -56,7 +59,7 @@ export function OrdersSearch({ value, onValueChange, applied, onApply }: OrdersS
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [draft.search]);
+  }, [draft.search, group]);
 
   return (
     <form className="pa-list__search" role="search" aria-label="Поиск заказов" onSubmit={onSubmit}>
