@@ -11,3 +11,6 @@ export function hasPermission(partner: Pick<PartnerProfile, 'permissions'> | nul
 }
 
 export const isOzonOrder = (marketplace: string | null | undefined) => (marketplace ?? '').toUpperCase() === 'OZON';
+
+export const isCancelledOzonOrder = (marketplace: string | null | undefined, status: string | null | undefined) =>
+  isOzonOrder(marketplace) && /отмен|cancel/i.test(status ?? '');

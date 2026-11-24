@@ -4,7 +4,7 @@ import { clearOrdersCache } from '../orders/ordersCache';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_FILTERS_RESPONSE, json, mockApi, order, ordersApi, ordersPage, PARTNER_FULL, PARTNER_VIEW_ONLY, renderApp } from './helpers';
 
-beforeEach(() => clearOrdersCache());
+beforeEach(() => { clearOrdersCache(); localStorage.removeItem('partner-office.orders-section'); });
 afterEach(() => {
   clearOrdersCache();
   vi.unstubAllGlobals();
@@ -14,6 +14,30 @@ afterEach(() => {
 const row = (n: number) => screen.getByRole('row', { name: new RegExp(`Заказ 0123-${String(n).padStart(4, '0')}-1`) });
 
 describe('Список заказов', () => {
+  it('запоминает вкладку при переходе из раздела и открывает её снова через меню и главную', async () => {
+    ordersApi(PARTNER_FULL, []);
+    renderApp('/orders');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('link', { name: /Готовые/ }));
+    expect(localStorage.getItem('partner-office.orders-section')).toBe('ready');
+    await user.click(screen.getByRole('link', { name: 'На главную' }));
+    await user.click(within(screen.getByRole('main')).getByRole('link', { name: 'Заказы' }));
+    expect(await screen.findByRole('link', { name: /Готовые/, current: 'page' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: /Отправлено/ }));
+    await user.click(screen.getByRole('link', { name: 'На главную' }));
+    await user.click(within(screen.getByRole('navigation', { name: 'Разделы кабинета' })).getByRole('link', { name: 'Заказы' }));
+    expect(await screen.findByRole('link', { name: /Отправлено/, current: 'page' })).toBeInTheDocument();
+  });
+
+  it('сохраняет вкладку при прямом открытии и восстанавливает после повторного входа', async () => {
+    ordersApi(PARTNER_FULL, []);
+    renderApp('/orders/sent');
+    await screen.findByRole('link', { name: /Отправлено/, current: 'page' });
+    await waitFor(() => expect(localStorage.getItem('partner-office.orders-section')).toBe('sent'));
+    cleanup();
+    renderApp('/');
+    expect(await within(await screen.findByRole('main')).findByRole('link', { name: 'Заказы' })).toHaveAttribute('href', '/orders/sent');
+  });
   it('подбирает варианты фильтров по вкладке', async () => {
     ordersApi(PARTNER_FULL, [], {
       '/partner-api/orders/filters': (_init, url) => json({ statuses: [{ id: 1, name: url?.includes('group=sent') ? 'Отправленный' : 'Новый' }], warehouses: [], clients: [], groupCounts: { work: 1, sent: 1, ready: 0 } })
@@ -49,7 +73,9 @@ describe('Список заказов', () => {
     expect(within(r).getByText('ii50014310001')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Статус' })).toBeInTheDocument();
     expect(within(r).getByText('Принят на складе').closest('.po-badge__badge')).toHaveClass('po-badge__warning');
-    expect(within(r).queryByText('Ожидает сборки')).not.toBeInTheDocument();
+    expect(within(r).getByText('Ожидает сборки')).toBeInTheDocument();
+    expect(within(r).getByText('Ozon:')).toHaveClass('pa-muted');
+    expect(within(r).getByText('Наш:')).toHaveClass('pa-muted');
     expect(within(r).getByText(/1\s250,00\s₽/)).toBeInTheDocument();
     expect(screen.getByText('Найдено: 1')).toBeInTheDocument();
   });
@@ -103,6 +129,20 @@ describe('Список заказов', () => {
 
     const r = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
     expect(within(r).getByRole('button', { name: /Этикетка/ })).toHaveClass('po-button__primary-success');
+  });
+
+  it('запрещает печать готовой этикетки отменённого Ozon-заказа в строке и карточке', async () => {
+    const cancelled = order(1, { ozonStatus: 'Отменён', hasLabel: true });
+    const calls = ordersApi(PARTNER_FULL, [cancelled], {
+      '/partner-api/orders/1': () => json({ order: cancelled, deliveryCity: null, barcode: null, comment: null, lastStatusChangeDate: null, scanit: null })
+    });
+    renderApp('/orders');
+    const r = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(within(r).getByRole('button', { name: /Этикетка/ })).toBeDisabled();
+    await userEvent.click(r);
+    const drawer = await screen.findByRole('complementary', { name: /Заказ 0123-0001-1/ });
+    expect(within(drawer).getByRole('button', { name: /Этикетка/ })).toBeDisabled();
+    expect(calls.some((call) => call.method === 'POST' && call.url.endsWith('/label'))).toBe(false);
   });
 
   it('просрочку показывает красной подписью под датой, а не одним цветом', async () => {

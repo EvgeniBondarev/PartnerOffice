@@ -42,7 +42,7 @@ export interface OrderListItem {
   /** Статус Studio2: id и человекочитаемое имя («Принят на складе», «Отгружен реализатором»…). */
   statusId: number | null;
   status: string | null;
-  /** Статус Ozon: только для справки в карточке заказа. */
+  /** Статус Ozon для списка и карточки заказа. */
   ozonStatus: string | null;
   /** Какую кнопку статуса Studio2 показать: «Принят» (accept), «Отгрузить» (ship) или никакой. */
   statusAction?: 'accept' | 'ship' | null;

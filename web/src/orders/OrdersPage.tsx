@@ -26,6 +26,7 @@ import type { FilterChip } from '../ui/FilterChips';
 import { formatRange } from '../lib/format';
 import { useOrderFilters, useOrders, type StatusChange } from './useOrdersData';
 import { useOrderActions, type Notice } from './useOrderActions';
+import { saveOrderSection } from './orderSection';
 
 /** «1 заказ, 2 заказа, 5 заказов». */
 const plural = (n: number) => {
@@ -51,6 +52,7 @@ function statusChangeNotice(changes: StatusChange[]): Notice {
  * Таблица прокручивается внутри страницы с закреплённой шапкой, заказы подгружаются по мере прокрутки.
  */
 export function OrdersPage({ group }: { group: OrderGroup }) {
+  useEffect(() => saveOrderSection(group), [group]);
   const { partner } = useAuth();
   const [params, setParams] = useSearchParams();
   const paramsKey = params.toString();
@@ -218,7 +220,7 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
         top={<div className="pa-list__topbar">
           <nav className="po-tabs__tabs po-tabs__size-500 po-tabs__hug po-tabs__underline pa-returns__tabs" aria-label="Разделы заказов">
             {([['work', '/orders', 'В работе'], ['sent', '/orders/sent', 'Отправлено'], ['ready', '/orders/ready', 'Готовые']] as const).map(([key, path, label]) =>
-              <NavLink key={key} to={{ pathname: path, search: paramsKey ? `?${paramsKey}` : '' }} end className="po-tab__tab">
+              <NavLink key={key} to={{ pathname: path, search: paramsKey ? `?${paramsKey}` : '' }} onClick={() => saveOrderSection(key)} end className="po-tab__tab">
                 {({ isActive }) => <div className={`po-data-cell__dataCell po-tab-content__tabContent po-tab-content__size-500${isActive ? ' po-tab-content__active' : ''}`} style={{ '--columns': '1fr' } as CSSProperties}>
                   <div className="po-data-cell__content"><div className="po-data-content__dataContent po-data-content__size-500"><div className="po-data-content__label po-data-content__label-size-500 ozi-table-500">{label}{filterOptions?.groupCounts && <span className="pa-returns__tab-count">{filterOptions.groupCounts[key].toLocaleString('ru-RU')}</span>}</div></div></div>
                 </div>}

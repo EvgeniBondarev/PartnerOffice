@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Overlay } from '../ui/Overlay';
 import { isOzonOrder } from '../lib/permissions';
 import { STATUS_ACTION_LABEL, type ActionKind } from './OrderRowActions';
+import { isCancelledOzonOrder } from '../lib/permissions';
 import { needsInput, RequirementsDialog } from './RequirementsDialog';
 
 export interface Notice {
@@ -155,6 +156,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
 
   const requestPrint = useCallback(
     (order: OrderListItem) => {
+      if (isCancelledOzonOrder(order.marketplace, order.ozonStatus)) return;
       onNotice(null);
       // Готовая этикетка уже в хранилище: данных для Ozon не нужно, печатаем сразу.
       if (order.hasLabel) void runPrint(order);

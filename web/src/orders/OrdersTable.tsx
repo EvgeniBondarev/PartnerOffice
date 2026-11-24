@@ -80,9 +80,12 @@ export function ProductImage({ url, alt, size = 48, onOpen }: { url: string | nu
   );
 }
 
-/** Статус Studio2: его партнёр ведёт кнопками «Принят» и «Отгрузить». Статус Ozon — только в карточке заказа. */
+/** Статус маркетплейса и статус Studio2. */
 function Status({ order }: { order: OrderListItem }) {
-  return order.status ? <Badge kind={orderStatusBadgeKind(order.status)} title={order.status}>{order.status}</Badge> : <span className="pa-muted">—</span>;
+  return <div>
+    {order.marketplace?.toUpperCase() === 'OZON' && <div><span className="pa-muted">Ozon: </span>{order.ozonStatus || '—'}</div>}
+    <div><span className="pa-muted">Наш: </span>{order.status ? <Badge kind={orderStatusBadgeKind(order.status)} title={order.status}>{order.status}</Badge> : <span className="pa-muted">—</span>}</div>
+  </div>;
 }
 
 function ShipBy({ order }: { order: OrderListItem }) {

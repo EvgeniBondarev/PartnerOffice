@@ -5,6 +5,7 @@ import { CopyProvider } from '../ui/CopyValue';
 import { Icon } from '../ui/Icon';
 import { usePopover } from '../ui/usePopover';
 import { hasPermission } from '../lib/permissions';
+import { lastOrderSectionPath } from '../orders/orderSection';
 
 const COLLAPSED_KEY = 'partner-office.menu-collapsed';
 
@@ -125,7 +126,7 @@ export function AppShell() {
                   // Разметка пункта как в брендбуке: активный класс на li, внутри кнопка-ссылка (иначе не работают подсветка и hover).
                   <li key={entry.to} className={`po-menu-item__menuItem po-menu__item${active ? ' po-menu__item--active' : ''}`}>
                     <Link
-                      to={entry.to}
+                      to={entry.to === '/orders' ? lastOrderSectionPath() : entry.to}
                       title={collapsed ? entry.label : undefined}
                       aria-label={collapsed ? entry.label : undefined}
                       aria-current={active ? 'page' : undefined}

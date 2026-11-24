@@ -1,6 +1,6 @@
 import type { OrderListItem } from '../api/orders';
 import { Button } from '../ui/Button';
-import { isOzonOrder } from '../lib/permissions';
+import { isCancelledOzonOrder, isOzonOrder } from '../lib/permissions';
 
 /** status — смена статуса Studio2 («Принят» или «Отгрузить»), print — печать этикетки. */
 export type ActionKind = 'status' | 'print';
@@ -30,6 +30,7 @@ interface OrderRowActionsProps {
 export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size = 400, primary = false, onStatus, onPrint }: OrderRowActionsProps) {
   const action = canChangeStatus && order.statusAction ? order.statusAction : null;
   const label = isOzonOrder(order.marketplace) && canPrint;
+  const cancelled = isCancelledOzonOrder(order.marketplace, order.ozonStatus);
   if (!action && !label && !order.partnerShipmentConfirmed) return null;
 
   return (
@@ -54,9 +55,9 @@ export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size =
           size={size}
           icon="ui-print"
           loading={busy === 'print'}
-          disabled={busy !== null}
+          disabled={busy !== null || cancelled}
           onClick={() => onPrint(order)}
-          title={order.hasLabel ? 'Этикетка уже есть, откроется готовая' : 'Получить этикетку у Ozon и открыть PDF'}
+          title={cancelled ? 'Печать недоступна: заказ отменён в Ozon' : order.hasLabel ? 'Этикетка уже есть, откроется готовая' : 'Получить этикетку у Ozon и открыть PDF'}
         >
           Этикетка
         </Button>
