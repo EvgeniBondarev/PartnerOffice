@@ -49,7 +49,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const suppressedSearch = useRef<string | null>(null);
   const blurTimer = useRef<number | undefined>(undefined);
 
-  const { data, items, setItems, supplierNames, counts, loading, error, retryList, loadingMore,
+  const { data, facetData, items, setItems, supplierNames, counts, loading, error, retryList, loadingMore,
     moreError, hasMore, observable, scrollRef, sentinelRef, loadMore, refreshQuietly, savingNow } = useReturnsData({
     allowed, section, filters, partnerId: partner?.id ?? 0, phone,
     currentSearch, suppressedSearch, suggestionSearch, focused, setSuggestions, setActiveSuggestion, setSuggestionsOpen
@@ -142,7 +142,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
     if (!(event.target as HTMLElement).closest('input[type="text"], input[type="search"], textarea')) event.preventDefault();
   } : undefined;
     return <div className="pa-orders pa-list">
-    <ReturnsControls section={section} canWork={canWork} counts={counts} data={data} supplierNames={supplierNames}
+    <ReturnsControls section={section} canWork={canWork} counts={counts} data={data} facetData={facetData} supplierNames={supplierNames}
       query={{ panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount }} search={search} searchDraft={searchDraft}
       formRef={formRef} suggestions={suggestions} suggestionsOpen={suggestionsOpen} activeSuggestion={activeSuggestion}
       onSearchValue={value => { setScanResult(null); if (value !== autoTried.current) autoTried.current = ''; noteInput(value); setHighlighted(null); suppressedSearch.current = null; currentSearch.current = value.trim(); setSearchDraft(value); }}

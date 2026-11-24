@@ -5,6 +5,22 @@ import { toIsoDate } from '../lib/format';
 import { json, mockApi, renderApp } from './helpers';
 
 describe('Возвраты', () => {
+  it('показывает только варианты, присутствующие на всей вкладке', async () => {
+    mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [{ id: 12, client_id: '1', name: 'Товар А', qty: 1 }], total: 100, page: 1, page_size: 50, snapshot_at: null, partial: false,
+        cabinets: [{ id: 1, name: 'Кабинет А', ozonClientId: '1' }], suppliers: ['Поставщик А'],
+        facets: { client_ids: ['1'], statuses: ['ReceivedBySeller'], marks: ['pending'], mark_subs: [], reviews: [] } })
+    });
+    renderApp('/returns/received');
+    expect(await screen.findByLabelText('Кабинет А')).toBeInTheDocument();
+    expect(screen.getByLabelText('Ожидает')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Принят')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('На разборе')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Кабинет А')).toBeInTheDocument();
+    expect(screen.getByLabelText('Поставщик А')).toBeInTheDocument();
+  });
+
   it('показывает разрешённый раздел и отправляет фильтр', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: 'a@example.test', permissions: [4] }),

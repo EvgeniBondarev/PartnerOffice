@@ -26,6 +26,7 @@ export type BatchMarkResult = { key: string; ok: boolean; changes?: ReturnMark; 
 export interface ReturnPage {
   items: ReturnRow[]; total: number; page: number; page_size: number; snapshot_at: string | null;
   fbo_snapshot_at?: string | null; partial: boolean; exact_search?: boolean; revision?: string | null;
+  facets?: { client_ids?: string[]; statuses?: string[]; marks?: string[]; mark_subs?: string[]; reviews?: string[] } | null;
   suppliers?: string[] | null; cabinets?: { id: number; name: string; ozonClientId: string }[];
 }
 export interface ReturnChanges {

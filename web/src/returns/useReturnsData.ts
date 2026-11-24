@@ -34,6 +34,8 @@ export function useReturnsData({ allowed, section, filters, partnerId, phone, cu
   const listGeneration = useRef(0);
   const deltaController = useRef<AbortController | null>(null);
   const [data, setData] = useState<ReturnPage | null>(initialHit?.data ?? null);
+  const [facetData, setFacetData] = useState<ReturnPage | null>(null);
+  const [facetRevision, setFacetRevision] = useState(0);
   // Список подгружается при прокрутке: items копится порциями, pagesLoaded — сколько порций уже в нём.
   const [items, setItems] = useState<ReturnRow[]>(initialHit?.items ?? []);
   const [supplierNames, setSupplierNames] = useState<string[]>(() => [...new Set((initialHit?.items ?? []).map(row => row.supplier?.trim()).filter((value): value is string => Boolean(value)))]);
@@ -69,6 +71,15 @@ export function useReturnsData({ allowed, section, filters, partnerId, phone, cu
   /** Последняя известная ревизия: приходит со списком и растёт с каждой дельтой. */
   const revisionRef = useRef<string | null>(initialHit?.data.revision ?? null);
   const savingNow = useRef(false);
+  // Отдельная выборка без текущих фильтров: варианты охватывают всю вкладку, а не только первую страницу.
+  useEffect(() => {
+    if (!allowed || !data || (!filters.clientId && facetRevision === 0)) return;
+    const controller = new AbortController();
+    listReturns(section, { page: 1, pageSize: 1, signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) setFacetData(result); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [allowed, section, partnerId, filters.clientId, facetRevision, !!data]);
   useEffect(() => {
     if (!allowed) return;
     const controller = new AbortController();
@@ -106,6 +117,7 @@ export function useReturnsData({ allowed, section, filters, partnerId, phone, cu
         shownKey.current = key; firstPageRows.current = result.items; listOk.current = true;
         revisionRef.current = result.revision ?? null;
         setData(result);
+        if (!filters.clientId) setFacetData(result);
         if (result.suppliers) setSupplierNames(result.suppliers);
         setCounts(previous => ({ ...previous, [section]: result.total }));
         if (retain) setItems(previous => replaceFirstPage(previous, previousFirst, result.items));
@@ -246,6 +258,7 @@ export function useReturnsData({ allowed, section, filters, partnerId, phone, cu
           setData(previous => previous && previous.revision !== delta.revision ? { ...previous, revision: delta.revision } : previous);
         }
         if (!delta.changed) return;
+        setFacetRevision(value => value + 1);
         setCounts(previous => ({ ...previous, ...delta.counts }));
         if (delta.reset) { resetRefresh.current = true; refreshQuietly(); return; }
         // Известные строки заменяются на месте; новая строка (мы не знаем, подходит ли она под фильтры и куда встаёт) — обычное обновление списка.
@@ -263,5 +276,5 @@ export function useReturnsData({ allowed, section, filters, partnerId, phone, cu
   const refreshQuietly = () => { quietRefresh.current = true; setRetry(n => n + 1); };
 
   const retryList = () => setRetry(n => n + 1);
-  return { data, items, setItems, supplierNames, counts, loading, error, retryList, loadingMore, moreError, hasMore, observable, scrollRef, sentinelRef, loadMore, refreshQuietly, savingNow };
+  return { data, facetData, items, setItems, supplierNames, counts, loading, error, retryList, loadingMore, moreError, hasMore, observable, scrollRef, sentinelRef, loadMore, refreshQuietly, savingNow };
 }

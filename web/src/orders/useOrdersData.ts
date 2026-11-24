@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getOrder, getOrderFilters, listOrders, type OrderFilters, type OrderListItem, type OrderQuery } from '../api/orders';
+import { getOrder, getOrderFilters, listOrders, type OrderFilters, type OrderGroup, type OrderListItem, type OrderQuery } from '../api/orders';
 import { ApiError } from '../api/client';
 import { ordersCacheEpoch, readOrderFilters, readOrders, rememberOrderFilters, rememberOrders } from './ordersCache';
 
@@ -179,25 +179,27 @@ export function useOrders(query: OrdersQuery, pageSize: number, partnerId: numbe
  * Значения для фильтров: только статусы, склады, клиенты и поставщики среди видимых партнёру заказов.
  * refreshKey меняется при смене ревизии заказов: счётчики статусов перечитываются, прежние значения остаются на экране.
  */
-export function useOrderFilters(partnerId: number, refreshKey = 0) {
+export function useOrderFilters(partnerId: number, group: OrderGroup, refreshKey = 0) {
   const session = useRef(ordersCacheEpoch());
-  const [stored, setStored] = useState<{ partnerId: number; value: OrderFilters | null }>(() => ({ partnerId, value: readOrderFilters(partnerId) ?? null }));
-  const filters = stored.partnerId === partnerId ? stored.value : readOrderFilters(partnerId) ?? null;
+  const [stored, setStored] = useState<{ partnerId: number; group: OrderGroup; value: OrderFilters | null }>(() => ({ partnerId, group, value: readOrderFilters(partnerId, group) ?? null }));
+  const cached = readOrderFilters(partnerId, group);
+  const filters = stored.partnerId === partnerId && stored.group === group ? stored.value : cached ??
+    (stored.partnerId === partnerId && stored.value?.groupCounts ? { statuses: [], warehouses: [], clients: [], groupCounts: stored.value.groupCounts } : null);
 
   useEffect(() => {
     const controller = new AbortController();
-    getOrderFilters(controller.signal)
+    getOrderFilters(controller.signal, group)
       .then(value => {
         if (controller.signal.aborted || session.current !== ordersCacheEpoch()) return;
-        rememberOrderFilters(session.current, partnerId, value);
-        setStored({ partnerId, value });
+        rememberOrderFilters(session.current, partnerId, group, value);
+        setStored({ partnerId, group, value });
       })
       // Без справочников фильтры просто пустые: поиск и таблица продолжают работать. Уже загруженные при сбое не стираем.
       .catch(() => {
-        if (!controller.signal.aborted && session.current === ordersCacheEpoch()) setStored((previous) => previous.partnerId === partnerId && previous.value ? previous : { partnerId, value: readOrderFilters(partnerId) ?? { statuses: [], warehouses: [], clients: [], suppliers: [] } });
+        if (!controller.signal.aborted && session.current === ordersCacheEpoch()) setStored((previous) => previous.partnerId === partnerId && previous.group === group && previous.value ? previous : { partnerId, group, value: readOrderFilters(partnerId, group) ?? { statuses: [], warehouses: [], clients: [], suppliers: [] } });
       });
     return () => controller.abort();
-  }, [partnerId, refreshKey]);
+  }, [partnerId, group, refreshKey]);
 
   return filters;
 }

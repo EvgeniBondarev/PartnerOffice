@@ -29,21 +29,25 @@ type Query = {
 };
 type Props = {
   section: ReturnsSection; canWork: boolean; counts: Record<ReturnsSection, number | null>;
-  data: ReturnPage | null; supplierNames: string[]; query: Query; search: string; searchDraft: string;
+  data: ReturnPage | null; facetData: ReturnPage | null; supplierNames: string[]; query: Query; search: string; searchDraft: string;
   formRef: RefObject<HTMLFormElement | null>; suggestions: ReturnRow[]; suggestionsOpen: boolean; activeSuggestion: number;
   onSearchValue: (value: string) => void; onSearchFocus: () => void; onSearchBlur: () => void;
   onSuggestionHover: (index: number) => void; chooseSuggestion: (row: ReturnRow) => void;
   apply: (event: FormEvent) => void; searchKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
   keepSearchFocus?: (event: MouseEvent<HTMLElement>) => void; children: ReactNode;
 };
-export function ReturnsControls({ section, canWork, counts, data, supplierNames, query: { panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount }, search, searchDraft, formRef, suggestions, suggestionsOpen, activeSuggestion, onSearchValue, onSearchFocus, onSearchBlur, onSuggestionHover, chooseSuggestion, apply, searchKeyDown, keepSearchFocus, children }: Props) {
+export function ReturnsControls({ section, canWork, counts, data, facetData, supplierNames, query: { panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount }, search, searchDraft, formRef, suggestions, suggestionsOpen, activeSuggestion, onSearchValue, onSearchFocus, onSearchBlur, onSuggestionHover, chooseSuggestion, apply, searchKeyDown, keepSearchFocus, children }: Props) {
   const received = section === 'received';
   const transit = section === 'transit';
   const shelf = section === 'shelf';
   const supplier = section === 'supplier';
   const warehouse = section === 'warehouse';
   const outbound = supplier || warehouse;
-  const cabinets = data?.cabinets ?? [];
+  const facets = facetData?.facets;
+  const cabinets = facetData?.cabinets ?? data?.cabinets ?? [];
+  const suppliers = facetData?.suppliers ?? supplierNames;
+  const optionsFor = (options: { value: string; label: string }[], available: string[] | undefined, selected: string) =>
+    available ? options.filter(option => available.includes(option.value) || splitList(selected).includes(option.value)) : options;
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
   const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'supplier', title: string, name: (value: string) => string): FilterChip[] =>
@@ -65,11 +69,11 @@ export function ReturnsControls({ section, canWork, counts, data, supplierNames,
     {outbound || shelf
       ? null
       : received
-      ? <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} onChange={value => change({ mark: value })} /></FilterSection>
-      : <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={STATUS_OPTIONS} onChange={value => change({ status: value })} /></FilterSection>}
-    {received && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={REVIEW_OPTIONS} onChange={value => change({ review: value })} /></FilterSection>}
-    {received && <FilterSection title="Поставщик" active={!!panelFilters.supplier}>
-      <CheckboxGroup value={panelFilters.supplier} options={supplierNames.map(value => ({ value, label: value }))} onChange={value => change({ supplier: value })} />
+      ? (facetData || data) && (!facets?.marks || facets.marks.length > 0 || !!panelFilters.mark) && <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} available={facets?.marks} availableSubs={facets?.mark_subs} onChange={value => change({ mark: value })} /></FilterSection>
+      : !transit && (facetData || data) && optionsFor(STATUS_OPTIONS, facets?.statuses, panelFilters.status).length > 0 && <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={optionsFor(STATUS_OPTIONS, facets?.statuses, panelFilters.status)} onChange={value => change({ status: value })} /></FilterSection>}
+    {received && (facetData || data) && optionsFor(REVIEW_OPTIONS, facets?.reviews, panelFilters.review).length > 0 && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={optionsFor(REVIEW_OPTIONS, facets?.reviews, panelFilters.review)} onChange={value => change({ review: value })} /></FilterSection>}
+    {received && suppliers.length > 0 && <FilterSection title="Поставщик" active={!!panelFilters.supplier}>
+      <CheckboxGroup value={panelFilters.supplier} options={suppliers.map(value => ({ value, label: value }))} onChange={value => change({ supplier: value })} />
     </FilterSection>}
     {cabinets.length > 0 && <FilterSection title="Кабинет" active={!!panelFilters.clientId}>
       <CheckboxGroup value={panelFilters.clientId} options={cabinets.map(c => ({ value: String(c.id), label: c.name }))} onChange={value => change({ clientId: value })} />
@@ -155,7 +159,7 @@ function ReturnsTab({ to, label, count }: { to: string; label: string; count: nu
  * В адрес и на сервер уходят значения через запятую: «accepted» — все принятые, «defect» — принятые с браком (старые ссылки ?mark=defect
  * открываются как «Принят → Брак»). Выбор уточнения заменяет общий «accepted», снятие всех уточнений возвращает его.
  */
-function MarkFilter({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function MarkFilter({ value, available, availableSubs, onChange }: { value: string; available?: string[]; availableSubs?: string[]; onChange: (value: string) => void }) {
   const selected = splitList(value);
   const subs = selected.filter(item => SUB_VALUES.includes(item));
   const accepted = selected.includes('accepted') || subs.length > 0;
@@ -169,7 +173,7 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
     onChange(joinList([...others, ...(next.length ? next : ['accepted'])]));
   };
   return <div className="pa-filter-options">
-    {MARK_OPTIONS.map(option => {
+    {MARK_OPTIONS.filter(option => !available || available.includes(option.value) || (option.value === 'accepted' ? accepted : selected.includes(option.value))).map(option => {
       const checked = option.value === 'accepted' ? accepted : selected.includes(option.value);
       return <div key={option.value}>
         <label className="pa-filter-option ozi-table-500">
@@ -177,7 +181,7 @@ function MarkFilter({ value, onChange }: { value: string; onChange: (value: stri
           <span className="pa-filter-option__label">{option.label}</span>
         </label>
         {option.value === 'accepted' && accepted && <div className="pa-filter-sub" role="group" aria-label="Результат приёмки">
-          {MARK_SUB_OPTIONS.map(sub => <label key={sub.value} className="pa-filter-option ozi-table-500">
+          {MARK_SUB_OPTIONS.filter(sub => !availableSubs || availableSubs.includes(sub.value) || subs.includes(sub.value)).map(sub => <label key={sub.value} className="pa-filter-option ozi-table-500">
             <input type="checkbox" className="po-checkbox" checked={subs.includes(sub.value)} onChange={() => toggleSub(sub.value)} />
             <span className="pa-filter-option__label">{sub.label}</span>
           </label>)}

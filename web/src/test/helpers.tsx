@@ -33,7 +33,7 @@ export function mockApi(handlers: Record<string, Handler>) {
       calls.push({ url, method, body: init?.body instanceof FormData ? init.body : init?.body ? JSON.parse(String(init.body)) : undefined });
       const exact = `${method} ${url}`;
       // Ключ без метода относится только к GET: иначе GET и PUT одного адреса путались бы.
-      const key = Object.keys(handlers).find((k) => k === exact || (method === 'GET' && k === url) || (k.endsWith('*') && (method === 'GET' ? url.startsWith(k.slice(0, -1)) : exact.startsWith(k.slice(0, -1)))));
+      const key = Object.keys(handlers).find((k) => k === exact || (method === 'GET' && (k === url || (k === '/partner-api/orders/filters' && url.startsWith(k + '?')))) || (k.endsWith('*') && (method === 'GET' ? url.startsWith(k.slice(0, -1)) : exact.startsWith(k.slice(0, -1)))));
       const handler: Handler = (key ? handlers[key] : undefined) ?? (() => ({ status: 404 }));
       const { status, body, headers, file } = await handler(init, url);
       if (file) return new Response(file as unknown as BodyInit, { status, headers });

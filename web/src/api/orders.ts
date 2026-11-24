@@ -166,7 +166,7 @@ export function buildOrdersQuery(query: OrderQuery): string {
 export const listOrders = (query: OrderQuery, signal?: AbortSignal) =>
   request<OrderPage>(`${base}?${buildOrdersQuery(query)}`, { signal });
 
-export const getOrderFilters = (signal?: AbortSignal) => request<OrderFilters>(`${base}/filters`, { signal });
+export const getOrderFilters = (signal?: AbortSignal, group?: OrderGroup) => request<OrderFilters>(`${base}/filters${group ? `?group=${group}` : ''}`, { signal });
 
 export const getOrderSuggestions = (query: string, signal?: AbortSignal, group?: OrderGroup) =>
   request<OrderSuggestion[]>(`${base}/suggestions?q=${encodeURIComponent(query)}&limit=10${group ? `&group=${group}` : ''}`, { signal });

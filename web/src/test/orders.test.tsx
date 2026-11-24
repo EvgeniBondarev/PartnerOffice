@@ -14,6 +14,18 @@ afterEach(() => {
 const row = (n: number) => screen.getByRole('row', { name: new RegExp(`Заказ 0123-${String(n).padStart(4, '0')}-1`) });
 
 describe('Список заказов', () => {
+  it('подбирает варианты фильтров по вкладке', async () => {
+    ordersApi(PARTNER_FULL, [], {
+      '/partner-api/orders/filters': (_init, url) => json({ statuses: [{ id: 1, name: url?.includes('group=sent') ? 'Отправленный' : 'Новый' }], warehouses: [], clients: [], groupCounts: { work: 1, sent: 1, ready: 0 } })
+    });
+    renderApp('/orders');
+    const user = userEvent.setup();
+    expect(await screen.findByLabelText('Новый')).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: /Отправлено/ }));
+    expect(await screen.findByLabelText('Отправленный')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Новый')).not.toBeInTheDocument();
+  });
+
   it('показывает счётчики и запрашивает выбранную группу с сохранением фильтров', async () => {
     const calls = ordersApi(PARTNER_FULL, [], {
       '/partner-api/orders/filters': () => json({ statuses: [], warehouses: [], clients: [], groupCounts: { work: 4, sent: 2, ready: 7 } })
