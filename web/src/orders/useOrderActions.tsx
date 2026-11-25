@@ -31,6 +31,7 @@ interface Options {
   onChanged: (orderId: number) => void;
   /** Сервер вернул обновлённую строку после смены статуса: она подставляется в список без перечитывания. */
   onUpdated: (order: OrderListItem) => void;
+  onReturned: (id: number) => void;
 }
 
 /** Текст диалога подтверждения и сообщений для каждой кнопки статуса Studio2. */
@@ -45,7 +46,7 @@ const BLOB_LIFETIME_MS = 10 * 60 * 1000;
  * Действия над заказом: смена статуса Studio2 («Принят» → «Отгрузить») и печать этикетки Ozon ([данные экземпляров и страна] → печать).
  * Хук держит диалоги и состояние «выполняется»; страница показывает результат в сообщении над таблицей.
  */
-export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
+export function useOrderActions({ onNotice, onChanged, onUpdated, onReturned }: Options) {
   const [busy, setBusy] = useState<{ id: number; kind: ActionKind } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const urls = useRef<string[]>([]);
@@ -182,6 +183,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
       const updated = await returnOrderToShelf(order.id);
       clearReturnsCache();
       onUpdated(updated);
+      onReturned(order.id);
       onNotice({ kind: 'success', title: `Заказ ${order.shipmentNumber} передан на разбор`,
         text: 'Статус заказа — «На возврат».', link: { href: '/returns/received', label: 'Открыть полученные возвраты' } });
     } catch (error) {
@@ -191,7 +193,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
       returnsInFlight.current.delete(order.id);
       setBusy(null);
     }
-  }, [fail, onChanged, onNotice, onUpdated]);
+  }, [fail, onChanged, onNotice, onUpdated, onReturned]);
 
   let dialogs: ReactNode = null;
   if (flow?.kind === 'confirm-return') {

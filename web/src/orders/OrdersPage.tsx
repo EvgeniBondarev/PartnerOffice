@@ -73,6 +73,7 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
 
   const actions = useOrderActions({
     onNotice: setNotice,
+    onReturned: (id) => { orders.removeOrder(id); void orders.refreshQuietly(); },
     onChanged: (id) => {
       const previous = orders.items.find((item) => item.id === id);
       void orders.refreshOrder(id).then((updated) => {

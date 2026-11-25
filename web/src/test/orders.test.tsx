@@ -761,8 +761,11 @@ describe('Возврат отменённого заказа', () => {
   });
   it('показывает действие только для разрешённых сервером строк и отправляет после подтверждения', async () => {
     const allowed = order(1, { ozonStatus: 'Отменён', supplier: 'Поставщик', canReturnToShelf: true });
-    const calls = ordersApi(PARTNER_FULL, [allowed, order(2, { ozonStatus: 'Отменён', supplier: null })], {
-      'POST /partner-api/orders/1/return-to-shelf': () => json({ ...allowed, status: 'На возврат', canReturnToShelf: false })
+    const other = order(2, { ozonStatus: 'Отменён', supplier: null });
+    let transferred = false;
+    const calls = ordersApi(PARTNER_FULL, [allowed, other], {
+      '/partner-api/orders?*': () => ordersPage(transferred ? [other] : [allowed, other]),
+      'POST /partner-api/orders/1/return-to-shelf': () => { transferred = true; return json({ ...allowed, status: 'На возврат', canReturnToShelf: false }); }
     });
     renderApp('/orders');
     const user = userEvent.setup();
@@ -772,7 +775,8 @@ describe('Возврат отменённого заказа', () => {
     expect(calls.some(c => c.url.endsWith('/return-to-shelf'))).toBe(false);
     const dialog = screen.getByRole('dialog', { name: 'Возврат на полку?' });
     await user.click(within(dialog).getByRole('button', { name: 'Возврат на полку' }));
-    expect(await screen.findByText('На возврат')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('row', { name: /Заказ 0123-0001-1/ })).not.toBeInTheDocument());
+    expect(row(2)).toBeInTheDocument();
     expect(calls.filter(c => c.url.endsWith('/return-to-shelf'))).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Открыть полученные возвраты' })).toHaveAttribute('href', '/returns/received');
   });

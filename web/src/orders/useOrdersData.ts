@@ -137,6 +137,10 @@ export function useOrders(query: OrdersQuery, pageSize: number, partnerId: numbe
     setState((previous) => ({ ...previous, items: previous.items.map((item) => (item.id === order.id ? order : item)) }));
   }, []);
 
+  const removeOrder = useCallback((id: number) => {
+    setState((previous) => ({ ...previous, items: previous.items.filter((item) => item.id !== id), total: Math.max(0, previous.total - 1) }));
+  }, []);
+
   /**
    * Тихо перечитать уже загруженные порции: без скелетона, прокрутка и число порций сохраняются.
    * Если за это время сменились фильтры или подгрузилась ещё порция, ответ отбрасывается (следующий опрос повторит).
@@ -172,7 +176,7 @@ export function useOrders(query: OrdersQuery, pageSize: number, partnerId: numbe
 
   const reload = useCallback(() => setReloadKey((value) => value + 1), []);
 
-  return { ...state, hasMore, loadMore, refreshOrder, replaceOrder, refreshQuietly, reload };
+  return { ...state, hasMore, loadMore, refreshOrder, replaceOrder, removeOrder, refreshQuietly, reload };
 }
 
 /**
