@@ -29,9 +29,9 @@ interface OrderRowActionsProps {
  * Какую кнопку статуса показать, решает сервер (statusAction); этикетка — только у заказов Ozon.
  */
 export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size = 400, primary = false, onStatus, onPrint, onReturn }: OrderRowActionsProps) {
-  const action = canChangeStatus && order.statusAction ? order.statusAction : null;
-  const label = isOzonOrder(order.marketplace) && canPrint;
   const cancelled = isCancelledOzonOrder(order.marketplace, order.ozonStatus);
+  const action = canChangeStatus && !cancelled && order.statusAction ? order.statusAction : null;
+  const label = isOzonOrder(order.marketplace) && canPrint && !(cancelled && order.canReturnToShelf);
   if (!action && !label && !order.partnerShipmentConfirmed && !order.canReturnToShelf) return null;
 
   return (

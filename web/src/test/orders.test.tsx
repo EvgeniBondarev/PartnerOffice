@@ -736,6 +736,15 @@ describe('Печать этикетки', () => {
 });
 
 describe('Возврат отменённого заказа', () => {
+  it('для отменённого заказа показывает возврат вместо отгрузки', async () => {
+    const cancelled = order(1, { ozonStatus: 'Отменён', status: 'Принят на складе', statusAction: 'ship', supplier: 'Не указан', canReturnToShelf: true });
+    ordersApi(PARTNER_FULL, [cancelled]);
+    renderApp('/orders');
+    const first = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(within(first).getByRole('button', { name: 'Возврат на полку' })).toBeInTheDocument();
+    expect(within(first).queryByRole('button', { name: 'Отгрузить' })).not.toBeInTheDocument();
+    expect(within(first).queryByRole('button', { name: /Этикетка/ })).not.toBeInTheDocument();
+  });
   it('не показывает успех, если сервер не подтвердил передачу', async () => {
     const allowed = order(1, { ozonStatus: 'Отменён', supplier: 'Поставщик', canReturnToShelf: true });
     ordersApi(PARTNER_FULL, [allowed], {
