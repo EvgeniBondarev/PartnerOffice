@@ -238,7 +238,7 @@ button.po-day:disabled { cursor: default; }
 .pa-orders__product .pa-returns__product-info { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .pa-col-product { max-width: 380px; min-width: 220px; width: 380px; }
 .pa-col-status { min-width: 150px; }
-.pa-ozon-status { display: inline-block; padding: 2px 8px; border: 1px solid rgba(15, 23, 42, 0.24); border-radius: 6px; background: #e2e8f0; color: #0f172a; }
+.pa-orders-status { display: flex; flex-direction: column; gap: 4px; }
 /* Две даты и стрелки сортировки требуют своей ширины: не даём колонке сжимать дату до одного слова. */
 .pa-col-date { min-width: 188px; width: 188px; }
 .pa-col-date > div:first-child, .pa-col-date .pa-sub { white-space: nowrap; }

@@ -73,7 +73,9 @@ describe('Список заказов', () => {
     expect(within(r).getByText('ii50014310001')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Статус' })).toBeInTheDocument();
     expect(within(r).getByText('Принят на складе').closest('.po-badge__badge')).toHaveClass('po-badge__warning');
-    expect(within(r).getByText('Ожидает сборки')).toHaveStyle({ backgroundColor: '#123456', color: '#fff' });
+    const ozonBadge = within(r).getByText('Ожидает сборки').closest('.po-badge__badge');
+    expect(ozonBadge).toHaveClass('po-badge__badge');
+    expect(ozonBadge).toHaveStyle({ backgroundColor: '#123456', color: '#fff' });
     expect(within(r).getByText('Ozon:')).toHaveClass('pa-muted');
     expect(within(r).getByText('Наш:')).toHaveClass('pa-muted');
     expect(within(r).getByText(/1\s250,00\s₽/)).toBeInTheDocument();

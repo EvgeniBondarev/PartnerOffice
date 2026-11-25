@@ -1,4 +1,4 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { OrderListItem } from '../api/orders';
 import { formatDateTime, formatDateTimeShort, formatMoney, formatQuantity, isOverdue, orderStatusBadgeKind } from '../lib/format';
 import { hasPermission } from '../lib/permissions';
@@ -81,13 +81,30 @@ export function ProductImage({ url, alt, size = 48, onOpen }: { url: string | nu
   );
 }
 
+function ozonStatusBadgeStyle(color: string | null | undefined): CSSProperties | undefined {
+  const trimmed = color?.trim();
+  if (!trimmed) return undefined;
+  const hex = /^#[\da-f]{6}$/i.test(trimmed)
+    ? trimmed
+    : /^#[\da-f]{3}$/i.test(trimmed)
+      ? `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`
+      : null;
+  if (!hex) return undefined;
+  const brightness = (0.299 * parseInt(hex.slice(1, 3), 16) + 0.587 * parseInt(hex.slice(3, 5), 16) + 0.114 * parseInt(hex.slice(5, 7), 16)) / 255;
+  const textColor = brightness > 0.72 ? '#020617' : brightness > 0.5 ? '#0f172a' : '#fff';
+  return {
+    backgroundColor: hex,
+    color: textColor,
+    '--ozi-badge-color-background': hex,
+    '--ozi-badge-color-text': textColor,
+  } as CSSProperties;
+}
+
 /** Статус маркетплейса и статус Studio2. */
 function Status({ order }: { order: OrderListItem }) {
-  const color = order.ozonStatusColor;
-  const validColor = color && /^#[\da-f]{6}$/i.test(color) ? color : null;
-  const brightness = validColor ? (0.299 * parseInt(validColor.slice(1, 3), 16) + 0.587 * parseInt(validColor.slice(3, 5), 16) + 0.114 * parseInt(validColor.slice(5, 7), 16)) / 255 : 1;
-  return <div>
-    {order.marketplace?.toUpperCase() === 'OZON' && <div><span className="pa-muted">Ozon: </span>{order.ozonStatus ? <span className="pa-ozon-status" style={validColor ? { backgroundColor: validColor, color: brightness > 0.72 ? '#020617' : brightness > 0.5 ? '#0f172a' : '#fff', borderColor: brightness > 0.72 ? 'rgba(2, 6, 23, 0.3)' : brightness > 0.5 ? 'rgba(15, 23, 42, 0.26)' : 'rgba(255, 255, 255, 0.38)' } : undefined}>{order.ozonStatus}</span> : '—'}</div>}
+  const ozonStyle = ozonStatusBadgeStyle(order.ozonStatusColor);
+  return <div className="pa-orders-status">
+    {order.marketplace?.toUpperCase() === 'OZON' && <div><span className="pa-muted">Ozon: </span>{order.ozonStatus ? <Badge kind="secondary neutral" title={order.ozonStatus} style={ozonStyle}>{order.ozonStatus}</Badge> : <span className="pa-muted">—</span>}</div>}
     <div><span className="pa-muted">Наш: </span>{order.status ? <Badge kind={orderStatusBadgeKind(order.status)} title={order.status}>{order.status}</Badge> : <span className="pa-muted">—</span>}</div>
   </div>;
 }
