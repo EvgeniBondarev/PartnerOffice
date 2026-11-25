@@ -127,7 +127,9 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
   const shelfStatus = (row: ReturnRow) => <Badge kind="primary success">{row.decision?.status_name || 'На полке'}</Badge>;
-  const markCell = (row: ReturnRow) => <ReturnMarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={(patch, operationId) => mark(row, patch, operationId)} />;
+  const markCell = (row: ReturnRow) => received && row.key?.startsWith('shelf-order:') && row.review === 'queue'
+    ? <Badge kind="secondary warning">На разборе</Badge>
+    : <ReturnMarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={(patch, operationId) => mark(row, patch, operationId)} />;
   const listEnd = <>
     <div ref={sentinelRef} className="pa-scroll__end" aria-hidden="true" />
     {moreError && <div className="pa-scroll__footer"><Informer kind="error" action={<Button variant="action-secondary" size={400} onClick={loadMore}>Повторить</Button>}>{moreError}</Informer></div>}

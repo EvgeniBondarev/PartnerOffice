@@ -940,6 +940,22 @@ describe('Возвраты', () => {
   });
 
   describe('разбор после приёмки', () => {
+    it('заказ, переданный на полку, показывает «На разборе» вместо приёмки', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),
+        '/partner-api/returns?*': () => json({ items: [
+          { key: 'shelf-order:41', return_type: 'fbs', id: 41, client_id: '1', name: 'Переданный заказ', qty: 1, mark: 'accepted', review: 'queue' },
+          { key: 'fbs:1:12', return_type: 'fbs', id: 12, client_id: '1', name: 'Другой возврат', qty: 1, mark: 'accepted', review: 'queue' }
+        ], total: 2, page: 1, page_size: 50, snapshot_at: null, partial: false })
+      });
+      renderApp('/returns/received');
+      await screen.findByText('Переданный заказ');
+      const rows = within(screen.getByRole('region', { name: 'Полученные возвраты' })).getAllByRole('row');
+      expect(within(rows[1]).getByText('На разборе')).toBeInTheDocument();
+      expect(within(rows[1]).queryByText('Принят')).not.toBeInTheDocument();
+      expect(within(rows[2]).getByText('Принят')).toBeInTheDocument();
+    });
+
     it('«Получено»: у принятого возврата только «Принят», бейджа «На разборе» и отдельной колонки нет', async () => {
       mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
