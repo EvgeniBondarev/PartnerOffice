@@ -91,7 +91,7 @@ export function orderStatusTone(status: string | null | undefined): Tone {
   const text = (status ?? '').trim().toLowerCase();
   if (/отмен|утерян/.test(text)) return 'negative';
   if (/отгружен|доставлен/.test(text)) return 'success';
-  if (/принят|заказан/.test(text)) return 'warning';
+  if (/принят|заказан|на возврат/.test(text)) return 'warning';
   return 'neutral';
 }
 

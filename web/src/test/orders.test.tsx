@@ -734,3 +734,37 @@ describe('Печать этикетки', () => {
     expect(screen.getByText(/для печати его нужно отгрузить/)).toBeInTheDocument();
   });
 });
+
+describe('Возврат отменённого заказа', () => {
+  it('не показывает успех, если сервер не подтвердил передачу', async () => {
+    const allowed = order(1, { ozonStatus: 'Отменён', supplier: 'Поставщик', canReturnToShelf: true });
+    ordersApi(PARTNER_FULL, [allowed], {
+      'POST /partner-api/orders/1/return-to-shelf': () => json({ error: 'Сервис возвратов недоступен' }, 503)
+    });
+    renderApp('/orders');
+    const user = userEvent.setup();
+    const first = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    await user.click(within(first).getByRole('button', { name: 'Возврат на полку' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Возврат на полку?' })).getByRole('button', { name: 'Возврат на полку' }));
+    expect(await screen.findByText(/Не удалось передать заказ/)).toBeInTheDocument();
+    expect(screen.queryByText(/передан на разбор/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Открыть полученные возвраты' })).not.toBeInTheDocument();
+  });
+  it('показывает действие только для разрешённых сервером строк и отправляет после подтверждения', async () => {
+    const allowed = order(1, { ozonStatus: 'Отменён', supplier: 'Поставщик', canReturnToShelf: true });
+    const calls = ordersApi(PARTNER_FULL, [allowed, order(2, { ozonStatus: 'Отменён', supplier: null })], {
+      'POST /partner-api/orders/1/return-to-shelf': () => json({ ...allowed, status: 'На возврат', canReturnToShelf: false })
+    });
+    renderApp('/orders');
+    const user = userEvent.setup();
+    const first = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(within(row(2)).queryByRole('button', { name: 'Возврат на полку' })).not.toBeInTheDocument();
+    await user.click(within(first).getByRole('button', { name: 'Возврат на полку' }));
+    expect(calls.some(c => c.url.endsWith('/return-to-shelf'))).toBe(false);
+    const dialog = screen.getByRole('dialog', { name: 'Возврат на полку?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Возврат на полку' }));
+    expect(await screen.findByText('На возврат')).toBeInTheDocument();
+    expect(calls.filter(c => c.url.endsWith('/return-to-shelf'))).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Открыть полученные возвраты' })).toHaveAttribute('href', '/returns/received');
+  });
+});

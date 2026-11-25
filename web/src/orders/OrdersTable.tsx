@@ -23,6 +23,7 @@ interface OrdersTableProps {
   onImage: (image: { url: string; alt: string }) => void;
   onStatus: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
+  onReturn: (order: OrderListItem) => void;
 }
 
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder';
@@ -123,11 +124,11 @@ function skeletonRows(count: number, showActions: boolean) {
 }
 
 /** Таблица заказов по брендбуку (table.css): шапка, строки с подстрочником, hover и клик по строке открывают карточку. */
-export function OrdersTable({ items, loading, loadingMore = false, partner, busy, onOpen, onImage, onStatus, onPrint }: OrdersTableProps) {
+export function OrdersTable({ items, loading, loadingMore = false, partner, busy, onOpen, onImage, onStatus, onPrint, onReturn }: OrdersTableProps) {
   const [sort, setSort] = useState<{ field: 'shippingDate' | 'processingDate'; desc: boolean }>({ field: 'shippingDate', desc: true });
   const canChangeStatus = hasPermission(partner, 'Assemble');
   const canPrint = hasPermission(partner, 'LabelPrint');
-  const showActions = canChangeStatus || canPrint;
+  const showActions = canChangeStatus || canPrint || items.some(item => item.canReturnToShelf);
   const sortedItems = useMemo(() => [...items].sort((a, b) => {
     const left = new Date(a[sort.field] ?? 0).getTime();
     const right = new Date(b[sort.field] ?? 0).getTime();
@@ -221,7 +222,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                   </td>
                   {showActions && (
                     <td className={`${TD} ${align('left')} pa-col-actions`} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                      <OrderRowActions order={order} canChangeStatus={canChangeStatus} canPrint={canPrint} busy={busy?.id === order.id ? busy.kind : null} onStatus={onStatus} onPrint={onPrint} />
+                      <OrderRowActions order={order} canChangeStatus={canChangeStatus} canPrint={canPrint} busy={busy?.id === order.id ? busy.kind : null} onStatus={onStatus} onPrint={onPrint} onReturn={onReturn} />
                     </td>
                   )}
                 </tr>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client';
-import { acceptOrder, getRequirements, printLabel, shipOrderStatus, type OrderListItem, type ShipRequirements } from '../api/orders';
+import { acceptOrder, getRequirements, printLabel, shipOrderStatus, returnOrderToShelf, type OrderListItem, type ShipRequirements } from '../api/orders';
 import { describeError } from '../lib/errors';
 import { Button } from '../ui/Button';
 import { Overlay } from '../ui/Overlay';
@@ -8,6 +8,7 @@ import { isOzonOrder } from '../lib/permissions';
 import { STATUS_ACTION_LABEL, type ActionKind } from './OrderRowActions';
 import { isCancelledOzonOrder } from '../lib/permissions';
 import { needsInput, RequirementsDialog } from './RequirementsDialog';
+import { clearReturnsCache } from '../returns/returnsCache';
 
 export interface Notice {
   kind: 'success' | 'error' | 'warning' | 'info';
@@ -20,6 +21,7 @@ export interface Notice {
 type StatusAction = 'accept' | 'ship';
 
 type Flow =
+  | { kind: 'confirm-return'; order: OrderListItem }
   | { kind: 'confirm-status'; order: OrderListItem; action: StatusAction }
   | { kind: 'requirements'; order: OrderListItem; requirements: ShipRequirements; then: () => Promise<void> };
 
@@ -47,6 +49,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
   const [busy, setBusy] = useState<{ id: number; kind: ActionKind } | null>(null);
   const [flow, setFlow] = useState<Flow | null>(null);
   const urls = useRef<string[]>([]);
+  const returnsInFlight = useRef(new Set<number>());
 
   // Ссылки на PDF живут недолго: потом освобождаем память.
   useEffect(
@@ -165,8 +168,39 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
     [onNotice, prepare, runPrint]
   );
 
+  const requestReturn = useCallback((order: OrderListItem) => {
+    if (!order.canReturnToShelf) return;
+    onNotice(null);
+    setFlow({ kind: 'confirm-return', order });
+  }, [onNotice]);
+
+  const runReturn = useCallback(async (order: OrderListItem) => {
+    if (returnsInFlight.current.has(order.id)) return;
+    returnsInFlight.current.add(order.id);
+    setBusy({ id: order.id, kind: 'return' });
+    try {
+      const updated = await returnOrderToShelf(order.id);
+      clearReturnsCache();
+      onUpdated(updated);
+      onNotice({ kind: 'success', title: `Заказ ${order.shipmentNumber} передан на разбор`,
+        text: 'Статус заказа — «На возврат».', link: { href: '/returns/received', label: 'Открыть полученные возвраты' } });
+    } catch (error) {
+      fail(`Не удалось передать заказ ${order.shipmentNumber} на разбор`, error);
+      onChanged(order.id);
+    } finally {
+      returnsInFlight.current.delete(order.id);
+      setBusy(null);
+    }
+  }, [fail, onChanged, onNotice, onUpdated]);
+
   let dialogs: ReactNode = null;
-  if (flow?.kind === 'confirm-status') {
+  if (flow?.kind === 'confirm-return') {
+    const { order } = flow;
+    dialogs = <Overlay kind="dialog" title="Возврат на полку?" width={480} onClose={() => setFlow(null)} footer={<>
+      <Button variant="primary" size={500} onClick={() => { setFlow(null); void runReturn(order); }}>Возврат на полку</Button>
+      <Button variant="action-secondary" size={500} onClick={() => setFlow(null)}>Отмена</Button>
+    </>}><p className="pa-lead">Заказ <b>{order.shipmentNumber}</b> появится в полученных возвратах со статусом «На разборе», а его статус изменится на «На возврат».</p></Overlay>;
+  } else if (flow?.kind === 'confirm-status') {
     const { order, action } = flow;
     const text = STATUS_TEXT[action];
     dialogs = (
@@ -217,5 +251,5 @@ export function useOrderActions({ onNotice, onChanged, onUpdated }: Options) {
     );
   }
 
-  return { busy, requestStatus, requestPrint, dialogs };
+  return { busy, requestStatus, requestPrint, requestReturn, dialogs };
 }

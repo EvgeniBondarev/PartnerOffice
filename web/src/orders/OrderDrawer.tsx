@@ -22,6 +22,7 @@ interface OrderDrawerProps {
   onImage: (image: { url: string; alt: string }) => void;
   onStatus: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
+  onReturn: (order: OrderListItem) => void;
 }
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -36,7 +37,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 const dash = (value: string | null | undefined) => (value && value.trim() ? value : '—');
 
 /** Карточка заказа в боковой панели (drawer.css): всё, что API отдаёт партнёру, и действия над заказом. */
-export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage, onStatus, onPrint }: OrderDrawerProps) {
+export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage, onStatus, onPrint, onReturn }: OrderDrawerProps) {
   const [details, setDetails] = useState<OrderDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,7 +74,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
           size={500}
           primary
           onStatus={onStatus}
-          onPrint={onPrint}
+          onPrint={onPrint} onReturn={onReturn}
         />
       }
     >

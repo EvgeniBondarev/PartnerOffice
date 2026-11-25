@@ -300,6 +300,7 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
               onImage={setImage}
               onStatus={actions.requestStatus}
               onPrint={actions.requestPrint}
+          onReturn={actions.requestReturn}
             />
             <div ref={sentinelRef} className="pa-scroll__end" aria-hidden="true" />
             {orders.moreError && (
@@ -345,6 +346,7 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
           onImage={setImage}
           onStatus={actions.requestStatus}
           onPrint={actions.requestPrint}
+          onReturn={actions.requestReturn}
         />
       )}
 

@@ -48,6 +48,8 @@ export interface OrderListItem {
   /** Какую кнопку статуса Studio2 показать: «Принят» (accept), «Отгрузить» (ship) или никакой. */
   statusAction?: 'accept' | 'ship' | null;
   partnerShipmentConfirmed?: boolean;
+  /** Доступность действия определяется сервером с учётом прав и состояния заказа. */
+  canReturnToShelf?: boolean;
   warehouseId: number | null;
   warehouse: string | null;
   clientId: number | null;
@@ -199,3 +201,6 @@ export async function printLabel(id: number): Promise<{ blob: Blob; generated: b
   const { blob, headers } = await requestFile(`${base}/${id}/label`, { method: 'POST' });
   return { blob, generated: headers.get('X-Label-Generated') === 'true', autoShipped: headers.get('X-Auto-Shipped') === 'true' };
 }
+
+/** Передать отменённый заказ на разбор возвратов. */
+export const returnOrderToShelf = (id: number) => request<OrderListItem>(`${base}/${id}/return-to-shelf`, { method: 'POST' });

@@ -3,7 +3,7 @@ import { Button } from '../ui/Button';
 import { isCancelledOzonOrder, isOzonOrder } from '../lib/permissions';
 
 /** status — смена статуса Studio2 («Принят» или «Отгрузить»), print — печать этикетки. */
-export type ActionKind = 'status' | 'print';
+export type ActionKind = 'status' | 'print' | 'return';
 
 /** Подпись кнопки статуса Studio2 по тому, что разрешил сервер. */
 export const STATUS_ACTION_LABEL = { accept: 'Принят', ship: 'Отгрузить' } as const;
@@ -21,17 +21,18 @@ interface OrderRowActionsProps {
   primary?: boolean;
   onStatus: (order: OrderListItem) => void;
   onPrint: (order: OrderListItem) => void;
+  onReturn: (order: OrderListItem) => void;
 }
 
 /**
  * Действия над заказом: кнопка статуса Studio2 («Принят», затем «Отгрузить») и печать этикетки Ozon.
  * Какую кнопку статуса показать, решает сервер (statusAction); этикетка — только у заказов Ozon.
  */
-export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size = 400, primary = false, onStatus, onPrint }: OrderRowActionsProps) {
+export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size = 400, primary = false, onStatus, onPrint, onReturn }: OrderRowActionsProps) {
   const action = canChangeStatus && order.statusAction ? order.statusAction : null;
   const label = isOzonOrder(order.marketplace) && canPrint;
   const cancelled = isCancelledOzonOrder(order.marketplace, order.ozonStatus);
-  if (!action && !label && !order.partnerShipmentConfirmed) return null;
+  if (!action && !label && !order.partnerShipmentConfirmed && !order.canReturnToShelf) return null;
 
   return (
     <div className="pa-actions">
@@ -47,6 +48,11 @@ export function OrderRowActions({ order, canChangeStatus, canPrint, busy, size =
           title={action === 'accept' ? 'Отметить, что заказ принят на складе' : 'Отметить, что заказ отгружен'}
         >
           {STATUS_ACTION_LABEL[action]}
+        </Button>
+      )}
+      {order.canReturnToShelf && (
+        <Button variant="action-secondary" size={size} icon="ui-package" loading={busy === 'return'} disabled={busy !== null} onClick={() => onReturn(order)}>
+          Возврат на полку
         </Button>
       )}
       {label && (
