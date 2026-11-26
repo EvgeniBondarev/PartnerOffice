@@ -1101,6 +1101,19 @@ describe('Возвраты', () => {
       expect(screen.getByRole('button', { name: /Состояние: Списан/ })).toBeInTheDocument();
     });
 
+    it('списание по остатку 1С: «Списан по остатку 1С» без номера заказа', async () => {
+      mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(shelfPage([shelfRow({ status: 'written_off', status_name: 'Списан',
+          reservations: [{ order_id: 0, posting_number: null, qty: 1, state: 'written_off', state_name: 'Списан', source: 'onec', at: '2026-11-26T09:30:00' }] })]))
+      });
+      renderApp('/returns/shelf?stock=written_off');
+      await screen.findByText('Шрус NAKAYAMA');
+      const region = screen.getByRole('region', { name: 'Возвраты на полке' });
+      expect(within(region).getByText('Списан по остатку 1С')).toBeInTheDocument();
+      expect(within(region).queryByText(/№0/)).not.toBeInTheDocument();
+    });
+
     it('на «Полке» нет отметки «Положил на полку», колонки «Отметка» и её фильтра, даже с правом «Приём возвратов»', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),

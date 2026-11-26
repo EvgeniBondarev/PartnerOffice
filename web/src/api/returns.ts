@@ -17,8 +17,8 @@ export interface ReturnRow {
   pair?: ReturnPair | null; history?: ReturnEvent[] | null;
 }
 
-/** Резерв позиции «Полки» под заказ партнёра: reserved — «В резерве», written_off — «Списан» (заказ отправлен). */
-export interface ShelfReservation { order_id: number; posting_number?: string | null; qty: number; state: 'reserved' | 'written_off'; state_name?: string | null; at?: string | null }
+/** Резерв позиции «Полки» под заказ партнёра: reserved — «В резерве», written_off — «Списан» (заказ отправлен или штуки уже нет на складе в 1С: source «onec», заказа нет). */
+export interface ShelfReservation { order_id: number; posting_number?: string | null; qty: number; state: 'reserved' | 'written_off'; state_name?: string | null; at?: string | null; source?: 'onec' | null }
 
 export type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'> & {
   /** Сервер подтвердил постановку на разбор: в интерфейсе показываем уведомление. */
