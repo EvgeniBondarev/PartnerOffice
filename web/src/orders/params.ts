@@ -8,6 +8,8 @@ export interface OrderFilterState {
   search: string;
   /** Статусы Studio2: id через запятую. */
   statusId: string;
+  /** Статусы маркетплейса (Ozon): названия через запятую. */
+  ozonStatus: string;
   warehouseId: string;
   clientId: string;
   supplierId: string;
@@ -15,11 +17,12 @@ export interface OrderFilterState {
   to: string;
 }
 
-export const EMPTY_FILTERS: OrderFilterState = { search: '', statusId: '', warehouseId: '', clientId: '', supplierId: '', from: '', to: '' };
+export const EMPTY_FILTERS: OrderFilterState = { search: '', statusId: '', ozonStatus: '', warehouseId: '', clientId: '', supplierId: '', from: '', to: '' };
 
 const KEYS: Array<[keyof OrderFilterState, string]> = [
   ['search', 'search'],
   ['statusId', 'status'],
+  ['ozonStatus', 'ozonStatus'],
   ['warehouseId', 'warehouse'],
   ['clientId', 'client'],
   ['supplierId', 'supplier'],
@@ -53,6 +56,7 @@ export function toQuery(filters: OrderFilterState): Omit<OrderQuery, 'page' | 'p
   return {
     search: filters.search.trim() || undefined,
     statusId: toId(filters.statusId),
+    ozonStatus: filters.ozonStatus.trim() || undefined,
     warehouseId: toId(filters.warehouseId),
     clientId: toId(filters.clientId),
     supplierId: toId(filters.supplierId),

@@ -141,12 +141,13 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
   const applySearch = useCallback((search: string) => setParams(writeParams({ ...applied, search })), [applied, setParams]);
   const pick = (patch: Partial<OrderFilterState>) => setParams(writeParams({ ...applied, ...patch }));
   const clearFilters = () => setParams(writeParams({ ...EMPTY_FILTERS, search: applied.search }));
-  const activeCount = [applied.statusId, applied.warehouseId, applied.clientId, applied.supplierId, applied.from || applied.to].filter(Boolean).length;
+  const activeCount = [applied.statusId, applied.ozonStatus, applied.warehouseId, applied.clientId, applied.supplierId, applied.from || applied.to].filter(Boolean).length;
   const nameOf = (items: Array<{ id: number; name: string }> | undefined, id: string) => items?.find((item) => String(item.id) === id)?.name ?? id;
-  const valueChips = (id: 'statusId' | 'warehouseId' | 'clientId' | 'supplierId', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'statusId' | 'ozonStatus' | 'warehouseId' | 'clientId' | 'supplierId', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(applied[id]).map((value) => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => pick({ [id]: toggleValue(applied[id], value) }) }));
   const chips: FilterChip[] = [
     ...valueChips('statusId', 'Статус', (value) => nameOf(filterOptions?.statuses, value)),
+    ...valueChips('ozonStatus', 'Статус маркетплейса', (value) => value),
     ...valueChips('warehouseId', 'Склад', (value) => nameOf(filterOptions?.warehouses, value)),
     ...valueChips('clientId', 'Клиент', (value) => nameOf(filterOptions?.clients, value)),
     ...valueChips('supplierId', 'Поставщик', (value) => nameOf(filterOptions?.suppliers, value)),
@@ -161,6 +162,15 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
             value={applied.statusId}
             options={(filterOptions?.statuses ?? []).map((item) => ({ value: String(item.id), label: item.name, count: item.count }))}
             onChange={(statusId) => pick({ statusId })}
+          />
+        </FilterSection>
+      )}
+      {(filterOptions?.ozonStatuses?.length ?? 0) > 0 && (
+        <FilterSection title="Статус маркетплейса" active={!!applied.ozonStatus}>
+          <CheckboxGroup
+            value={applied.ozonStatus}
+            options={(filterOptions?.ozonStatuses ?? []).map((name) => ({ value: name, label: name }))}
+            onChange={(ozonStatus) => pick({ ozonStatus })}
           />
         </FilterSection>
       )}
