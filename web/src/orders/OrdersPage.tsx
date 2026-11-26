@@ -290,7 +290,7 @@ export function OrdersPage({ group }: { group: OrderGroup }) {
         </EmptyState>
       ) : (
         !orders.error && (
-          <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label="Таблица заказов">
+          <div className="pa-scroll pa-scroll--orders" ref={scrollRef} tabIndex={0} role="region" aria-label="Таблица заказов">
             <OrdersTable
               items={items}
               loading={orders.loading}

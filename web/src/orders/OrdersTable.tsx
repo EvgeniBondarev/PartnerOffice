@@ -145,13 +145,13 @@ function skeletonRows(count: number, showActions: boolean) {
   return Array.from({ length: count }, (_, row) => (
     <tr key={`skeleton-${row}`} className="po-table-row__row" aria-hidden="true">
       <td className={`${TD} ${align('left')} pa-col-product`}><div className="pa-returns__product pa-orders__product"><Skeleton width={48} height={48} /><div className="pa-returns__product-info"><Skeleton width="80%" height={20} /><div className="pa-skeleton-gap" /><Skeleton width={90} height={20} /></div></div></td>
-      <td className={`${TD} ${align('left')}`}><Skeleton width={150} height={20} /></td>
-      <td className={`${TD} ${align('left')}`}><Skeleton width={120} height={24} /></td>
-      <td className={`${TD} ${align('left')}`}><Skeleton width={110} height={20} /></td>
-      <td className={`${TD} ${align('left')}`}><Skeleton width={90} height={20} /></td>
-      <td className={`${TD} ${align('left')}`}><Skeleton width={130} height={20} /></td>
-      <td className={`${TD} ${align('right')}`}><Skeleton width={70} height={20} /></td>
-      {showActions && <td className={`${TD} ${align('left')}`}><Skeleton width={120} height={32} /></td>}
+      <td className={`${TD} ${align('left')} pa-col-posting`}><Skeleton width="90%" height={20} /></td>
+      <td className={`${TD} ${align('left')} pa-col-status`}><Skeleton width="80%" height={24} /></td>
+      <td className={`${TD} ${align('left')} pa-col-warehouse`}><Skeleton width="80%" height={20} /></td>
+      <td className={`${TD} ${align('left')} pa-col-supplier`}><Skeleton width="70%" height={20} /></td>
+      <td className={`${TD} ${align('left')} pa-col-date`}><Skeleton width="85%" height={20} /></td>
+      <td className={`${TD} ${align('right')} pa-col-qty`}><Skeleton width={60} height={20} /></td>
+      {showActions && <td className={`${TD} ${align('left')} pa-col-actions`}><Skeleton width={120} height={32} /></td>}
     </tr>
   ));
 }
@@ -186,19 +186,19 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
             <th className={`${TH} ${align('left')} pa-col-product`}>
               Товар<div className="pa-sub">Артикул, бренд</div>
             </th>
-            <th className={`${TH} ${align('left')}`}>
+            <th className={`${TH} ${align('left')} pa-col-posting`}>
               Номер отправления<div className="pa-sub">ScanIt</div>
             </th>
-            <th className={`${TH} ${align('left')}`}>
+            <th className={`${TH} ${align('left')} pa-col-status`}>
               Статус
             </th>
-            <th className={`${TH} ${align('left')}`}>
+            <th className={`${TH} ${align('left')} pa-col-warehouse`}>
               Склад<div className="pa-sub">Клиент</div>
             </th>
-            <th className={`${TH} ${align('left')}`}>
+            <th className={`${TH} ${align('left')} pa-col-supplier`}>
               Поставщик
             </th>
-            <th className={`${TH} ${align('left')}`}>
+            <th className={`${TH} ${align('left')} pa-col-date`}>
               <button type="button" className="pa-sort" onClick={() => toggleSort('shippingDate')} aria-label="Сортировать по дате отгрузки">
                 Отгрузить до <span aria-hidden="true">{sort.field === 'shippingDate' ? (sort.desc ? '↓' : '↑') : '↕'}</span>
               </button>
@@ -206,10 +206,10 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                 Принят <span aria-hidden="true">{sort.field === 'processingDate' ? (sort.desc ? '↓' : '↑') : '↕'}</span>
               </button>
             </th>
-            <th className={`${TH} ${align('right')}`}>
+            <th className={`${TH} ${align('right')} pa-col-qty`}>
               Кол-во<div className="pa-sub">Цена</div>
             </th>
-            {showActions && <th className={`${TH} ${align('left')}`} />}
+            {showActions && <th className={`${TH} ${align('left')} pa-col-actions`}><span className="pa-visually-hidden">Действия</span></th>}
           </tr>
         </thead>
         <tbody>
@@ -236,20 +236,22 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                       </div>
                     </div>
                   </td>
-                  <td className={`${TD} ${align('left')} pa-nowrap`}>
+                  <td className={`${TD} ${align('left')} pa-nowrap pa-col-posting`}>
                     <CopyValue value={order.shipmentNumber} label="номер отправления"><div className="pa-number">{order.shipmentNumber ?? '—'}</div></CopyValue>
                     <div className="pa-sub">{order.scanit ? <CopyValue value={order.scanit} label="код этикетки ScanIt" /> : 'ScanIt ещё не получен'}</div>
                   </td>
                   <td className={`${TD} ${align('left')} pa-col-status`}><Status order={order} /></td>
-                  <td className={`${TD} ${align('left')}`}>
+                  <td className={`${TD} ${align('left')} pa-col-warehouse`}>
                     <div>{order.warehouse ?? '—'}</div>
                     <div className="pa-sub">{order.client ?? '—'}</div>
+                    {/* На узкой таблице колонка «Поставщик» скрыта: поставщик — третьей строкой здесь. */}
+                    {order.supplier && <div className="pa-sub pa-supplier-inline">Поставщик: {order.supplier}</div>}
                   </td>
                   <td className={`${TD} ${align('left')} pa-col-supplier`}>
                     {order.supplier ? <div title={order.supplier}>{order.supplier}</div> : <span className="pa-sub">—</span>}
                   </td>
                   <td className={`${TD} ${align('left')} pa-col-date`}><ShipBy order={order} /></td>
-                  <td className={`${TD} ${align('right')} pa-nowrap`}>
+                  <td className={`${TD} ${align('right')} pa-nowrap pa-col-qty`}>
                     <div>{formatQuantity(order.quantity)}</div>
                     <div className="pa-sub">{formatMoney(order.price)}</div>
                     <ShelfStock order={order} />
