@@ -20,9 +20,16 @@ import emptyIllustration from '../assets/illustrations/returns-empty.webp';
 
 const TH = 'po-table-cell-base__cell po-table-cell-base__th ozi-table-400-true po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
 const TD = 'po-table-cell-base__cell po-table-cell-base__td ozi-table-500 po-table-cell-base__size-500 po-table-cell-base__vertical-align-top po-table-cell-base__bottomBorder po-table-cell-base__horizontal-align-left';
-const SHELF_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад партнёра', 'Перемещено', 'Статус'];
-const SUPPLIER_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад и документ', 'ТТН', 'Статус'];
-const WAREHOUSE_COLUMNS = ['Товар', 'Отправление / коробка', 'Склад и документ', 'Статус'];
+/** Колонка таблицы возвратов: ключ даёт класс `pa-returns__col--<key>` ячейкам, по нему CSS задаёт ширину. */
+type Column = readonly [key: string, label: string];
+const col = (key: string) => `pa-returns__col--${key}`;
+const PRODUCT: Column = ['product', 'Товар'];
+const POSTING: Column = ['posting', 'Отправление / коробка'];
+const SHELF_COLUMNS: Column[] = [PRODUCT, POSTING, ['warehouse', 'Склад партнёра'], ['moved', 'Перемещено'], ['status', 'Статус']];
+const SUPPLIER_COLUMNS: Column[] = [PRODUCT, POSTING, ['doc', 'Склад и документ'], ['ttn', 'ТТН'], ['status', 'Статус']];
+const WAREHOUSE_COLUMNS: Column[] = [PRODUCT, POSTING, ['doc', 'Склад и документ'], ['status', 'Статус']];
+const mainColumns = (waiting: boolean, hasMark: boolean): Column[] => [PRODUCT, POSTING, ['supplier', 'Поставщик'], ['ozon-status', 'Статус Ozon'], ['place', 'Пункт выдачи'],
+  ...(waiting ? [['giveout', 'Штрихкод получения'] as const] : []), ['date', 'Дата'], ['qty', 'Кол-во'], ...(hasMark ? [['mark', 'Приёмка'] as const] : [])];
 /** Статусы решений «К отправке»: «Оформлен» ждёт отправки, остальные — движение товара уже произошло. */
 const OUTBOUND_STATUS_KINDS: Record<string, BadgeKind> = { registered: 'secondary warning', sent: 'primary success', transfer_created: 'secondary info', received: 'primary success' };
 
@@ -187,25 +194,25 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
                 {supplier && <div className="pa-returns__mark-box pa-returns-card__mark">{outboundTtn(row)}</div>}
                 {hasMark && <div className="pa-returns__mark-box pa-returns-card__mark">{markCell(row)}</div>}
               </li>), ...(loadingMore ? skeletonCards(3) : [])]}</ul>
-            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ' pa-table--main'}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : ['Товар', 'Отправление / коробка', 'Поставщик', 'Статус Ozon', 'Пункт выдачи', ...(section === 'waiting' ? ['Штрихкод получения'] : []), 'Дата', 'Кол-во', ...(hasMark ? ['Приёмка'] : [])]).map(x => <th className={TH} key={x}>{x}</th>)}</tr></thead>
+            : <div className="pa-scroll" ref={scrollRef} tabIndex={0} role="region" aria-label={supplier ? 'Возвраты поставщику' : warehouse ? 'Возвраты на склад' : shelf ? 'Возвраты на полке' : received ? 'Полученные возвраты' : 'Возвраты, ожидающие получения'}><div className={`pa-table${outbound ? ` pa-table--outbound pa-table--${section}` : shelf ? ' pa-table--shelf' : ` pa-table--main pa-table--${section}`}`}><table className="po-table__table"><thead><tr className="po-table-row__row">{(supplier ? SUPPLIER_COLUMNS : warehouse ? WAREHOUSE_COLUMNS : shelf ? SHELF_COLUMNS : mainColumns(section === 'waiting', hasMark)).map(([key, label]) => <th className={`${TH} ${col(key)}`} key={key}>{label}</th>)}</tr></thead>
               <tbody>{loading ? skeletonRows(8, hasMark) : [...rows.map(row => <tr ref={row.key === highlighted ? highlightedRow : undefined} className={`po-table-row__row${row.key === highlighted ? ' pa-returns__row--highlight' : ''}`} key={rowKey(row)}>
-                <td className={`${TD} pa-col-product`}>{productCell(row)}</td>
-                <td className={TD}>{postingCell(row)}</td>
+                <td className={`${TD} pa-col-product ${col('product')}`}>{productCell(row)}</td>
+                <td className={`${TD} ${col('posting')}`}>{postingCell(row)}</td>
                 {outbound ? <>
-                  <td className={TD}>{outboundDoc(row)}</td>
-                  {supplier && <td className={TD}>{outboundTtn(row)}</td>}
-                  <td className={TD}>{outboundStatus(row)}</td>
+                  <td className={`${TD} ${col('doc')}`}>{outboundDoc(row)}</td>
+                  {supplier && <td className={`${TD} ${col('ttn')}`}>{outboundTtn(row)}</td>}
+                  <td className={`${TD} ${col('status')}`}>{outboundStatus(row)}</td>
                 </> : shelf ? <>
-                  <td className={TD}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)}</div></td>
-                  <td className={TD}>{shelfMoved(row)}</td>
-                  <td className={TD}>{shelfStatus(row)}</td>
+                  <td className={`${TD} ${col('warehouse')}`}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)}</div></td>
+                  <td className={`${TD} ${col('moved')}`}>{shelfMoved(row)}</td>
+                  <td className={`${TD} ${col('status')}`}>{shelfStatus(row)}</td>
                 </> : <>
-                <td className={TD}>{supplierCell(row)}</td>
-                <td className={TD}>{statusBadge(row)}{pairReason(row)}</td>
-                <td className={TD}>{placeCell(row)}</td>
-                {section === 'waiting' && <td className={TD}>{giveoutCell(row)}</td>}
-                <td className={TD}>{formatDate(row.return_date)}</td><td className={TD}>{formatQuantity(row.qty)}</td>
-                {hasMark && <td className={`${TD} pa-returns__mark`}>{markCell(row)}</td>}
+                <td className={`${TD} ${col('supplier')}`}>{supplierCell(row)}</td>
+                <td className={`${TD} ${col('ozon-status')}`}>{statusBadge(row)}{pairReason(row)}</td>
+                <td className={`${TD} ${col('place')}`}>{placeCell(row)}</td>
+                {section === 'waiting' && <td className={`${TD} ${col('giveout')}`}>{giveoutCell(row)}</td>}
+                <td className={`${TD} ${col('date')}`}>{formatDate(row.return_date)}</td><td className={`${TD} ${col('qty')}`}>{formatQuantity(row.qty)}</td>
+                {hasMark && <td className={`${TD} pa-returns__mark ${col('mark')}`}>{markCell(row)}</td>}
                 </>}
               </tr>), ...(loadingMore ? skeletonRows(3, hasMark) : [])]}</tbody></table></div>{listEnd}</div>)}
         {phone && !loading && items.length > 0 && listEnd}
