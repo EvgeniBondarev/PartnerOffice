@@ -131,12 +131,17 @@ function ozonStatusBadgeStyle(color: string | null | undefined): CSSProperties |
   } as CSSProperties;
 }
 
-/** Статус маркетплейса и статус Studio2. */
+const RETURN_OUTCOMES: Record<string, string> = { shelf: 'на полке', supplier: 'поставщику', us: 'на склад' };
+
+/** Статус маркетплейса и статус Studio2; у заказа с оформленным возвратом — куда вернулась позиция. */
 function Status({ order }: { order: OrderListItem }) {
   const ozonStyle = ozonStatusBadgeStyle(order.ozonStatusColor);
   return <div className="pa-orders-status">
     {order.marketplace?.toUpperCase() === 'OZON' && <div><span className="pa-muted">Ozon: </span>{order.ozonStatus ? <Badge kind="secondary neutral" title={order.ozonStatus} style={ozonStyle}>{order.ozonStatus}</Badge> : <span className="pa-muted">—</span>}</div>}
     <div><span className="pa-muted">Наш: </span>{order.status ? <Badge kind={orderStatusBadgeKind(order.status)} title={order.status}>{order.status}</Badge> : <span className="pa-muted">—</span>}</div>
+    {order.returnOutcome && RETURN_OUTCOMES[order.returnOutcome] && <div className="pa-sub pa-tone pa-tone--success pa-return-outcome" title="Возврат принят сотрудниками, позиция учтена отдельно">
+      Возврат оформлен: {RETURN_OUTCOMES[order.returnOutcome]}
+    </div>}
   </div>;
 }
 

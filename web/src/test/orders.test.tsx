@@ -157,6 +157,21 @@ describe('Список заказов', () => {
     expect(calls.some((call) => call.method === 'POST' && call.url.endsWith('/label'))).toBe(false);
   });
 
+  it('оформленный возврат: подпись «Возврат оформлен: …» только у заказов с решением', async () => {
+    ordersApi(PARTNER_FULL, [
+      order(1, { ozonStatus: 'Отменён', returnOutcome: 'shelf', canReturnToShelf: false }),
+      order(2, { ozonStatus: 'Отменён', returnOutcome: 'supplier' }),
+      order(3, { ozonStatus: 'Отменён', canReturnToShelf: true })
+    ]);
+    renderApp('/orders/ready');
+
+    const first = await screen.findByRole('row', { name: /Заказ 0123-0001-1/ });
+    expect(within(first).getByText('Возврат оформлен: на полке')).toBeInTheDocument();
+    expect(within(first).queryByRole('button', { name: /Возврат на полку/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Заказ 0123-0002-1/ })).getByText('Возврат оформлен: поставщику')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Заказ 0123-0003-1/ })).queryByText(/Возврат оформлен/)).not.toBeInTheDocument();
+  });
+
   it('просрочку показывает красной подписью под датой, а не одним цветом', async () => {
     ordersApi(PARTNER_FULL, [order(1, { shippingDate: '2020-01-01T10:00:00', ozonStatus: 'Ожидает сборки' })]);
     renderApp('/orders');
