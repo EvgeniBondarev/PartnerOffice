@@ -467,6 +467,12 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
 
     expect(await screen.findByText('Статус: Принят на складе. Зарезервировано на полке: 2 шт.')).toBeInTheDocument();
     expect(within(row(1)).getByText('В резерве: 2 шт.')).toBeInTheDocument();
+    const reservedLink = within(row(1)).getByRole('link', { name: /В резерве: 2/ });
+    expect(reservedLink).toHaveAttribute('target', '_blank');
+    const reservedHref = new URL(reservedLink.getAttribute('href')!, 'http://test');
+    expect(reservedHref.pathname).toBe('/returns/shelf');
+    expect(reservedHref.searchParams.get('stock')).toBe('reserved');
+    expect(reservedHref.searchParams.get('search')).toBe(current.article);
     expect(within(row(1)).queryByText(/На полке:/)).not.toBeInTheDocument();
   });
 
