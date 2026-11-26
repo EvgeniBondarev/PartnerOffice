@@ -215,6 +215,19 @@ describe('Возвраты', () => {
     expect(screen.queryByRole('button', { name: 'История позиции' })).not.toBeInTheDocument();
   });
 
+  it('«Полка»: ссылка из заказов открывает список с готовым поиском по артикулу и фильтром «На полке»', async () => {
+    const calls = mockApi({
+      '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+      '/partner-api/returns?*': () => json({ items: [], total: 0, page: 1, page_size: 50, snapshot_at: null, partial: false })
+    });
+    renderApp('/returns/shelf?stock=on_shelf&search=1091239%3DQKB');
+    expect(await screen.findByRole('searchbox', { name: 'Поиск возвратов' })).toHaveValue('1091239=QKB');
+    await waitFor(() => expect(calls.some(c => {
+      const q = new URL(c.url, 'http://test').searchParams;
+      return q.get('search') === '1091239=QKB' && q.get('stock') === 'on_shelf';
+    })).toBe(true));
+  });
+
   it('ищет при вводе и позволяет выбрать подсказку FBO клавиатурой', async () => {
     const calls = mockApi({
       '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),

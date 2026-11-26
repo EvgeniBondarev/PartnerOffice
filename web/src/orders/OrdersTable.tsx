@@ -38,14 +38,24 @@ const align = (side: 'left' | 'right') => `po-table-cell-base__horizontal-align-
  * Возвраты на «Полке» с артикулом заказа: зелёным — сколько свободно, отдельно — сколько уже в резерве под заказ.
  * «Принят» резервирует свободные позиции под заказ; после отправки заказа они списываются с полки.
  */
-export function ShelfStock({ order }: { order: Pick<OrderListItem, 'shelf' | 'quantity'> }) {
+/** Полка в новой вкладке: только свободные позиции и поиск по артикулу заказа. */
+function shelfLink(article?: string | null) {
+  const params = new URLSearchParams({ stock: 'on_shelf' });
+  if (article?.trim()) params.set('search', article.trim());
+  return `/returns/shelf?${params}`;
+}
+
+export function ShelfStock({ order }: { order: Pick<OrderListItem, 'shelf' | 'quantity'> & { article?: string | null } }) {
   const shelf = order.shelf;
   if (!shelf || (shelf.available <= 0 && shelf.reserved <= 0)) return null;
   const need = Math.max(1, order.quantity ?? 1);
   return <>
     {shelf.reserved > 0 && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock">В резерве: {formatQuantity(shelf.reserved)}</div>}
     {shelf.available > 0 && shelf.reserved < need && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock" title="Свободные возвраты на вашей полке с тем же артикулом">
-      На полке: {formatQuantity(shelf.available)}
+      <a className="pa-shelf-stock__link" href={shelfLink(order.article)} target="_blank" rel="noopener noreferrer"
+        onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        На полке: {formatQuantity(shelf.available)}
+      </a>
     </div>}
   </>;
 }

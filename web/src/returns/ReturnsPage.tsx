@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { ReturnRow } from '../api/returns';
 import { useAuth } from '../auth/AuthContext';
 import { hasPermission } from '../lib/permissions';
@@ -25,8 +26,11 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const canWork = hasPermission(partner, 'ReturnsWork');
   const phone = useMediaQuery('(max-width: 767px)', false);
   const { filters: panelFilters, pvzDraft, setPvzDraft, change, clear, activeCount } = useReturnsQuery(section);
-  const [searchDraft, setSearchDraft] = useState('');
-  const [search, setSearch] = useState('');
+  // Ссылка «На полке» из заказов приходит с ?search=артикул: поиск стартует с ним (только на «Полке»; дальше он живёт как обычный поиск).
+  const [urlParams] = useSearchParams();
+  const [initialSearch] = useState(() => section === 'shelf' ? (urlParams.get('search') ?? '').trim().slice(0, 100) : '');
+  const [searchDraft, setSearchDraft] = useState(initialSearch);
+  const [search, setSearch] = useState(initialSearch);
   const filters = useMemo(() => ({ search, ...panelFilters }), [search, panelFilters]);
   const [scanResult, setScanResult] = useState<ScanResult>(null);
   const [reviewNotice, setReviewNotice] = useState('');
@@ -44,7 +48,7 @@ export function ReturnsPage({ section = 'waiting' }: { section?: ReturnsSection 
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const focused = useRef(false);
-  const currentSearch = useRef('');
+  const currentSearch = useRef(initialSearch);
   const suggestionSearch = useRef('');
   const suppressedSearch = useRef<string | null>(null);
   const blurTimer = useRef<number | undefined>(undefined);

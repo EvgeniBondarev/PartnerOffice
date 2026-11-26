@@ -300,6 +300,8 @@ button.po-day:disabled { cursor: default; }
 .pa-tone--success { color: var(--ozi-text-success); }
 /* Остаток полки в узкой колонке «Кол-во»: подпись переносится, число остаётся целым */
 .pa-shelf-stock { white-space: normal; margin-top: 2px; }
+.pa-shelf-stock__link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.pa-shelf-stock__link:hover { text-decoration-thickness: 2px; }
 .pa-shelf-reservation { margin-top: 4px; }
 .pa-tone--warning { color: var(--ozi-text-warning); }
 .pa-tone--neutral { color: var(--ozi-text-secondary-transparent); }

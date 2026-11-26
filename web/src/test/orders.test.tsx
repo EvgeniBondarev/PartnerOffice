@@ -449,8 +449,15 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
     });
     renderApp('/orders');
 
-    const stock = within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByText('На полке: 2 шт.');
+    const stock = within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByText('На полке: 2 шт.').closest('.pa-shelf-stock')!;
     expect(stock).toHaveClass('pa-tone--success');
+    const link = within(row(1)).getByRole('link', { name: /На полке: 2/ });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    const href = new URL(link.getAttribute('href')!, 'http://test');
+    expect(href.pathname).toBe('/returns/shelf');
+    expect(href.searchParams.get('stock')).toBe('on_shelf');
+    expect(href.searchParams.get('search')).toBe(current.article);
     expect(within(row(2)).queryByText(/На полке|В резерве/)).not.toBeInTheDocument();
 
     await user.click(within(row(1)).getByRole('button', { name: 'Принят' }));
