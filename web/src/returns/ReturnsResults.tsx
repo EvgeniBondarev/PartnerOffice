@@ -126,7 +126,15 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
   const shelfWarehouse = (row: ReturnRow) => row.decision?.warehouse || '—';
   const shelfMoved = (row: ReturnRow) => <>{row.decision?.onec?.number ? <CopyValue value={row.decision.onec.number} label="номер документа 1С">{`№${row.decision.onec.number}`}</CopyValue> : '—'}
     <div className="pa-sub">{row.decision?.onec?.at ? formatUtcDateTime(row.decision.onec.at) : ''}</div></>;
-  const shelfStatus = (row: ReturnRow) => <Badge kind="primary success">{row.decision?.status_name || 'На полке'}</Badge>;
+  // «Полка»: позиция свободна, в резерве под заказ партнёра или списана, когда заказ отправлен. Под бейджем — заказы резерва.
+  const SHELF_BADGE: Record<string, BadgeKind> = { reserved: 'secondary warning', written_off: 'secondary neutral' };
+  const shelfStatus = (row: ReturnRow) => <>
+    <Badge kind={SHELF_BADGE[row.decision?.status ?? ''] ?? 'primary success'}>{row.decision?.status_name || 'На полке'}</Badge>
+    {(row.decision?.reservations ?? []).map(reservation => <div className="pa-sub pa-shelf-reservation" key={`${reservation.order_id}:${reservation.state}:${reservation.at ?? ''}`}>
+      <div>{reservation.state === 'written_off' ? 'Списан по заказу' : 'Под заказ'} {reservation.posting_number || `№${reservation.order_id}`}</div>
+      <div>{formatQuantity(reservation.qty)}{reservation.at ? ` · ${formatUtcDateTime(reservation.at)}` : ''}</div>
+    </div>)}
+  </>;
   const markCell = (row: ReturnRow) => received && row.key?.startsWith('shelf-order:') && row.review === 'queue'
     ? <Badge kind="secondary warning">На разборе</Badge>
     : <ReturnMarkCell row={row} canWork={canWork} busy={!!row.key && saving.includes(row.key)} onChange={(patch, operationId) => mark(row, patch, operationId)} />;
@@ -188,7 +196,7 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
                   {supplier && <td className={TD}>{outboundTtn(row)}</td>}
                   <td className={TD}>{outboundStatus(row)}</td>
                 </> : shelf ? <>
-                  <td className={TD}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)} шт.</div></td>
+                  <td className={TD}>{shelfWarehouse(row)}<div className="pa-sub">{formatQuantity(row.qty)}</div></td>
                   <td className={TD}>{shelfMoved(row)}</td>
                   <td className={TD}>{shelfStatus(row)}</td>
                 </> : <>

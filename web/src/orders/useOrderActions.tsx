@@ -78,6 +78,7 @@ export function useOrderActions({ onNotice, onChanged, onUpdated, onReturned }: 
         // После «Отгрузить» отправление собрано в Ozon: показываем и его новый статус.
         const details = [
           updated.status ? `Статус: ${updated.status}.` : '',
+          action === 'accept' && updated.shelf?.reserved ? `Зарезервировано на полке: ${updated.shelf.reserved} шт.` : '',
           action === 'ship' && isOzonOrder(updated.marketplace) && updated.ozonStatus ? `Статус Ozon: ${updated.ozonStatus}.` : ''
         ].filter(Boolean).join(' ');
         onNotice({ kind: 'success', title: `Заказ ${order.shipmentNumber} ${text.done}`, text: details || undefined });
@@ -235,6 +236,8 @@ export function useOrderActions({ onNotice, onChanged, onUpdated, onReturned }: 
         <p className="pa-lead">
           {action === 'ship' ? <>Подтвердить отгрузку заказа <b>{order.shipmentNumber}</b>? Статус останется «{order.status}».</> : <>Заказ <b>{order.shipmentNumber}</b> получит статус «{text.target}».</>}
           {action === 'ship' && isOzonOrder(order.marketplace) && ' Отправление будет собрано в Ozon.'}
+          {action === 'accept' && (order.shelf?.available ?? 0) > 0 && !order.shelf?.reserved &&
+            ` На вашей полке есть ${Math.min(order.shelf!.available, Math.max(1, order.quantity ?? 1))} шт. с этим артикулом: они будут зарезервированы под заказ и списаны, когда заказ отправят.`}
         </p>
       </Overlay>
     );

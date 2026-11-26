@@ -3,16 +3,18 @@ import { useSearchParams } from 'react-router-dom';
 import { joinList, splitList } from '../lib/multi';
 
 export type ReturnsSection = 'waiting' | 'transit' | 'received' | 'shelf' | 'supplier' | 'warehouse';
-export interface ReturnFilters { pvz: string; supplier: string; status: string; clientId: string; mark: string; review: string; dateFrom: string; dateTo: string }
+export interface ReturnFilters { pvz: string; supplier: string; status: string; clientId: string; mark: string; review: string; stock: string; dateFrom: string; dateTo: string }
 
-export const NO_FILTERS: ReturnFilters = { pvz: '', supplier: '', status: '', clientId: '', mark: '', review: '', dateFrom: '', dateTo: '' };
+export const NO_FILTERS: ReturnFilters = { pvz: '', supplier: '', status: '', clientId: '', mark: '', review: '', stock: '', dateFrom: '', dateTo: '' };
 /** На вкладке получения остаются только статусы, когда возврат уже можно забрать. */
 export const STATUS_VALUES = ['ArrivedAtReturnPlace', 'CheckAtPickupPoint'];
 export const MARK_VALUES = ['pending', 'accepted', 'rejected', 'ok', 'defect', 'missort'];
+/** «Полка»: свободна, в резерве под заказ, списана (заказ отправлен). Без выбора списанные не показываются. */
+export const STOCK_VALUES = ['on_shelf', 'reserved', 'written_off'];
 export const PVZ_DELAY_MS = 350;
 
 /** Имя параметра в адресной строке: ?mark=pending&client=3. Остальные имена совпадают с параметрами API. */
-const URL_KEYS: Record<keyof ReturnFilters, string> = { pvz: 'pvz', supplier: 'supplier', status: 'status', clientId: 'client', mark: 'mark', review: 'review', dateFrom: 'from', dateTo: 'to' };
+const URL_KEYS: Record<keyof ReturnFilters, string> = { pvz: 'pvz', supplier: 'supplier', status: 'status', clientId: 'client', mark: 'mark', review: 'review', stock: 'stock', dateFrom: 'from', dateTo: 'to' };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Значения из адресной строки приходят от кого угодно (ссылка от коллеги, закладка): неизвестное отбрасываем, а не отправляем на сервер. */
@@ -28,6 +30,7 @@ export function parseFilters(params: URLSearchParams, section: ReturnsSection): 
     status: section === 'waiting' ? list('status', item => STATUS_VALUES.includes(item)) : '',
     mark: section === 'received' ? list('mark', item => MARK_VALUES.includes(item)) : '',
     review: section === 'received' ? list('review', item => item === 'queue') : '',
+    stock: section === 'shelf' ? list('stock', item => STOCK_VALUES.includes(item)) : '',
     dateFrom: date('dateFrom'),
     dateTo: date('dateTo')
   };
