@@ -38,9 +38,9 @@ const align = (side: 'left' | 'right') => `po-table-cell-base__horizontal-align-
  * Возвраты на «Полке» с артикулом заказа: зелёным — сколько свободно, отдельно — сколько уже в резерве под заказ.
  * «Принят» резервирует свободные позиции под заказ; после отправки заказа они списываются с полки.
  */
-/** Полка в новой вкладке: только свободные позиции и поиск по артикулу заказа. */
-function shelfLink(article?: string | null) {
-  const params = new URLSearchParams({ stock: 'on_shelf' });
+/** Полка в новой вкладке: позиции нужного состояния («На полке» / «В резерве») и поиск по артикулу заказа. */
+function shelfLink(article: string | null | undefined, stock: 'on_shelf' | 'reserved') {
+  const params = new URLSearchParams({ stock });
   if (article?.trim()) params.set('search', article.trim());
   return `/returns/shelf?${params}`;
 }
@@ -50,9 +50,14 @@ export function ShelfStock({ order }: { order: Pick<OrderListItem, 'shelf' | 'qu
   if (!shelf || (shelf.available <= 0 && shelf.reserved <= 0)) return null;
   const need = Math.max(1, order.quantity ?? 1);
   return <>
-    {shelf.reserved > 0 && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock">В резерве: {formatQuantity(shelf.reserved)}</div>}
+    {shelf.reserved > 0 && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock">
+      <a className="pa-shelf-stock__link" href={shelfLink(order.article, 'reserved')} target="_blank" rel="noopener noreferrer"
+        onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+        В резерве: {formatQuantity(shelf.reserved)}
+      </a>
+    </div>}
     {shelf.available > 0 && shelf.reserved < need && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock" title="Свободные возвраты на вашей полке с тем же артикулом">
-      <a className="pa-shelf-stock__link" href={shelfLink(order.article)} target="_blank" rel="noopener noreferrer"
+      <a className="pa-shelf-stock__link" href={shelfLink(order.article, 'on_shelf')} target="_blank" rel="noopener noreferrer"
         onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
         На полке: {formatQuantity(shelf.available)}
       </a>
