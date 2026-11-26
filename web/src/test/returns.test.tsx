@@ -1308,7 +1308,7 @@ describe('Возвраты', () => {
 
     it('планшет: панель скрыта, кнопка «Фильтры» открывает боковую панель, Esc закрывает и возвращает фокус', async () => {
       const calls = setup('/returns/received');
-      media(query => query.includes('max-width: 767px') ? false : !query.includes('min-width: 1200px'));
+      media(query => query.includes('max-width: 767px') ? false : !query.includes('min-width: 1600px'));
       cleanup(); renderApp('/returns/received');
       await screen.findByText('Товар А');
       expect(screen.queryByRole('complementary')).not.toBeInTheDocument();

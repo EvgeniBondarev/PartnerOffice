@@ -4,10 +4,11 @@ import { FilterDrawer } from './FilterDrawer';
 import { useElementWidth } from './useElementWidth';
 import { useMediaQuery } from './useMediaQuery';
 
-/** Панель слева (280px + зазор 24px) стоит, только если рядом с ней таблице хватает места: считаем по ширине самой страницы, а не окна,
- *  потому что развёрнутое меню забирает ещё 160px. Меньше — панель открывается по кнопке поверх; на телефоне шторкой снизу. */
-export const PANEL_MIN_WIDTH = 1280;
-const PANEL_MEDIA = '(min-width: 1200px)', PHONE_MEDIA = '(max-width: 767px)';
+/** Панель слева (280px + зазор 24px) стоит, только если рядом с ней таблице остаётся около 1180px: считаем по ширине самой
+ *  страницы, а не окна, потому что развёрнутое меню забирает ещё 160px. На ноутбуке (1280–1512px) панель открывается по кнопке
+ *  поверх, а таблица получает всю ширину; на телефоне — шторкой снизу. */
+export const PANEL_MIN_WIDTH = 1480;
+const PANEL_MEDIA = '(min-width: 1600px)', PHONE_MEDIA = '(max-width: 767px)';
 
 interface FilterLayoutProps {
   /** Заголовок страницы: в левой колонке над панелью. */

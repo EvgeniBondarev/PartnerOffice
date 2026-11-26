@@ -220,17 +220,45 @@ button.po-day:disabled { cursor: default; }
 .pa-scroll__end { height: 1px; }
 .pa-scroll__footer { display: flex; justify-content: center; padding: 16px; }
 .pa-table .po-table__table { min-width: 980px; table-layout: auto; width: 100%; }
-.pa-orders-table { table-layout: fixed !important; }
-.pa-orders-table th:nth-child(1), .pa-orders-table td:nth-child(1) { width: 31%; }
-.pa-orders-table th:nth-child(2), .pa-orders-table td:nth-child(2) { width: 18%; }
-.pa-orders-table th:nth-child(3), .pa-orders-table td:nth-child(3) { width: 10%; }
-.pa-orders-table th:nth-child(4), .pa-orders-table td:nth-child(4) { width: 15%; }
-.pa-orders-table th:nth-child(5), .pa-orders-table td:nth-child(5) { width: 9%; }
-.pa-orders-table th:nth-child(6), .pa-orders-table td:nth-child(6) { width: 5%; }
-.pa-orders-table--actions th:nth-child(7), .pa-orders-table--actions td:nth-child(7) { width: 12%; }
-.pa-orders-table td { min-width: 0; overflow: hidden; }
-.pa-orders-table td:nth-child(3) .pa-copy-value { display: block; min-width: 0; overflow: hidden; }
-.pa-orders-table .pa-number { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/*
+ * Колонки заказов: ширина под содержимое, товар забирает остаток. Ширины задаёт шапка (table-layout: fixed берёт их
+ * из первой строки). Плотность решает ширина самой таблицы (container query), а не окна: на ноутбуке и на мониторе
+ * с открытой панелью фильтров места разное.
+ */
+.pa-scroll--orders { container-name: pa-orders; container-type: inline-size; }
+.pa-list .pa-table .pa-orders-table { min-width: 1300px !important; table-layout: fixed !important; }
+.pa-list .pa-table .pa-orders-table th.pa-col-product { max-width: none; min-width: 0; width: auto; }
+.pa-list .pa-table .pa-orders-table th.pa-col-posting { width: 176px; }
+.pa-list .pa-table .pa-orders-table th.pa-col-status { min-width: 0; width: 196px; }
+.pa-list .pa-table .pa-orders-table th.pa-col-warehouse { width: 140px; }
+.pa-list .pa-table .pa-orders-table th.pa-col-supplier { width: 120px; }
+.pa-list .pa-table .pa-orders-table th.pa-col-date { min-width: 0; width: 184px; }
+.pa-list .pa-table .pa-orders-table th.pa-col-qty { width: 110px; }
+.pa-list .pa-table .pa-orders-table th.pa-col-actions { min-width: 0; width: 160px; }
+.pa-list .pa-table .pa-orders-table td { min-width: 0; overflow: hidden; }
+.pa-list .pa-table .pa-orders-table td.pa-col-posting .pa-copy-value { display: flex; min-width: 0; position: relative; }
+/* Кнопка копирования номера — поверх конца номера при наведении, а не рядом: иначе номер из 17 знаков не помещается. */
+.pa-list .pa-table .pa-orders-table td.pa-col-posting .pa-copy-value__button { background: var(--ozi-bg-primary); border-radius: 6px; position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+.pa-list .pa-table .pa-orders-table .pa-number { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-supplier-inline { display: none; }
+/* Ноутбук или монитор с панелью и развёрнутым меню: таблица уже 1300px — плотнее строки и шрифт, поставщик уходит под склад. */
+@container pa-orders (max-width: 1299px) {
+  .pa-list .pa-table .pa-orders-table { min-width: 960px !important; }
+  .pa-list .pa-table .pa-orders-table th, .pa-list .pa-table .pa-orders-table td { padding-left: 6px; padding-right: 6px; }
+  .pa-list .pa-table .pa-orders-table td { font-size: 13px; line-height: 18px; padding-bottom: 10px; padding-top: 10px; }
+  .pa-list .pa-table .pa-orders-table .pa-sub { font-size: 12px; line-height: 16px; }
+  .pa-list .pa-table .pa-orders-table .pa-returns__product { gap: 8px; }
+  .pa-list .pa-table .pa-orders-table .pa-col-supplier { display: none; }
+  .pa-list .pa-table .pa-orders-table .pa-supplier-inline { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-list .pa-table .pa-orders-table th.pa-col-posting { width: 168px; }
+  .pa-list .pa-table .pa-orders-table .pa-number { font-size: 13px; }
+  .pa-list .pa-table .pa-orders-table th.pa-col-status { width: 172px; }
+  .pa-list .pa-table .pa-orders-table th.pa-col-warehouse { width: 128px; }
+  .pa-list .pa-table .pa-orders-table th.pa-col-date { width: 150px; }
+  .pa-list .pa-table .pa-orders-table .pa-col-date .pa-sub { white-space: normal; }
+  .pa-list .pa-table .pa-orders-table th.pa-col-qty { width: 100px; }
+  .pa-list .pa-table .pa-orders-table th.pa-col-actions { width: 150px; }
+}
 .pa-table th { white-space: nowrap; }
 .pa-nowrap { white-space: nowrap; }
 .pa-returns__product { display: flex; align-items: flex-start; gap: 12px; }
@@ -915,8 +943,10 @@ button.pa-subchip:hover:not(:disabled):not(.pa-subchip--active) { color: var(--o
 .pa-list .pa-table.pa-table--shelf th:nth-child(3), .pa-list .pa-table.pa-table--shelf td:nth-child(3) { width: 20%; }
 .pa-list .pa-table.pa-table--shelf th:nth-child(4), .pa-list .pa-table.pa-table--shelf td:nth-child(4) { width: 18%; }
 .pa-list .pa-table.pa-table--shelf th:nth-child(5), .pa-list .pa-table.pa-table--shelf td:nth-child(5) { width: 12%; }
-.pa-list .pa-table--outbound .po-badge__badge, .pa-list .pa-table--shelf .po-badge__badge { height: auto; max-width: 100%; min-height: 24px; }
-.pa-list .pa-table--outbound .po-badge__label, .pa-list .pa-table--shelf .po-badge__label { overflow: visible; text-overflow: clip; white-space: normal; }
+.pa-list .pa-table--outbound .po-badge__badge, .pa-list .pa-table--shelf .po-badge__badge,
+.pa-list .pa-table--main .pa-returns__status-box .po-badge__badge { height: auto; max-width: 100%; min-height: 24px; }
+.pa-list .pa-table--outbound .po-badge__label, .pa-list .pa-table--shelf .po-badge__label,
+.pa-list .pa-table--main .pa-returns__status-box .po-badge__label { overflow: visible; text-overflow: clip; white-space: normal; }
 .pa-list .pa-table--outbound td .po-button__button, .pa-list .pa-table--shelf td .po-button__button { white-space: nowrap; }
 
 /* ---------- Возвраты: схема FBS/FBO, пара и история позиции ---------- */
