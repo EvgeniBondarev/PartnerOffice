@@ -137,8 +137,9 @@ export function ReturnsResults({ section, canWork, phone, data, items, loading, 
   const SHELF_BADGE: Record<string, BadgeKind> = { reserved: 'secondary warning', written_off: 'secondary neutral' };
   const shelfStatus = (row: ReturnRow) => <>
     <Badge kind={SHELF_BADGE[row.decision?.status ?? ''] ?? 'primary success'}>{row.decision?.status_name || 'На полке'}</Badge>
-    {(row.decision?.reservations ?? []).map(reservation => <div className="pa-sub pa-shelf-reservation" key={`${reservation.order_id}:${reservation.state}:${reservation.at ?? ''}`}>
-      <div>{reservation.state === 'written_off' ? 'Списан по заказу' : 'Под заказ'} {reservation.posting_number || `№${reservation.order_id}`}</div>
+    {(row.decision?.reservations ?? []).map(reservation => <div className="pa-sub pa-shelf-reservation" key={`${reservation.order_id}:${reservation.state}:${reservation.source ?? ''}:${reservation.at ?? ''}`}>
+      <div>{reservation.source === 'onec' ? 'Списан по остатку 1С'
+        : <>{reservation.state === 'written_off' ? 'Списан по заказу' : 'Под заказ'} {reservation.posting_number || `№${reservation.order_id}`}</>}</div>
       <div>{formatQuantity(reservation.qty)}{reservation.at ? ` · ${formatUtcDateTime(reservation.at)}` : ''}</div>
     </div>)}
   </>;
