@@ -270,6 +270,9 @@ button.po-day:disabled { cursor: default; }
 .pa-photo--empty { color: var(--ozi-graphic-tertiary-transparent); display: grid; place-items: center; }
 .pa-tone--negative { color: var(--ozi-text-negative); }
 .pa-tone--success { color: var(--ozi-text-success); }
+/* Остаток полки в узкой колонке «Кол-во»: подпись переносится, число остаётся целым */
+.pa-shelf-stock { white-space: normal; margin-top: 2px; }
+.pa-shelf-reservation { margin-top: 4px; }
 .pa-tone--warning { color: var(--ozi-text-warning); }
 .pa-tone--neutral { color: var(--ozi-text-secondary-transparent); }
 .pa-actions { align-items: flex-start; display: flex; flex-direction: column; gap: 8px; }

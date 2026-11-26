@@ -34,6 +34,22 @@ const align = (side: 'left' | 'right') => `po-table-cell-base__horizontal-align-
  * Картинка товара: в таблице миниатюра (c100/c200, а не оригинал), по клику открывается просмотр.
  * Нет картинки или она не загрузилась — нейтральная заглушка.
  */
+/**
+ * Возвраты на «Полке» с артикулом заказа: зелёным — сколько свободно, отдельно — сколько уже в резерве под заказ.
+ * «Принят» резервирует свободные позиции под заказ; после отправки заказа они списываются с полки.
+ */
+export function ShelfStock({ order }: { order: Pick<OrderListItem, 'shelf' | 'quantity'> }) {
+  const shelf = order.shelf;
+  if (!shelf || (shelf.available <= 0 && shelf.reserved <= 0)) return null;
+  const need = Math.max(1, order.quantity ?? 1);
+  return <>
+    {shelf.reserved > 0 && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock">В резерве: {formatQuantity(shelf.reserved)}</div>}
+    {shelf.available > 0 && shelf.reserved < need && <div className="pa-sub pa-tone pa-tone--success pa-shelf-stock" title="Свободные возвраты на вашей полке с тем же артикулом">
+      На полке: {formatQuantity(shelf.available)}
+    </div>}
+  </>;
+}
+
 export function ProductImage({ url, alt, size = 48, onOpen }: { url: string | null; alt: string; size?: number; onOpen?: (image: { url: string; alt: string }) => void }) {
   const [failed, setFailed] = useState(false);
   const style = { width: size, height: size };
@@ -236,6 +252,7 @@ export function OrdersTable({ items, loading, loadingMore = false, partner, busy
                   <td className={`${TD} ${align('right')} pa-nowrap`}>
                     <div>{formatQuantity(order.quantity)}</div>
                     <div className="pa-sub">{formatMoney(order.price)}</div>
+                    <ShelfStock order={order} />
                   </td>
                   {showActions && (
                     <td className={`${TD} ${align('left')} pa-col-actions`} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>

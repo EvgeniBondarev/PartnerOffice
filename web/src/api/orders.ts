@@ -50,6 +50,11 @@ export interface OrderListItem {
   partnerShipmentConfirmed?: boolean;
   /** Доступность действия определяется сервером с учётом прав и состояния заказа. */
   canReturnToShelf?: boolean;
+  /**
+   * Возвраты на «Полке» с тем же артикулом: свободно штук и зарезервировано под этот заказ.
+   * Только у заказов в работе, которые не отменены; нет на полке — поля нет.
+   */
+  shelf?: { available: number; reserved: number } | null;
   warehouseId: number | null;
   warehouse: string | null;
   clientId: number | null;

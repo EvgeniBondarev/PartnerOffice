@@ -22,8 +22,9 @@ const MARK_OPTIONS = [{ value: 'pending', label: 'Ожидает' }, { value: 'a
 const MARK_SUB_OPTIONS = [{ value: 'ok', label: 'ОК (стандартно)' }, { value: 'defect', label: 'Брак' }, { value: 'missort', label: 'Пересорт' }];
 const SUB_VALUES = MARK_SUB_OPTIONS.map(option => option.value);
 const REVIEW_OPTIONS = [{ value: 'queue', label: 'На разборе' }];
+const STOCK_OPTIONS = [{ value: 'on_shelf', label: 'На полке' }, { value: 'reserved', label: 'В резерве' }, { value: 'written_off', label: 'Списан' }];
 type Query = {
-  panelFilters: Record<'mark' | 'status' | 'clientId' | 'review' | 'supplier' | 'pvz' | 'dateFrom' | 'dateTo', string>;
+  panelFilters: Record<'mark' | 'status' | 'clientId' | 'review' | 'stock' | 'supplier' | 'pvz' | 'dateFrom' | 'dateTo', string>;
   pvzDraft: string; setPvzDraft: (value: string) => void;
   change: (next: Partial<Query['panelFilters']>) => void; clear: () => void; activeCount: number;
 };
@@ -50,7 +51,7 @@ export function ReturnsControls({ section, canWork, counts, data, facetData, sup
     available ? options.filter(option => available.includes(option.value) || splitList(selected).includes(option.value)) : options;
   const label = (options: { value: string; label: string }[], value: string) => options.find(option => option.value === value)?.label ?? value;
   // Тег на каждое выбранное значение: крестик снимает только его.
-  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'supplier', title: string, name: (value: string) => string): FilterChip[] =>
+  const valueChips = (id: 'mark' | 'status' | 'clientId' | 'review' | 'stock' | 'supplier', title: string, name: (value: string) => string): FilterChip[] =>
     splitList(panelFilters[id]).map(value => ({ id: `${id}:${value}`, label: `${title}: ${name(value)}`, onRemove: () => change({ [id]: toggleValue(panelFilters[id], value) }) }));
   const chips: FilterChip[] = [
     ...splitList(panelFilters.mark).map(value => ({
@@ -59,6 +60,7 @@ export function ReturnsControls({ section, canWork, counts, data, facetData, sup
       onRemove: () => { const rest = splitList(panelFilters.mark).filter(item => item !== value); change({ mark: joinList(SUB_VALUES.includes(value) && !rest.some(item => SUB_VALUES.includes(item)) && !rest.includes('accepted') ? [...rest, 'accepted'] : rest) }); }
     })),
     ...valueChips('review', 'Разбор', value => label(REVIEW_OPTIONS, value)),
+    ...valueChips('stock', 'Состояние', value => label(STOCK_OPTIONS, value)),
     ...valueChips('status', 'Статус Ozon', value => label(STATUS_OPTIONS, value)),
     ...valueChips('clientId', 'Кабинет', value => cabinets.find(c => String(c.id) === value)?.name ?? value),
     ...valueChips('supplier', 'Поставщик', value => value),
@@ -72,6 +74,7 @@ export function ReturnsControls({ section, canWork, counts, data, facetData, sup
       ? (facetData || data) && (!facets?.marks || facets.marks.length > 0 || !!panelFilters.mark) && <FilterSection title="Приёмка" active={!!panelFilters.mark}><MarkFilter value={panelFilters.mark} available={facets?.marks} availableSubs={facets?.mark_subs} onChange={value => change({ mark: value })} /></FilterSection>
       : !transit && (facetData || data) && optionsFor(STATUS_OPTIONS, facets?.statuses, panelFilters.status).length > 0 && <FilterSection title="Статус Ozon" active={!!panelFilters.status}><CheckboxGroup value={panelFilters.status} options={optionsFor(STATUS_OPTIONS, facets?.statuses, panelFilters.status)} onChange={value => change({ status: value })} /></FilterSection>}
     {received && (facetData || data) && optionsFor(REVIEW_OPTIONS, facets?.reviews, panelFilters.review).length > 0 && <FilterSection title="Разбор" active={!!panelFilters.review}><CheckboxGroup value={panelFilters.review} options={optionsFor(REVIEW_OPTIONS, facets?.reviews, panelFilters.review)} onChange={value => change({ review: value })} /></FilterSection>}
+    {shelf && <FilterSection title="Состояние" active={!!panelFilters.stock}><CheckboxGroup value={panelFilters.stock} options={STOCK_OPTIONS} onChange={value => change({ stock: value })} /></FilterSection>}
     {received && suppliers.length > 0 && <FilterSection title="Поставщик" active={!!panelFilters.supplier}>
       <CheckboxGroup value={panelFilters.supplier} options={suppliers.map(value => ({ value, label: value }))} onChange={value => change({ supplier: value })} />
     </FilterSection>}
@@ -93,7 +96,7 @@ export function ReturnsControls({ section, canWork, counts, data, facetData, sup
         : warehouse
         ? 'Возвраты, которые по решению сотрудников возвращаются на наш склад: перемещение в 1С создано. Когда товар придёт к нам, статус станет «Получено нами».'
         : shelf
-        ? 'Возвраты, которые по решению сотрудников остаются у вас: перемещение на ваш склад в 1С проведено.'
+        ? 'Возвраты, которые по решению сотрудников остаются у вас: перемещение на ваш склад в 1С проведено. «Принят» у заказа с тем же артикулом резервирует позицию, а после отправки заказа она списывается.'
         : 'Возвраты и FBO-коробки, которые Ozon уже передал продавцу и которые ещё не закрыты в архив.'}</p>
       </>}
       top={

@@ -1067,6 +1067,27 @@ describe('Возвраты', () => {
       expect(screen.getByRole('link', { name: /Полка/ })).toHaveAttribute('href', '/returns/shelf');
     });
 
+    it('резерв под заказ: бейдж «В резерве», заказ и количество; фильтр «Состояние» уходит на сервер и лежит в адресе', async () => {
+      const user = userEvent.setup();
+      const calls = mockApi({
+        '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4] }),
+        '/partner-api/returns?*': () => json(shelfPage([shelfRow({ status: 'reserved', status_name: 'В резерве',
+          reservations: [{ order_id: 5, posting_number: '0123-0005-1', qty: 2, state: 'reserved', state_name: 'В резерве', at: '2026-11-26T07:30:00' }] })]))
+      });
+      renderApp('/returns/shelf?stock=reserved,lost');
+      await screen.findByText('Шрус NAKAYAMA');
+      expect(param(listing(calls).url, 'stock')).toBe('reserved');     // неизвестное значение из адреса отброшено
+      const region = screen.getByRole('region', { name: 'Возвраты на полке' });
+      expect(within(region).getByText('В резерве')).toBeInTheDocument();
+      expect(within(region).getByText('Под заказ 0123-0005-1')).toBeInTheDocument();
+      expect(within(region).getByText(/^2 шт\. · /)).toBeInTheDocument();
+      const group = screen.getByRole('group', { name: 'Состояние' });
+      expect(within(group).getByRole('checkbox', { name: 'В резерве' })).toBeChecked();
+      await user.click(within(group).getByRole('checkbox', { name: 'Списан' }));
+      await waitFor(() => expect(param(listing(calls).url, 'stock')).toBe('reserved,written_off'));
+      expect(screen.getByRole('button', { name: /Состояние: Списан/ })).toBeInTheDocument();
+    });
+
     it('на «Полке» нет отметки «Положил на полку», колонки «Отметка» и её фильтра, даже с правом «Приём возвратов»', async () => {
       const calls = mockApi({
         '/partner-api/auth/me': () => json({ id: 1, name: 'Партнёр', email: null, permissions: [4, 5] }),

@@ -11,11 +11,14 @@ export interface ReturnRow {
   image_url?: string | null; batch_id?: string | null; ii_code?: string | null;
   onec?: { status: 'accepted' | 'processing' | 'none'; number?: string | null; at?: string | null };
   review?: 'queue' | null;
-  decision?: { outcome?: string; status?: string; status_name?: string | null; status_at?: string | null; warehouse?: string | null; doc_number?: string | null; ttn?: { name: string; size: number } | null; onec?: { number?: string | null; at?: string | null }; partner_ack_at?: string | null };
+  decision?: { outcome?: string; status?: string; status_name?: string | null; status_at?: string | null; warehouse?: string | null; doc_number?: string | null; ttn?: { name: string; size: number } | null; onec?: { number?: string | null; at?: string | null }; partner_ack_at?: string | null; reservations?: ShelfReservation[] | null };
   mark?: string; defect?: boolean; missort?: boolean; comment?: string; marked_by?: string;
   units?: ReturnRow[]; unitOf?: string; schema?: string[] | null; supplier?: string | null;
   pair?: ReturnPair | null; history?: ReturnEvent[] | null;
 }
+
+/** Резерв позиции «Полки» под заказ партнёра: reserved — «В резерве», written_off — «Списан» (заказ отправлен). */
+export interface ShelfReservation { order_id: number; posting_number?: string | null; qty: number; state: 'reserved' | 'written_off'; state_name?: string | null; at?: string | null }
 
 export type ReturnMark = Pick<ReturnRow, 'mark' | 'defect' | 'missort' | 'comment' | 'marked_by'> & {
   /** Сервер подтвердил постановку на разбор: в интерфейсе показываем уведомление. */

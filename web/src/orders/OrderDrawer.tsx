@@ -10,7 +10,7 @@ import { Informer } from '../ui/Informer';
 import { Overlay } from '../ui/Overlay';
 import { Skeleton } from '../ui/Skeleton';
 import { OrderRowActions, type ActionKind } from './OrderRowActions';
-import { ProductImage } from './OrdersTable';
+import { ProductImage, ShelfStock } from './OrdersTable';
 
 interface OrderDrawerProps {
   order: OrderListItem;
@@ -107,7 +107,7 @@ export function OrderDrawer({ order, partner, refreshKey, busy, onClose, onImage
           <Row label="ScanIt">{details?.scanit ? <CopyValue value={details.scanit} label="код этикетки ScanIt"><span className="pa-mono">{details.scanit}</span></CopyValue> : <span className="pa-muted">Ozon ещё не отдал</span>}</Row>
           <Row label="Трек-номер"><CopyValue value={current.trackingNumber} label="трек-номер">{dash(current.trackingNumber)}</CopyValue></Row>
           <Row label="Штрихкод товара">{details?.barcode ? <CopyValue value={details.barcode} label="штрихкод товара"><span className="pa-mono">{details.barcode}</span></CopyValue> : '—'}</Row>
-          <Row label="Количество">{formatQuantity(current.quantity)}</Row>
+          <Row label="Количество">{formatQuantity(current.quantity)}<ShelfStock order={{ quantity: current.quantity, shelf: current.shelf ?? order.shelf }} /></Row>
           <Row label="Цена">{formatMoney(current.price)}</Row>
           <Row label="Склад">{dash(current.warehouse)}</Row>
           <Row label="Клиент">{dash(current.client)}</Row>

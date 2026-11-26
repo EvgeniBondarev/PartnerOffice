@@ -429,6 +429,30 @@ describe('Статус Studio2: «Принят» → «Отгрузить»', ()
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
   });
 
+  it('полка: зелёным «На полке» у количества; «Принят» предупреждает о резерве и показывает зарезервированное', async () => {
+    const user = userEvent.setup();
+    let current = order(1, { statusAction: 'accept', quantity: 2, shelf: { available: 2, reserved: 0 } });
+    ordersApi(PARTNER_FULL, [current, order(2)], {
+      '/partner-api/orders?*': () => ordersPage([current, order(2)]),
+      'POST /partner-api/orders/1/status/accept': () =>
+        json(current = order(1, { statusId: 21, status: 'Принят на складе', statusAction: 'ship', quantity: 2, shelf: { available: 0, reserved: 2 } }))
+    });
+    renderApp('/orders');
+
+    const stock = within(await screen.findByRole('row', { name: /Заказ 0123-0001-1/ })).getByText('На полке: 2 шт.');
+    expect(stock).toHaveClass('pa-tone--success');
+    expect(within(row(2)).queryByText(/На полке|В резерве/)).not.toBeInTheDocument();
+
+    await user.click(within(row(1)).getByRole('button', { name: 'Принят' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Принять заказ?' });
+    expect(dialog).toHaveTextContent('На вашей полке есть 2 шт. с этим артикулом: они будут зарезервированы под заказ');
+    await user.click(within(dialog).getByRole('button', { name: 'Принят' }));
+
+    expect(await screen.findByText('Статус: Принят на складе. Зарезервировано на полке: 2 шт.')).toBeInTheDocument();
+    expect(within(row(1)).getByText('В резерве: 2 шт.')).toBeInTheDocument();
+    expect(within(row(1)).queryByText(/На полке:/)).not.toBeInTheDocument();
+  });
+
   it('цепочка: «Принят» → «Отгрузить» (собирает отправление в Ozon) → кнопки нет; ответ сервера сразу в строке', async () => {
     const user = userEvent.setup();
     let current = order(1, { statusAction: 'accept' });
