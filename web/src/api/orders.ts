@@ -11,7 +11,7 @@ export interface OrderFilters {
   /** Статусы Studio2 среди видимых партнёру заказов, со счётчиками. */
   statuses: FilterOption[];
   groupCounts?: { work: number; sent: number; ready: number };
-  /** Статусы Ozon: фильтр по ним больше не показывается, поле оставлено для совместимости. */
+  /** Статусы маркетплейса (Ozon) среди видимых партнёру заказов. */
   ozonStatuses?: string[];
   warehouses: FilterOption[];
   clients: FilterOption[];
@@ -95,6 +95,8 @@ export interface OrderQuery {
   search?: string;
   /** Статусы Studio2: одно число или несколько через запятую («21,24»). */
   statusId?: number | string;
+  /** Статусы маркетплейса (Ozon): названия, несколько — через запятую. */
+  ozonStatus?: string;
   /** Несколько значений — строка через запятую: «1,2». */
   warehouseId?: number | string;
   clientId?: number | string;
@@ -161,6 +163,7 @@ export function buildOrdersQuery(query: OrderQuery): string {
   if (query.group) params.set('group', query.group);
   if (query.search?.trim()) params.set('search', query.search.trim());
   if (query.statusId) params.set('statusId', String(query.statusId));
+  if (query.ozonStatus) params.set('ozonStatus', query.ozonStatus);
   if (query.warehouseId) params.set('warehouseId', String(query.warehouseId));
   if (query.clientId) params.set('clientId', String(query.clientId));
   if (query.supplierId) params.set('supplierId', String(query.supplierId));

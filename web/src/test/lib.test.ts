@@ -100,15 +100,18 @@ describe('форма данных экземпляров', () => {
 
 describe('фильтры в адресе и запрос', () => {
   it('туда и обратно, пустые значения в адрес не попадают', () => {
-    const filters = { search: ' 122RU19=HSH ', statusId: '21,24', warehouseId: '', clientId: '', supplierId: '5,7', from: '2026-10-01', to: '' };
+    const filters = { search: ' 122RU19=HSH ', statusId: '21,24', ozonStatus: 'Доставляется,Отменён', warehouseId: '', clientId: '', supplierId: '5,7', from: '2026-10-01', to: '' };
     const params = writeParams(filters);
+    expect(params.get('ozonStatus')).toBe('Доставляется,Отменён');
+    params.delete('ozonStatus');
     expect(params.toString()).toBe('search=122RU19%3DHSH&status=21%2C24&supplier=5%2C7&from=2026-10-01');
+    params.set('ozonStatus', 'Доставляется,Отменён');
     expect(readFilters(params)).toEqual({ ...filters, search: '122RU19=HSH' });
   });
 
   it('в запрос к API идут числа и только заполненное', () => {
-    const query = toQuery({ search: '', statusId: '21,x,24', warehouseId: 'x', clientId: '', supplierId: '7,x,7', from: '', to: '2026-10-12' });
-    expect(query).toEqual({ search: undefined, statusId: '21,24', warehouseId: undefined, clientId: undefined, supplierId: 7, from: undefined, to: '2026-10-12' });
-    expect(buildOrdersQuery({ ...query, page: 3, pageSize: 50 })).toBe('statusId=21%2C24&supplierId=7&to=2026-10-12&page=3&pageSize=50');
+    const query = toQuery({ search: '', statusId: '21,x,24', ozonStatus: 'Отменён', warehouseId: 'x', clientId: '', supplierId: '7,x,7', from: '', to: '2026-10-12' });
+    expect(query).toEqual({ search: undefined, statusId: '21,24', ozonStatus: 'Отменён', warehouseId: undefined, clientId: undefined, supplierId: 7, from: undefined, to: '2026-10-12' });
+    expect(buildOrdersQuery({ ...query, page: 3, pageSize: 50 })).toBe('statusId=21%2C24&ozonStatus=%D0%9E%D1%82%D0%BC%D0%B5%D0%BD%D1%91%D0%BD&supplierId=7&to=2026-10-12&page=3&pageSize=50');
   });
 });

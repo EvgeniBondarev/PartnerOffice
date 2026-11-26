@@ -38,6 +38,16 @@ describe('Список заказов', () => {
     renderApp('/');
     expect(await within(await screen.findByRole('main')).findByRole('link', { name: 'Заказы' })).toHaveAttribute('href', '/orders/sent');
   });
+  it('фильтрует по статусу маркетплейса: секция, запрос и тег', async () => {
+    const calls = ordersApi(PARTNER_FULL, [], {
+      '/partner-api/orders/filters': () => json({ statuses: [{ id: 1, name: 'Новый' }], ozonStatuses: ['Доставляется', 'Отменён'], warehouses: [], clients: [], groupCounts: { work: 1, sent: 0, ready: 0 } })
+    });
+    renderApp('/orders');
+    const user = userEvent.setup();
+    await user.click(await screen.findByLabelText('Отменён'));
+    await waitFor(() => expect(calls.some((c) => c.url.includes('/partner-api/orders?') && c.url.includes('ozonStatus=%D0%9E%D1%82%D0%BC%D0%B5%D0%BD%D1%91%D0%BD'))).toBe(true));
+    expect(await screen.findByText('Статус маркетплейса: Отменён')).toBeInTheDocument();
+  });
   it('подбирает варианты фильтров по вкладке', async () => {
     ordersApi(PARTNER_FULL, [], {
       '/partner-api/orders/filters': (_init, url) => json({ statuses: [{ id: 1, name: url?.includes('group=sent') ? 'Отправленный' : 'Новый' }], warehouses: [], clients: [], groupCounts: { work: 1, sent: 1, ready: 0 } })
